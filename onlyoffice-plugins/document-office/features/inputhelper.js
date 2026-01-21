@@ -1,0 +1,164 @@
+// Input helper + keyboard detection fallback
+(function () {
+  var DO = (window.DO = window.DO || {});
+  DO.features = DO.features || {};
+
+  var PLUGIN_GUID = "asc.{C6A86F5A-5A0F-49F8-9E72-9E8E1E2F86A1}";
+
+  function extractLastToken(text) {
+    try {
+      var s = String(text || "");
+      s = s.replace(/\u00A0/g, " ").trim();
+      var m = s.match(/([A-Za-z0-9ก-๙._-]{2,})$/);
+      return m ? m[1] : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function showHelper() {
+    try {
+      if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
+        window.Asc.plugin.executeMethod("ShowInputHelper", [PLUGIN_GUID, 80, 40, true]);
+      }
+    } catch (e) {}
+  }
+
+  function setItems(items) {
+    try {
+      if (window.Asc && window.Asc.plugin && window.Asc.plugin.getInputHelper) {
+        var ih = window.Asc.plugin.getInputHelper();
+        if (ih && ih.setItems) ih.setItems(items);
+      }
+    } catch (e) {}
+  }
+
+  function updateSuggestions(query) {
+    var q = String(query || "").trim().toLowerCase();
+    if (!q) return;
+
+    showHelper();
+
+    var list = [];
+    var seen = {};
+
+    // abbreviation
+    var abbr = DO.store.abbreviations || [];
+    for (var i = 0; i < abbr.length && list.length < 5; i++) {
+      var s = String(abbr[i].shortForm || "").trim();
+      var f = String(abbr[i].fullForm || "").trim();
+      if (!s && !f) continue;
+      if (s.toLowerCase().indexOf(q) === 0 || f.toLowerCase().indexOf(q) === 0) {
+        var val = f || s;
+        var key = "abbr:" + val;
+        if (!seen[key]) {
+          seen[key] = true;
+          list.push({ text: val, value: val });
+        }
+      }
+    }
+
+    // dictionary (local)
+    var dict = DO.store.dictionary || [];
+    for (var di = 0; di < dict.length && list.length < 5; di++) {
+      var dw = String(dict[di].word || dict[di].Word || "").trim();
+      if (!dw) continue;
+      if (dw.toLowerCase().indexOf(q) === 0) {
+        var k2 = "dict:" + dw;
+        if (!seen[k2]) {
+          seen[k2] = true;
+          list.push({ text: dw, value: dw });
+        }
+      }
+    }
+
+    // clipboard
+    var clips = DO.store.clipboard || [];
+    for (var ci = 0; ci < clips.length && list.length < 5; ci++) {
+      var t = String(clips[ci].text || "").trim();
+      if (!t) continue;
+      if (t.toLowerCase().indexOf(q) === 0) {
+        var k3 = "clip:" + t;
+        if (!seen[k3]) {
+          seen[k3] = true;
+          list.push({ text: t, value: t });
+        }
+      }
+    }
+
+    setItems(list);
+    DO.debugLog("inputHelper_items", { count: list.length });
+  }
+
+  function attachEvents() {
+    if (!window.Asc || !window.Asc.plugin || !window.Asc.plugin.attachEditorEvent) return;
+
+    // ensure input helper exists (บาง build ต้อง create ก่อนถึงจะยิง event)
+    try {
+      if (!window.__do_inputHelperInited && window.Asc.plugin.createInputHelper) {
+        window.__do_inputHelperInited = true;
+        window.Asc.plugin.createInputHelper();
+        if (window.Asc.plugin.getInputHelper) {
+          window.Asc.plugin.getInputHelper().createWindow();
+        }
+        DO.debugLog("inputHelper_inited");
+      }
+    } catch (e0) {}
+
+    window.Asc.plugin.attachEditorEvent("onInputHelperInput", function (data) {
+      var text = "";
+      try {
+        if (typeof data === "string") text = data;
+        else if (data && typeof data.text === "string") text = data.text;
+        else if (data && typeof data.data === "string") text = data.data;
+      } catch (e) {}
+      if (text && text.length >= 2) {
+        DO.debugLog("inputHelper_input", { text: text, len: text.length });
+        updateSuggestions(text);
+      }
+    });
+
+    window.Asc.plugin.attachEditorEvent("onInputHelperClear", function () {
+      try {
+        if (window.Asc && window.Asc.plugin) {
+          window.Asc.plugin.executeMethod("UnShowInputHelper", [PLUGIN_GUID, true]);
+        }
+      } catch (e) {}
+    });
+
+    window.Asc.plugin.attachEditorEvent("onInputHelperItemClick", function (data) {
+      try {
+        var value = "";
+        if (typeof data === "string") value = data;
+        else if (data && typeof data.text === "string") value = data.text;
+        else if (data && typeof data.value === "string") value = data.value;
+        else if (data && data.item && typeof data.item.text === "string") value = data.item.text;
+        if (value) {
+          DO.editor.insertText(value);
+        }
+      } catch (e) {}
+    });
+
+    // Fallback: onTargetPositionChanged → throttle → read paragraph → detect token
+    window.Asc.plugin.attachEditorEvent("onTargetPositionChanged", function () {
+      if (DO.state.targetTimer) return;
+      DO.state.targetTimer = setTimeout(function () {
+        DO.state.targetTimer = 0;
+        DO.editor.getCurrentParagraphText(function (paraText) {
+          var token = extractLastToken(paraText || "");
+          if (token && token !== DO.state.lastToken) {
+            DO.state.lastToken = token;
+            DO.debugLog("token_detected", { token: token });
+            updateSuggestions(token);
+          }
+        });
+      }, 250);
+    });
+  }
+
+  DO.features.inputhelper = {
+    attachEvents: attachEvents,
+    updateSuggestions: updateSuggestions,
+  };
+})();
+
