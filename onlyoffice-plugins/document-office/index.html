@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DocumentOffice Assistant</title>
+    <link rel="stylesheet" href="styles.css?v=0.1.4" />
+    <script type="text/javascript" src="code.js?v=0.1.4" defer></script>
+  </head>
+  <body>
+    <div class="root">
+      <header class="header">
+        <div class="headerLeft">
+          <div class="title">DocumentOffice</div>
+          <div class="badges">
+            <span class="badge" id="pluginVersion">v?</span>
+          </div>
+        </div>
+        <div class="headerRight">
+          <div class="status" id="status">loading…</div>
+          <button class="btnGhost" id="toggleDebug" type="button">Debug</button>
+        </div>
+      </header>
+
+      <div class="tabsScroll" role="tablist" aria-label="DocumentOffice tabs">
+        <button class="tabBtn isActive" id="tabBtn-clipboard" type="button" data-tab="clipboard">
+          📋 Clipboard & Macros
+        </button>
+        <button class="tabBtn" id="tabBtn-dictionary" type="button" data-tab="dictionary">
+          📚 Dictionary
+        </button>
+        <button class="tabBtn" id="tabBtn-abbreviation" type="button" data-tab="abbreviation">
+          📝 คำย่อ
+        </button>
+        <button class="tabBtn" id="tabBtn-redundant" type="button" data-tab="redundant">
+          🗑️ คำฟุ่มเฟือย
+        </button>
+      </div>
+
+      <main class="main">
+        <section class="tabPanel isActive" id="tab-clipboard" data-tab="clipboard">
+          <div class="panelHeader">
+            <div class="panelTitle">📋 Clipboard & Macros</div>
+            <div class="panelActions">
+              <button id="macroReload" type="button">Reload Macros</button>
+              <button id="clipReload" type="button">Reload Clipboard</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <input id="clipText" class="input" placeholder="ข้อความที่ต้องการเพิ่มใน Clipboard..." />
+            <button id="clipAdd" type="button">เพิ่ม Clipboard</button>
+          </div>
+
+          <div class="split2">
+            <div class="card">
+              <div class="subtitle">Clipboard</div>
+              <div id="clipList" class="list"></div>
+            </div>
+            <div class="card">
+              <div class="subtitle">Macros</div>
+              <div id="macroList" class="list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tabPanel" id="tab-dictionary" data-tab="dictionary">
+          <div class="panelHeader">
+            <div class="panelTitle">📚 Dictionary</div>
+            <div class="panelActions">
+              <button id="dictToggleAdd" type="button">เพิ่มคำ</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <input id="dictQuery" class="input" placeholder="พิมพ์คำเพื่อค้นหา..." />
+            <button id="dictSearch" type="button">ค้นหา</button>
+          </div>
+
+          <div class="card isHidden" id="dictAddCard">
+            <div class="subtitle">เพิ่มคำใหม่ (Local)</div>
+            <div class="row">
+              <input id="dictNewWord" class="input" placeholder="คำศัพท์" />
+              <input id="dictNewDesc" class="input" placeholder="คำอธิบาย (ไม่บังคับ)" />
+              <button id="dictAdd" type="button">เพิ่ม</button>
+            </div>
+          </div>
+
+          <div class="split2">
+            <div class="card">
+              <div class="subtitle">ผลการค้นหา</div>
+              <div id="dictResults" class="list"></div>
+            </div>
+            <div class="card">
+              <div class="subtitle">คำที่บันทึกไว้ (Local)</div>
+              <div id="dictSavedList" class="list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tabPanel" id="tab-abbreviation" data-tab="abbreviation">
+          <div class="panelHeader">
+            <div class="panelTitle">📝 คำย่อ</div>
+            <div class="panelActions">
+              <button id="abbrExpandSelection" type="button">Expand selection</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <input id="abbrShort" class="input" placeholder="คำย่อ" />
+            <input id="abbrFull" class="input" placeholder="คำเต็ม" />
+            <button id="abbrAdd" type="button">เพิ่ม</button>
+          </div>
+
+          <div class="card">
+            <div class="subtitle">รายการคำย่อ</div>
+            <div id="abbrList" class="list"></div>
+          </div>
+        </section>
+
+        <section class="tabPanel" id="tab-redundant" data-tab="redundant">
+          <div class="panelHeader">
+            <div class="panelTitle">🗑️ คำฟุ่มเฟือย</div>
+            <div class="panelActions">
+              <label class="inlineLabel">
+                <span>Mode</span>
+                <select id="checkMode">
+                  <option value="selection">Selection</option>
+                  <option value="paragraph">Paragraph</option>
+                  <option value="pageA">Page (cursor)</option>
+                </select>
+              </label>
+              <button id="redundantCheck" type="button">ตรวจ</button>
+              <button id="redundantReload" type="button">Reload</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <input id="redundantNewWord" class="input" placeholder="เพิ่มคำฟุ่มเฟือย (Local)" />
+            <button id="redundantAdd" type="button">เพิ่ม</button>
+          </div>
+
+          <div class="split2">
+            <div class="card">
+              <div class="subtitle">ผลการตรวจ</div>
+              <div id="redundantResults" class="list"></div>
+            </div>
+            <div class="card">
+              <div class="subtitle">รายการคำฟุ่มเฟือย (Local)</div>
+              <div id="redundantList" class="list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="debugPanel isHidden" id="debugPanel">
+          <div class="panelHeader">
+            <div class="panelTitle">Debug</div>
+            <div class="panelActions">
+              <button id="btnGetSelection" type="button">Get selection</button>
+              <button id="btnGetContext" type="button">Get context</button>
+              <button id="btnInsertDemo" type="button">Insert demo</button>
+            </div>
+          </div>
+          <pre class="output" id="output"></pre>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
+
