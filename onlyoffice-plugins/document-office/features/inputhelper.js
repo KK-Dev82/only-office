@@ -126,8 +126,8 @@
     }
 
     // Show helper only when we actually have items.
-    // Do NOT take keyboard here; typing detection comes from document polling.
-    showHelper(false);
+    // Take keyboard here so users can confirm with Tab/Enter (if supported by this build).
+    showHelper(true);
     setItems(list);
     DO.debugLog("inputHelper_items", { count: list.length });
   }
