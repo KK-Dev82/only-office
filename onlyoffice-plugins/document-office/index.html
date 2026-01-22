@@ -6,25 +6,36 @@
     <title>DocumentOffice Assistant</title>
     <!-- ONLYOFFICE Plugin SDK (required for window.Asc.plugin.executeMethod/callCommand/etc.) -->
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <!-- ONLYOFFICE UI helpers + base styles -->
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
-    <link rel="stylesheet" href="styles.css?v=0.1.11" />
+    <link rel="stylesheet" href="styles.css?v=0.1.15" />
     <!-- no bundler: load multiple scripts in order -->
     <!-- NOTE: do NOT use defer; SDK may call Asc.plugin.init before deferred scripts run -->
-    <script type="text/javascript" src="core/ns.js?v=0.1.11"></script>
-    <script type="text/javascript" src="core/util.js?v=0.1.11"></script>
-    <script type="text/javascript" src="core/telemetry.js?v=0.1.11"></script>
-    <script type="text/javascript" src="core/storage.js?v=0.1.11"></script>
-    <script type="text/javascript" src="core/editor.js?v=0.1.11"></script>
-    <script type="text/javascript" src="core/bus.js?v=0.1.11"></script>
-    <script type="text/javascript" src="core/uiwatch.js?v=0.1.11"></script>
-    <script type="text/javascript" src="ui/tabs.js?v=0.1.11"></script>
-    <script type="text/javascript" src="ui/debug.js?v=0.1.11"></script>
-    <script type="text/javascript" src="features/clipboard.js?v=0.1.11"></script>
-    <script type="text/javascript" src="features/macros.js?v=0.1.11"></script>
-    <script type="text/javascript" src="bootstrap.js?v=0.1.11"></script>
+    <script type="text/javascript" src="core/ns.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/telemetry.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/bus.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/uiwatch.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/tabs.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/debug.js?v=0.1.15"></script>
+    <script type="text/javascript" src="features/clipboard.js?v=0.1.15"></script>
+    <script type="text/javascript" src="features/macros.js?v=0.1.15"></script>
+    <!-- InputHelper typing/token detection (runs in background) -->
+    <script type="text/javascript" src="features/inputhelper.js?v=0.1.15"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.1.15"></script>
   </head>
   <body>
+    <!-- Fallback marker: if you see this, HTML loaded but CSS/JS may be blocked -->
+    <div id="doBootMarker" style="position:fixed;left:6px;bottom:6px;z-index:2147483647;background:rgba(0,0,0,0.55);color:#fff;font:12px system-ui;padding:2px 6px;border-radius:6px;pointer-events:none;">
+      DO boot (0.1.15)
+    </div>
+    <!-- Flow marker: visible even if fixed positioning breaks -->
+    <div id="doFlowMarker" style="padding:6px 10px;font:12px system-ui;color:#111; background:#fff; border-bottom:1px dashed #ddd;">
+      DO flow marker (0.1.15)
+    </div>
     <div class="doRoot">
       <header class="doHeader">
         <div class="doHeaderLeft">
@@ -43,14 +54,16 @@
         <button class="doTabBtn doIsActive" id="tabBtn-clipboard" type="button" data-tab="clipboard">
           📋 Clipboard
         </button>
+        <button class="doTabBtn" id="tabBtn-macros" type="button" data-tab="macros">
+          🧩 Macros
+        </button>
       </div>
 
       <main class="doMain">
         <section class="doTabPanel doIsActive" id="tab-clipboard" data-tab="clipboard">
           <div class="doPanelHeader">
-            <div class="doPanelTitle">📋 Clipboard & Macros</div>
+            <div class="doPanelTitle">📋 Clipboard</div>
             <div class="doPanelActions">
-              <button id="macroReload" type="button">Reload Macros</button>
               <button id="clipReload" type="button">Reload Clipboard</button>
             </div>
           </div>
@@ -60,15 +73,23 @@
             <button id="clipAdd" type="button">เพิ่ม Clipboard</button>
           </div>
 
-          <div class="doSplit2">
-            <div class="doCard">
-              <div class="doSubtitle">Clipboard</div>
-              <div id="clipList" class="doList"></div>
+          <div class="doCard">
+            <div class="doSubtitle">รายการ Clipboard</div>
+            <div id="clipList" class="doList"></div>
+          </div>
+        </section>
+
+        <section class="doTabPanel" id="tab-macros" data-tab="macros">
+          <div class="doPanelHeader">
+            <div class="doPanelActions">
+              <button id="macroOpenAdd" type="button">เพิ่ม Macro</button>
+              <button id="macroReload" type="button">Reload Macros</button>
             </div>
-            <div class="doCard">
-              <div class="doSubtitle">Macros</div>
-              <div id="macroList" class="doList"></div>
-            </div>
+          </div>
+
+          <div class="doCard" style="margin-top: 10px;">
+            <div class="doSubtitle">รายการ Macros</div>
+            <div id="macroList" class="doList"></div>
           </div>
         </section>
 
@@ -84,6 +105,47 @@
           <pre class="doOutput" id="output"></pre>
         </section>
       </main>
+    </div>
+
+    <!-- Add Macro Modal -->
+    <div class="doModalOverlay doIsHidden" id="macroAddModal" role="dialog" aria-modal="true" aria-label="เพิ่ม Macro">
+      <div class="doModal">
+        <div class="doModalHeader">
+          <div class="doModalTitle">เพิ่ม Macro</div>
+          <button class="doBtnGhost" id="macroModalClose" type="button">ปิด</button>
+        </div>
+        <div class="doModalBody">
+          <div class="doMuted" style="margin-bottom: 8px;">
+            - ชื่อไม่จำเป็น (ถ้าไม่ใส่ จะสร้างให้จากข้อความ/รายการ)<br />
+            - รองรับหลายรายการด้วย comma: <code>ชื่อ1, ชื่อ2, ชื่อ3</code> (ถ้าต้องการ comma จริง ใช้ <code>\,</code>)<br />
+            - ถ้า “ข้อความ” มี <code>{item}</code> จะเอาแต่ละรายการไปแทนที่ เช่น <code>[tab][tab]{item} : </code><br />
+            - ในช่องข้อความกด Tab ได้เลย และรองรับ token: <code>[tab]</code> <code>[space]</code> <code>[nl]</code>
+          </div>
+
+          <div class="doRow">
+            <input id="macroModalName" class="doInput" placeholder="ชื่อ Macro (ไม่จำเป็น) — ใส่ {item} ได้" />
+          </div>
+
+          <div class="doRow">
+            <textarea id="macroModalText" class="doTextarea doTextareaLarge" placeholder="ข้อความที่จะ Insert (รองรับ Tab/ขึ้นบรรทัดใหม่) — ใส่ {item} ได้"></textarea>
+          </div>
+
+          <div class="doRow" style="flex-wrap: wrap;">
+            <button id="macroModalInsertTab" type="button">+ [tab]</button>
+            <button id="macroModalInsertSpace" type="button">+ [space]</button>
+            <button id="macroModalInsertNewline" type="button">+ [nl]</button>
+            <button id="macroModalInsertColonSpace" type="button">+ :␠</button>
+          </div>
+
+          <div class="doRow">
+            <textarea id="macroModalItems" class="doTextarea" placeholder="หลายรายการ (คั่นด้วย ,) เช่น นายก, รองนายก, เลขาฯ"></textarea>
+          </div>
+        </div>
+        <div class="doModalFooter">
+          <button id="macroModalCancel" type="button">ยกเลิก</button>
+          <button id="macroModalSave" type="button">บันทึก</button>
+        </div>
+      </div>
     </div>
   </body>
 </html>

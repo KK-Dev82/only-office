@@ -8,64 +8,37 @@
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
-    <link rel="stylesheet" href="styles.css?v=0.2.0" />
-    <script type="text/javascript" src="core.js?v=0.2.0"></script>
-    <script type="text/javascript" src="speech-recognition.js?v=0.2.0"></script>
-    <script type="text/javascript" src="bootstrap.js?v=0.2.0"></script>
+    <link rel="stylesheet" href="styles.css?v=0.3.5" />
+    <script type="text/javascript" src="core.js?v=0.3.5"></script>
+    <script type="text/javascript" src="speech-recognition.js?v=0.3.5"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.3.5"></script>
   </head>
   <body>
     <div class="stt-root">
-      <header class="stt-header">
-        <div class="stt-title">🎤 Speech To Text</div>
-        <div class="stt-status" id="status">Ready</div>
+      <header class="stt2-header">
+        <div class="stt2-title">Speech To Text</div>
+        <div class="stt2-actions">
+          <label class="stt2-toggle" title="Toggle การฟัง">
+            <input id="listenToggle" type="checkbox" />
+            <span class="stt2-slider" aria-hidden="true"></span>
+          </label>
+          <button id="btnExpand" class="stt2-expand" type="button" aria-label="Expand/Collapse" title="ย่อ/ขยาย">
+            ▾
+          </button>
+          <button id="btnClose" class="stt2-close" type="button" aria-label="Close" title="ปิด">
+            ×
+          </button>
+        </div>
       </header>
 
-      <main class="stt-main stt-panelLike">
-        <div class="stt-panelTop">
-          <div class="stt-panelTopLeft">
-            <span class="stt-dot" id="sttDot" aria-hidden="true"></span>
-            <span class="stt-panelSubtitle">แปลงเสียงเป็นข้อความ...</span>
-          </div>
-          <div class="stt-panelTopRight">
-            <span class="stt-badge" id="sttWordCount">0 คำ</span>
-          </div>
-        </div>
-
-        <div class="stt-controls stt-controls-compact">
-          <button id="btnStart" class="stt-btn stt-btn-primary" type="button">
-            เริ่มฟัง
-          </button>
-          <button id="btnStop" class="stt-btn stt-btn-secondary" type="button" disabled>
-            หยุดฟัง
-          </button>
-          <button id="btnClear" class="stt-btn stt-btn-ghost" type="button">
-            ล้าง
-          </button>
-          <select id="langSelect" class="stt-select stt-select-compact" aria-label="Language">
-            <option value="th-TH">ไทย</option>
-            <option value="en-US">EN</option>
-          </select>
-        </div>
-
-        <div class="stt-textarea-wrapper">
-          <div
-            id="textOutput"
-            class="stt-transcript stt-transcript-panel"
-            data-placeholder="แปลงเสียงเป็นข้อความ... (กดเริ่มฟัง)"
-            role="textbox"
-            aria-readonly="true"
-          ></div>
-        </div>
-
-        <div class="stt-actions">
-          <button id="btnAppend" class="stt-btn stt-btn-send" type="button" disabled>
-            ส่งเข้าเอกสาร
-          </button>
-        </div>
-
-        <div class="stt-muted">
-          สถานะ: <span id="recognitionStatus">ไม่มีการฟัง</span>
-        </div>
+      <main class="stt2-main">
+        <div
+          id="textOutput"
+          class="stt2-preview"
+          data-placeholder="กำลังแปลงเสียงเป็นข้อความ..."
+          role="textbox"
+          aria-readonly="true"
+        ></div>
       </main>
     </div>
   </body>

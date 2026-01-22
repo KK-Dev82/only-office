@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DocumentOffice - Add Macros</title>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+    <link rel="stylesheet" href="styles.css?v=0.1.15" />
+
+    <script type="text/javascript" src="core/ns.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.15"></script>
+    <script type="text/javascript" src="core/debug.js?v=0.1.15"></script>
+    <script type="text/javascript" src="features/macros_window.js?v=0.1.15"></script>
+    <script type="text/javascript" src="macro_window_bootstrap.js?v=0.1.15"></script>
+  </head>
+  <body>
+    <div class="doRoot">
+      <header class="doHeader">
+        <div class="doHeaderLeft">
+          <div class="doTitle">🧩 เพิ่ม Macros</div>
+          <div class="doBadges">
+            <span class="doBadge" id="pluginVersion">v?</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="doMain">
+        <div class="doCard">
+          <div class="doMuted" style="margin-bottom: 8px;">
+            - ใส่ได้หลายรายการ: คั่นด้วย comma (<code>,</code>) หรือขึ้นบรรทัดใหม่<br />
+            - ถ้าต้องการ comma จริงในข้อความ ใช้ <code>\,</code><br />
+            - รองรับ token: <code>[tab]</code> <code>[space]</code> <code>[nl]</code> (และกด Tab ได้เลย)
+          </div>
+
+          <div class="doRow">
+            <textarea id="macroWinItems" class="doTextarea doTextareaLarge" placeholder="พิมพ์ macro หลายรายการได้ที่นี่ (คั่นด้วย , หรือขึ้นบรรทัดใหม่)\nตัวอย่าง:\n[tab][tab]นายก :\n[tab][tab]รองนายก :\nหรือ\n[tab][tab]นายก :, [tab][tab]รองนายก :"></textarea>
+          </div>
+
+          <div class="doRow" style="flex-wrap: wrap;">
+            <button id="macroWinInsertTab" type="button">+ [tab]</button>
+            <button id="macroWinInsertSpace" type="button">+ [space]</button>
+            <button id="macroWinInsertNewline" type="button">+ [nl]</button>
+            <button id="macroWinInsertColonSpace" type="button">+ :␠</button>
+            <span style="flex: 1 1 auto;"></span>
+            <button id="macroWinCancel" type="button">ยกเลิก</button>
+            <button id="macroWinSave" type="button">บันทึก</button>
+          </div>
+        </div>
+      </main>
+
+      <footer style="display:none;"></footer>
+    </div>
+  </body>
+</html>
+

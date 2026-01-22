@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dictionary & Abbreviation (UI only)</title>
+    <!-- UI-only test page: intentionally NO JS/SDK -->
+    <link rel="stylesheet" href="core/styles.css?v=0.1.16" />
+  </head>
+  <body>
+    <div id="daBootMarker" style="position:fixed;left:6px;bottom:6px;z-index:2147483647;background:rgba(0,0,0,0.55);color:#fff;font:12px system-ui;padding:2px 6px;border-radius:6px;pointer-events:none;">
+      DA UI-only boot (0.1.16)
+    </div>
+    <div id="daFlowMarker" style="padding:6px 10px;font:12px system-ui;color:#111; background:#fff; border-bottom:1px dashed #ddd;">
+      DA UI-only flow marker (0.1.16)
+    </div>
+
+    <div class="doRoot">
+      <header class="doHeader">
+        <div class="doHeaderLeft">
+          <div class="doTitle">Language Tools (UI only)</div>
+          <div class="doBadges">
+            <span class="doBadge">v0.1.16</span>
+            <span class="doBadge">no-js</span>
+          </div>
+        </div>
+        <div class="doHeaderRight">
+          <div class="doStatus">UI only</div>
+        </div>
+      </header>
+
+      <div class="doTabsScroll" role="tablist" aria-label="Language tools tabs">
+        <button class="doTabBtn doIsActive" type="button">📚 Dictionary</button>
+        <button class="doTabBtn" type="button">📝 คำย่อ</button>
+      </div>
+
+      <main class="doMain">
+        <section class="doTabPanel doIsActive">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">📚 Dictionary</div>
+            <div class="doPanelActions">
+              <button type="button" disabled>เพิ่มคำ</button>
+            </div>
+          </div>
+
+          <div class="doRow">
+            <input class="doInput" placeholder="พิมพ์คำเพื่อค้นหา... (UI only)" />
+            <button type="button" disabled>ค้นหา</button>
+          </div>
+
+          <div class="doSplit2">
+            <div class="doCard">
+              <div class="doSubtitle">ผลการค้นหา (ตัวอย่าง)</div>
+              <div class="doList">
+                <div class="doItem">
+                  <div class="doItemRow">
+                    <div class="doItemText">ตัวอย่างคำ: “รัฐสภา”</div>
+                    <div class="doItemActions">
+                      <button type="button" disabled>บันทึก</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="doItem">
+                  <div class="doItemRow">
+                    <div class="doItemText">ตัวอย่างคำ: “มาตรา”</div>
+                    <div class="doItemActions">
+                      <button type="button" disabled>บันทึก</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="doCard">
+              <div class="doSubtitle">คำที่บันทึกไว้ (ตัวอย่าง)</div>
+              <div class="doList">
+                <div class="doItem">
+                  <div class="doItemRow">
+                    <div class="doItemText">คำที่บันทึกไว้: “วุฒิสภา”</div>
+                    <div class="doItemActions">
+                      <button type="button" disabled>ลบ</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="doCard" style="margin-top:10px;">
+            <div class="doSubtitle">หมายเหตุ</div>
+            <div class="doMuted">
+              หน้านี้มีไว้ตรวจว่า “UI/CSS แสดงได้ไหม” เท่านั้น (ไม่โหลด JS/SDK)
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
+

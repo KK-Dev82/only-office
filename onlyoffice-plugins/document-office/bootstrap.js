@@ -20,6 +20,15 @@
     }
   }
 
+  function hasUiDom() {
+    try {
+      // If this variation is background/unvisible, it won't have UI markup.
+      return Boolean(document && document.querySelector && document.querySelector(".doRoot"));
+    } catch (e) {
+      return false;
+    }
+  }
+
   function bindCoreUi() {
     if (DO.state.uiBound) return;
     DO.state.uiBound = true;
@@ -41,6 +50,49 @@
     //   if (DO.startUiWatch) DO.startUiWatch();
     //   if (DO.bindCursorWatch) DO.bindCursorWatch();
     // } catch (e) {}
+  }
+
+  function layoutDebugPing() {
+    try {
+      // Add a tiny always-on-top marker for diagnosing "blank UI" cases
+      // (Only shown when DO.DEBUG === true)
+      if (!DO.DEBUG) return;
+      if (!hasUiDom()) return;
+      if (DO.state.__layoutPingAttached) return;
+      DO.state.__layoutPingAttached = true;
+
+      var el = document.createElement("div");
+      el.id = "__do_layout_ping";
+      el.style.position = "fixed";
+      el.style.left = "6px";
+      el.style.top = "6px";
+      el.style.zIndex = "2147483647";
+      el.style.padding = "2px 6px";
+      el.style.fontSize = "11px";
+      el.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+      el.style.background = "rgba(0,0,0,0.65)";
+      el.style.color = "#fff";
+      el.style.borderRadius = "6px";
+      el.style.pointerEvents = "none";
+      el.textContent = "DO UI…";
+      document.body.appendChild(el);
+
+      function tick() {
+        try {
+          var root = DO.$ && DO.$("status") ? DO.$("status") : null;
+          var w = window.innerWidth || 0;
+          var h = window.innerHeight || 0;
+          var rh = 0;
+          try {
+            var r = document.querySelector(".doRoot");
+            if (r) rh = r.getBoundingClientRect().height || 0;
+          } catch (e0) {}
+          el.textContent = "DO " + w + "x" + h + " rootH=" + Math.round(rh);
+        } catch (e1) {}
+      }
+      tick();
+      setInterval(tick, 1200);
+    } catch (e) {}
   }
 
   // Basic init
@@ -65,39 +117,56 @@
       mergeOptions(injected);
 
       DO.initLocalData();
-      bindCoreUi();
+      // Always start detection hooks (no UI required)
+      try {
+        if (DO.features && DO.features.inputhelper && typeof DO.features.inputhelper.attachEvents === "function") {
+          DO.features.inputhelper.attachEvents();
+        }
+      } catch (e0) {}
 
-      // bind features - Clipboard enabled
-      if (DO.features && DO.features.clipboard) {
-        DO.features.clipboard.bind();
-        DO.features.clipboard.render();
+      // UI features
+      if (hasUiDom()) {
+        layoutDebugPing();
+        bindCoreUi();
+
+        // bind features - Clipboard enabled
+        if (DO.features && DO.features.clipboard) {
+          DO.features.clipboard.bind();
+          DO.features.clipboard.render();
+        }
+
+        // DISABLED: SpeechToText feature - now using separate plugin
+        // if (DO.features && DO.features.speechtotext) {
+        //   DO.features.speechtotext.bind();
+        // }
+
+        // Macros
+        // NOTE: UI/layout watchers are already disabled above. Enabling macros here is safe.
+        if (DO.features && DO.features.macros) {
+          DO.features.macros.bind();
+          DO.features.macros.render();
+          // best-effort: refresh from API/local storage
+          try {
+            DO.features.macros.reload();
+          } catch (e0) {}
+        }
+
+        // if (DO.features && DO.features.abbreviation) {
+        //   DO.features.abbreviation.bind();
+        //   DO.features.abbreviation.render();
+        // }
+
+        // if (DO.features && DO.features.redundant) {
+        //   DO.features.redundant.bind();
+        //   DO.features.redundant.renderSaved();
+        // }
+
+        if (DO.ui && DO.ui.bindDebug) {
+          DO.ui.bindDebug();
+        }
       }
 
-      // DISABLED: SpeechToText feature - now using separate plugin
-      // if (DO.features && DO.features.speechtotext) {
-      //   DO.features.speechtotext.bind();
-      // }
-
-      // DISABLED: Other features to reduce UI layout changes
-      // if (DO.features && DO.features.macros) {
-      //   DO.features.macros.bind();
-      //   DO.features.macros.render();
-      // }
-
-      // if (DO.features && DO.features.abbreviation) {
-      //   DO.features.abbreviation.bind();
-      //   DO.features.abbreviation.render();
-      // }
-
-      // if (DO.features && DO.features.redundant) {
-      //   DO.features.redundant.bind();
-      //   DO.features.redundant.renderSaved();
-      // }
-
-      if (DO.ui && DO.ui.bindDebug) {
-        DO.ui.bindDebug();
-      }
-
+      // Status/output are UI-only, but safe to call even if missing
       DO.setStatus("ready");
       DO.sendToHost({ type: "do:pluginReady", version: DO.VERSION });
       DO.setOutput({
@@ -134,7 +203,20 @@
   }
 
   // Handle "Close" button in config.json (id usually 0)
-  window.Asc.plugin.button = function (id) {
+  // NOTE: ONLYOFFICE calls `plugin.button(id, windowID)` for modal windows created via ShowWindow too.
+  // If we always executeCommand("close") here, it will close the whole panelRight plugin.
+  window.Asc.plugin.button = function (id, windowID) {
+    // Window close path (close only the window)
+    if (windowID !== undefined && windowID !== null && String(windowID) !== "") {
+      try {
+        if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+          window.Asc.plugin.executeMethod("CloseWindow", [windowID]);
+          return;
+        }
+      } catch (e0) {}
+      return;
+    }
+
     try {
       safeDisposeBeforeClose();
     } catch (e0) {}
@@ -156,7 +238,7 @@
     document.addEventListener("DOMContentLoaded", function () {
       try {
         DO.appendOutputLine("dom_ready (script_loaded)");
-        bindCoreUi();
+        if (hasUiDom()) bindCoreUi();
       } catch (e) {}
 
       // If SDK missed calling init (common when plugin scripts are deferred),
@@ -169,7 +251,7 @@
               window.Asc.plugin.init();
             }
           } catch (e2) {}
-        }, 50);
+        }, 80);
       } catch (e3) {}
     });
   } catch (e) {}

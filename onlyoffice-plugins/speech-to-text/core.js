@@ -2,7 +2,7 @@
 (function () {
   var STT = (window.STT = window.STT || {});
 
-  STT.VERSION = "0.2.0";
+  STT.VERSION = "0.3.5";
   STT.HIGHLIGHT_EVERY_WORDS = 20;
   STT.HL_COLORS = ["green", "yellow", "red"];
   STT.strikedGroups = STT.strikedGroups || new Set();
@@ -145,7 +145,8 @@
       var key = groupIndex + ":" + textToInsert.length + ":" + textToInsert.slice(0, 24);
       if (STT.insertedGroupKeys && STT.insertedGroupKeys.has(key)) return true;
       STT.insertedGroupKeys.add(key);
-      return STT.appendToDocumentEnd(textToInsert + "\n");
+      // group insert: แยกเป็นบรรทัด/ย่อหน้าใหม่เพื่ออ่านง่าย
+      return STT.appendToDocumentEnd(textToInsert + "\n", { newParagraph: true, preserveSelection: true });
     } catch (e) {
       return false;
     }
@@ -225,9 +226,17 @@
     }
   };
 
-  STT.appendToDocumentEnd = function (text) {
-    var t = String(text || "").trim();
-    if (!t) return false;
+  STT.appendToDocumentEnd = function (text, opts) {
+    // IMPORTANT:
+    // - อย่า trim ทั้งข้อความ เพราะ STT finalTranscript จะมี space ต่อท้ายเพื่อให้คำติดกัน
+    // - แต่ใช้ trim เฉพาะสำหรับตรวจว่า "ว่างจริงไหม"
+    var raw = String(text || "");
+    if (!raw.trim()) return false;
+    opts = opts || {};
+    // default: เหมือนพฤติกรรมเดิม (เพิ่มย่อหน้าใหม่ท้ายเอกสาร)
+    var newParagraph = opts.newParagraph !== false;
+    // default: พยายาม restore selection/cursor ของผู้ใช้ (best effort)
+    var preserveSelection = opts.preserveSelection !== false;
 
     try {
       if (!window.Asc || !window.Asc.plugin || typeof window.Asc.plugin.callCommand !== "function") {
@@ -236,7 +245,9 @@
       }
 
       window.Asc.scope = window.Asc.scope || {};
-      window.Asc.scope.__stt_append_text = t;
+      window.Asc.scope.__stt_append_text = raw;
+      window.Asc.scope.__stt_append_newpara = newParagraph ? 1 : 0;
+      window.Asc.scope.__stt_append_preserve = preserveSelection ? 1 : 0;
 
       window.Asc.plugin.callCommand(
         function () {
@@ -244,21 +255,94 @@
             var doc = Api.GetDocument();
             if (!doc) return;
             var body = doc.GetBody ? doc.GetBody() : null;
-            if (!body) {
-              // Fallback: use InsertContent
-              var p = Api.CreateParagraph();
-              p.AddText(Asc.scope.__stt_append_text || "");
-              doc.InsertContent([p]);
-              return;
+            var sel = null;
+            var wantPreserve = Asc.scope.__stt_append_preserve ? true : false;
+            var wantNewPara = Asc.scope.__stt_append_newpara ? true : false;
+
+            // Best-effort selection save (API may not exist in some builds)
+            if (wantPreserve) {
+              try {
+                if (Api && typeof Api.GetSelectionState === "function") {
+                  sel = Api.GetSelectionState();
+                }
+              } catch (eSel0) {}
             }
 
-            var txt = Asc.scope.__stt_append_text || "";
-            var p = body.AddParagraph();
-            if (p && p.AddText) {
-              p.AddText(txt);
+            var txt = String(Asc.scope.__stt_append_text || "");
+
+            // === IMPORTANT ===
+            // บาง build ของ ONLYOFFICE:
+            // - body.AddParagraph()/doc.InsertContent อาจ insert "ตรง cursor"
+            // ดังนั้นเราจะพยายามหา "paragraph สุดท้ายของเอกสาร" แล้ว append ลงไปที่ object นั้นแทน
+            var lastPara = null;
+
+            // 1) Prefer explicit "last paragraph" helpers
+            try {
+              if (body && body.GetLastParagraph) lastPara = body.GetLastParagraph();
+            } catch (eLP0) {}
+            try {
+              if (!lastPara && doc && doc.GetLastParagraph) lastPara = doc.GetLastParagraph();
+            } catch (eLP0b) {}
+
+            // 2) Fallback: count-based API (GetParagraphsCount/GetParagraph)
+            try {
+              if (!lastPara && body && body.GetParagraphsCount && body.GetParagraph) {
+                var n1 = Number(body.GetParagraphsCount()) || 0;
+                if (n1 > 0) lastPara = body.GetParagraph(n1 - 1);
+              }
+            } catch (eLP1) {}
+            try {
+              if (!lastPara && doc && doc.GetParagraphsCount && doc.GetParagraph) {
+                var n2 = Number(doc.GetParagraphsCount()) || 0;
+                if (n2 > 0) lastPara = doc.GetParagraph(n2 - 1);
+              }
+            } catch (eLP2) {}
+
+            // 3) Fallback: content array
+            try {
+              if (!lastPara && body && body.GetContent) {
+                var c = body.GetContent();
+                if (c && c.length) lastPara = c[c.length - 1];
+              }
+            } catch (eLP3) {}
+            try {
+              if (!lastPara && doc && doc.GetContent) {
+                var c2 = doc.GetContent();
+                if (c2 && c2.length) lastPara = c2[c2.length - 1];
+              }
+            } catch (eLP4) {}
+
+            // If still no last paragraph, last resort: try body.AddParagraph (may fall back to cursor)
+            if (!lastPara || !lastPara.AddText) {
+              try {
+                if (body && body.AddParagraph) lastPara = body.AddParagraph();
+              } catch (eLP5) {}
+            }
+
+            if (lastPara && lastPara.AddText) {
+              if (wantNewPara) {
+                try {
+                  if (lastPara.AddLineBreak) lastPara.AddLineBreak();
+                  else lastPara.AddText("\n");
+                } catch (eLB) {}
+              }
+              lastPara.AddText(txt);
             } else {
-              // Fallback
-              doc.InsertContent([Api.CreateParagraph().AddText(txt)]);
+              // Final fallback (อาจลงที่ cursor) แต่ให้ไม่ crash
+              try {
+                var p3 = Api.CreateParagraph();
+                if (p3 && p3.AddText) p3.AddText(txt);
+                if (doc && doc.InsertContent) doc.InsertContent([p3]);
+              } catch (eFinal) {}
+            }
+
+            // Best-effort selection restore
+            if (sel && wantPreserve) {
+              try {
+                if (Api && typeof Api.SetSelectionState === "function") {
+                  Api.SetSelectionState(sel);
+                }
+              } catch (eSel1) {}
             }
           } catch (e) {
             console.error("[STT] appendToDocumentEnd error:", e);
@@ -270,6 +354,106 @@
       return true;
     } catch (e) {
       console.error("[STT] appendToDocumentEnd failed:", e);
+      return false;
+    }
+  };
+
+  // Live tail (interim) updater:
+  // - update a dedicated paragraph at end of document by replacing its content
+  // - preserve user's cursor/selection (best-effort)
+  // NOTE: marker is invisible characters so user doesn't see it.
+  var STT_LIVE_MARKER = "\u2063\u2063\u2063\u2063\u2060\u2060\u2060\u2060";
+
+  STT.setLiveTailText = function (text, opts) {
+    var raw = String(text || "");
+    opts = opts || {};
+    var preserveSelection = opts.preserveSelection !== false;
+
+    try {
+      if (!window.Asc || !window.Asc.plugin || typeof window.Asc.plugin.callCommand !== "function") {
+        return false;
+      }
+
+      window.Asc.scope = window.Asc.scope || {};
+      window.Asc.scope.__stt_live_text = raw;
+      window.Asc.scope.__stt_live_preserve = preserveSelection ? 1 : 0;
+      window.Asc.scope.__stt_live_marker = STT_LIVE_MARKER;
+
+      window.Asc.plugin.callCommand(
+        function () {
+          try {
+            var doc = Api.GetDocument();
+            if (!doc) return;
+            var body = doc.GetBody ? doc.GetBody() : null;
+            if (!body) return;
+
+            var marker = String(Asc.scope.__stt_live_marker || "");
+            var txt = String(Asc.scope.__stt_live_text || "");
+            var wantPreserve = Asc.scope.__stt_live_preserve ? true : false;
+
+            var sel = null;
+            if (wantPreserve) {
+              try {
+                if (Api && typeof Api.GetSelectionState === "function") sel = Api.GetSelectionState();
+              } catch (eSel0) {}
+            }
+
+            // Find existing live paragraph near the end (scan last 50 paras)
+            var livePara = null;
+            var count = 0;
+            try {
+              if (body.GetParagraphsCount) count = Number(body.GetParagraphsCount()) || 0;
+            } catch (eC0) {}
+            var start = Math.max(0, count - 50);
+            for (var i = count - 1; i >= start; i--) {
+              try {
+                if (!body.GetParagraph) break;
+                var p = body.GetParagraph(i);
+                if (!p || !p.GetRange || !p.GetRange().GetText) continue;
+                var t = String(
+                  p.GetRange().GetText({
+                    Numbering: false,
+                    Math: false,
+                    ParaSeparator: "\n",
+                    TableRowSeparator: "\n",
+                    NewLineSeparator: "\n",
+                  }) || ""
+                );
+                if (t.indexOf(marker) !== -1) {
+                  livePara = p;
+                  break;
+                }
+              } catch (eScan) {}
+            }
+
+            // If not found: create at end
+            if (!livePara) {
+              try {
+                if (body.AddParagraph) livePara = body.AddParagraph();
+              } catch (eAdd) {}
+            }
+
+            if (livePara) {
+              try {
+                if (livePara.RemoveAllElements) livePara.RemoveAllElements();
+              } catch (eRm) {}
+              try {
+                if (livePara.AddText) livePara.AddText(marker + txt);
+              } catch (eAddText) {}
+            }
+
+            if (sel && wantPreserve) {
+              try {
+                if (Api && typeof Api.SetSelectionState === "function") Api.SetSelectionState(sel);
+              } catch (eSel1) {}
+            }
+          } catch (e) {}
+        },
+        false,
+        true
+      );
+      return true;
+    } catch (e0) {
       return false;
     }
   };

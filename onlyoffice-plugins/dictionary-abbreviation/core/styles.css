@@ -1,21 +1,24 @@
-/* --- Layout lock (prevent plugins.css from collapsing panel) --- */
+/* --- Layout (iframe-safe) ---
+ * เป้าหมาย: ให้ UI แสดง "เสถียร" ใน iframe ของ ONLYOFFICE ทุก build
+ * หลักการ:
+ * - หลีกเลี่ยง `position: fixed` (มักเพี้ยนเมื่อ parent มี transform/zoom)
+ * - ใช้ `position: absolute; inset:0` แทน
+ * - ให้ `.doMain` เป็นพื้นที่ scroll แทนการบังคับ overflow ที่ html/body
+ */
+:root, html, body {
+  height: 100%;
+  width: 100%;
+}
+
 html, body {
   margin: 0;
   padding: 0;
-  /* Avoid forcing overflow hidden on the whole iframe.
-   * In ONLYOFFICE 9.x (especially dev builds) the plugin wrapper may rely on
-   * default overflow rules; forcing hidden can cause blank/offset rendering.
-   */
-  /* Force visibility in case host/plugins.css hides iframe body */
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  overflow: hidden !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  min-height: 100vh !important;
-  position: relative !important;
+  overflow: hidden;
   background: #ffffff;
+}
+
+body {
+  position: relative;
 }
 
 .doRoot, .doRoot * {
@@ -28,12 +31,11 @@ html, body {
   display: flex !important;
   flex-direction: column !important;
   background: #ffffff !important;
-  /* panelRight safe layout: fixed fill inside iframe */
-  position: fixed !important;
+  position: absolute !important;
   inset: 0 !important;
-  width: auto !important;
   height: auto !important;
-  overflow: hidden !important;
+  min-height: 0 !important;
+  width: auto !important;
 }
 
 .doHeader {
@@ -78,13 +80,6 @@ html, body {
   padding: 2px 8px;
   line-height: 18px;
   white-space: nowrap;
-}
-
-.doBadgeSmall {
-  font-size: 10px;
-  line-height: 16px;
-  padding: 1px 6px;
-  margin-left: 6px;
 }
 
 .doStatus {
@@ -145,15 +140,13 @@ html, body {
 .doMain {
   flex: 1 1 auto !important;
   min-height: 0 !important;
-  overflow: hidden;
+  overflow: auto;
   padding: 10px;
 }
 
 .doTabPanel {
   display: none;
-  height: 100% !important;
   min-height: 0 !important;
-  overflow: auto;
 }
 
 .doTabPanel.doIsActive {
@@ -219,65 +212,6 @@ html, body {
   resize: vertical;
 }
 
-.doTextareaLarge {
-  min-height: 220px;
-  height: 42vh;
-  resize: vertical;
-}
-
-.doModalOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-}
-
-.doModalOverlay.doIsHidden {
-  display: none;
-}
-
-.doModal {
-  width: min(920px, 100%);
-  max-height: min(92vh, 900px);
-  overflow: hidden;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-}
-
-.doModalHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.doModalTitle {
-  font-weight: 700;
-}
-
-.doModalBody {
-  padding: 12px;
-  overflow: auto;
-}
-
-.doModalFooter {
-  padding: 10px 12px;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .doSplit2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -316,6 +250,18 @@ html, body {
   background: #f9fafb;
 }
 
+.doItem.doIsSelected {
+  border-color: #0d6efd;
+  background: #eef5ff;
+}
+
+.doHL {
+  background: #fff3cd;
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
 .doItemRow {
   display: flex;
   gap: 8px;
@@ -328,27 +274,6 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.doItemTextPre {
-  white-space: pre-wrap;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-.doItemTitleLine {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.doItemTitle {
-  font-weight: 600;
-}
-
-.doItemPreview {
-  font-weight: 400;
-  color: #374151;
 }
 
 .doItemActions {
@@ -387,4 +312,6 @@ html, body {
 .doDebugPanel.doIsHidden {
   display: none;
 }
+
+/* (removed old emergency fallback; new layout is already iframe-safe) */
 

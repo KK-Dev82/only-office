@@ -4,6 +4,9 @@ services:
     container_name: onlyoffice-docs-developer
     restart: unless-stopped
     platform: ${DOCKER_PLATFORM:-linux/arm64}
+    extra_hosts:
+      # ให้ container เข้าถึง host ด้วยชื่อ host.docker.internal (สำหรับ Colima/บาง environment)
+      - "host.docker.internal:host-gateway"
     ports:
       - "${OO_HTTP_PORT:-8082}:80"
     environment:
@@ -23,6 +26,9 @@ services:
       # --- Thai dictionary sources (we will copy into dictionaries on start) ---
       - ../dict:/opt/kk-dict-src:ro
 
+      # --- Example files (sample.docx for /example/files/...) ---
+      - ../example:/opt/kk-example-src:ro
+
     command:
       - /bin/bash
       - -lc
@@ -30,40 +36,48 @@ services:
         set -euo pipefail
 
         INIT_MARK="/var/www/onlyoffice/Data/.kk_init_done"
-        if [ ! -f "$INIT_MARK" ]; then
+        if [ ! -f "$$INIT_MARK" ]; then
           echo "[KK] init: installing fonts/plugins/dicts..."
 
           (fc-cache -fv || true)
           (/usr/bin/documentserver-generate-allfonts.sh || true)
 
-          PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
-          mkdir -p "$PLUGINS_DST"
-          if [ -d "/opt/kk-plugins-src" ]; then
-            cp -R /opt/kk-plugins-src/* "$PLUGINS_DST"/ || true
-          fi
-
           DICS_DST="/var/www/onlyoffice/documentserver/dictionaries/th_TH"
-          mkdir -p "$DICS_DST"
+          mkdir -p "$$DICS_DST"
           if [ -f "/opt/kk-dict-src/th_TH/th_TH.dic" ]; then
-            cp "/opt/kk-dict-src/th_TH/th_TH.dic" "$DICS_DST/th_TH.dic"
+            cp "/opt/kk-dict-src/th_TH/th_TH.dic" "$$DICS_DST/th_TH.dic"
           fi
           if [ -f "/opt/kk-dict-src/th_TH/th_TH.aff" ]; then
-            cp "/opt/kk-dict-src/th_TH/th_TH.aff" "$DICS_DST/th_TH.aff"
+            cp "/opt/kk-dict-src/th_TH/th_TH.aff" "$$DICS_DST/th_TH.aff"
           fi
           if [ -f "/opt/kk-dict-src/th_TH/th_TH.json" ]; then
-            cp "/opt/kk-dict-src/th_TH/th_TH.json" "$DICS_DST/th_TH.json"
+            cp "/opt/kk-dict-src/th_TH/th_TH.json" "$$DICS_DST/th_TH.json"
           else
-            cat > "$DICS_DST/th_TH.json" <<'EOF'
+            cat > "$$DICS_DST/th_TH.json" <<'EOF'
         { "codes": [1054] }
         EOF
           fi
 
           (python3 "/var/www/onlyoffice/documentserver/server/dictionaries/update.py" || true)
 
-          date > "$INIT_MARK"
+          date > "$$INIT_MARK"
           echo "[KK] init: done."
         else
-          echo "[KK] init: already done ($INIT_MARK)."
+          echo "[KK] init: already done ($$INIT_MARK)."
+        fi
+
+        # Plugins: sync every boot (so updates apply without deleting Data volume)
+        PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
+        mkdir -p "$$PLUGINS_DST"
+        if [ -d "/opt/kk-plugins-src" ]; then
+          cp -R /opt/kk-plugins-src/* "$$PLUGINS_DST"/ 2>/dev/null || true
+        fi
+
+        # Example files: ensure /example/files/sample.docx exists (idempotent; safe every boot)
+        EXAMPLE_DST="/var/www/onlyoffice/documentserver-example/example/files"
+        mkdir -p "$$EXAMPLE_DST"
+        if [ -d "/opt/kk-example-src/files" ]; then
+          cp -R /opt/kk-example-src/files/* "$$EXAMPLE_DST"/ 2>/dev/null || true
         fi
 
         if [ -x /app/run-document-server.sh ]; then

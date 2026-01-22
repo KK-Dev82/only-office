@@ -4,14 +4,15 @@
   window.DO = window.DO || {};
 
   // Sync version with config/index + host cache-busting
-  window.DO.VERSION = "0.1.15";
+  window.DO.VERSION = "0.1.26";
 
   // Toggle verbose logs
   window.DO.DEBUG = true;
 
   window.DO.state = window.DO.state || {
     uiBound: false,
-    activeTab: "clipboard",
+    // IMPORTANT: this plugin tabs are: dictionary, abbreviation
+    activeTab: "dictionary",
     debugOpen: false,
     targetTimer: 0,
     lastToken: "",

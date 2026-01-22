@@ -4,6 +4,53 @@
   DO.features = DO.features || {};
 
   var PLUGIN_GUID = "asc.{C6A86F5A-5A0F-49F8-9E72-9E8E1E2F86A1}";
+  var MIN_QUERY_LEN = 2;
+  var MAX_ITEMS = 5;
+  var CLEAR_THROTTLE_MS = 500;
+  var ITEMS_LOG_THROTTLE_MS = 1200;
+  var TYPING_LOG_THROTTLE_MS = 900;
+  var HEARTBEAT_EVERY_TICKS = 80; // reduce spam
+  // Detect-only mode:
+  // - keep token/typing detection logs
+  // - do NOT show InputHelper UI (prevents UI flicker / layout issues)
+  // Enable UI explicitly by setting pluginOptions.features.inputHelperUi = true
+  function isInputHelperUiEnabled() {
+    try {
+      return Boolean(DO.pluginOptions && DO.pluginOptions.features && DO.pluginOptions.features.inputHelperUi === true);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function nowMs() {
+    try {
+      return Date.now();
+    } catch {
+      return 0;
+    }
+  }
+
+  function safeLower(s) {
+    try {
+      return String(s || "").toLowerCase();
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function shouldLogThrottle(key, ms) {
+    try {
+      DO.state = DO.state || {};
+      DO.state._ihLogAt = DO.state._ihLogAt || {};
+      var last = Number(DO.state._ihLogAt[key] || 0);
+      var n = nowMs();
+      if (last && n - last < ms) return false;
+      DO.state._ihLogAt[key] = n;
+      return true;
+    } catch (e) {
+      return true;
+    }
+  }
 
   function diffText(prev, next) {
     try {
@@ -45,8 +92,14 @@
   function showHelper(isKeyboardTake) {
     try {
       if (DO.state && DO.state.disposed) return;
+      if (!isInputHelperUiEnabled()) return;
+      DO.state = DO.state || {};
+      // Avoid repeated show calls (causes UI flicker in some builds)
+      if (DO.state._ihVisible && DO.state._ihKeyboardTake === Boolean(isKeyboardTake)) return;
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
         window.Asc.plugin.executeMethod("ShowInputHelper", [PLUGIN_GUID, 80, 40, Boolean(isKeyboardTake)]);
+        DO.state._ihVisible = true;
+        DO.state._ihKeyboardTake = Boolean(isKeyboardTake);
       }
     } catch (e) {}
   }
@@ -54,14 +107,20 @@
   function hideHelper() {
     try {
       if (DO.state && DO.state.disposed) return;
+      if (!isInputHelperUiEnabled()) return;
+      DO.state = DO.state || {};
+      // Avoid repeated hide calls (UI flicker + log spam)
+      if (!DO.state._ihVisible) return;
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
         window.Asc.plugin.executeMethod("UnShowInputHelper", [PLUGIN_GUID, true]);
+        DO.state._ihVisible = false;
       }
     } catch (e) {}
   }
 
   function setItems(items) {
     try {
+      if (!isInputHelperUiEnabled()) return;
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.getInputHelper) {
         var ih = window.Asc.plugin.getInputHelper();
         if (ih && ih.setItems) ih.setItems(items);
@@ -71,19 +130,26 @@
 
   function updateSuggestions(query) {
     if (DO.state && DO.state.disposed) return;
-    var q = String(query || "").trim().toLowerCase();
-    if (!q) return;
+    DO.state = DO.state || {};
+    // Detect-only mode: do not compute/show suggestions
+    if (!isInputHelperUiEnabled()) return;
+    var q = safeLower(String(query || "").trim());
+    if (!q || q.length < MIN_QUERY_LEN) {
+      // Hide helper when query is too short
+      hideHelper();
+      return;
+    }
 
     var list = [];
     var seen = {};
 
     // abbreviation
-    var abbr = DO.store.abbreviations || [];
-    for (var i = 0; i < abbr.length && list.length < 5; i++) {
+    var abbr = (DO.store && DO.store.abbreviations) || [];
+    for (var i = 0; i < abbr.length && list.length < MAX_ITEMS; i++) {
       var s = String(abbr[i].shortForm || "").trim();
       var f = String(abbr[i].fullForm || "").trim();
       if (!s && !f) continue;
-      if (s.toLowerCase().indexOf(q) === 0 || f.toLowerCase().indexOf(q) === 0) {
+      if (safeLower(s).indexOf(q) === 0 || safeLower(f).indexOf(q) === 0) {
         var val = f || s;
         var key = "abbr:" + val;
         if (!seen[key]) {
@@ -94,11 +160,11 @@
     }
 
     // dictionary (local)
-    var dict = DO.store.dictionary || [];
-    for (var di = 0; di < dict.length && list.length < 5; di++) {
+    var dict = (DO.store && DO.store.dictionary) || [];
+    for (var di = 0; di < dict.length && list.length < MAX_ITEMS; di++) {
       var dw = String(dict[di].word || dict[di].Word || "").trim();
       if (!dw) continue;
-      if (dw.toLowerCase().indexOf(q) === 0) {
+      if (safeLower(dw).indexOf(q) === 0) {
         var k2 = "dict:" + dw;
         if (!seen[k2]) {
           seen[k2] = true;
@@ -108,11 +174,11 @@
     }
 
     // clipboard
-    var clips = DO.store.clipboard || [];
-    for (var ci = 0; ci < clips.length && list.length < 5; ci++) {
+    var clips = (DO.store && DO.store.clipboard) || [];
+    for (var ci = 0; ci < clips.length && list.length < MAX_ITEMS; ci++) {
       var t = String(clips[ci].text || "").trim();
       if (!t) continue;
-      if (t.toLowerCase().indexOf(q) === 0) {
+      if (safeLower(t).indexOf(q) === 0) {
         var k3 = "clip:" + t;
         if (!seen[k3]) {
           seen[k3] = true;
@@ -124,15 +190,29 @@
     if (!list.length) {
       // Avoid showing an empty helper window (looks like "UI เพี้ยน")
       hideHelper();
-      DO.debugLog("inputHelper_items", { count: 0 });
+      if (shouldLogThrottle("items0", ITEMS_LOG_THROTTLE_MS)) DO.debugLog("inputHelper_items", { count: 0 });
       return;
     }
+
+    // Deduplicate: if items didn't change, don't re-show/re-set every time (prevents flicker)
+    var itemsKey = "";
+    try {
+      itemsKey = q + "|" + list.map(function (x) { return String(x && x.value || x && x.text || ""); }).join("|");
+    } catch (e0) {
+      itemsKey = q;
+    }
+    if (DO.state._ihLastItemsKey === itemsKey) {
+      // Ensure visible but don't spam calls
+      showHelper(true);
+      return;
+    }
+    DO.state._ihLastItemsKey = itemsKey;
 
     // Show helper only when we actually have items.
     // Take keyboard here so users can confirm with Tab/Enter (if supported by this build).
     showHelper(true);
     setItems(list);
-    DO.debugLog("inputHelper_items", { count: list.length });
+    if (shouldLogThrottle("itemsN", ITEMS_LOG_THROTTLE_MS)) DO.debugLog("inputHelper_items", { count: list.length });
   }
 
   function attachEvents() {
@@ -189,6 +269,8 @@
     } catch (e0) {}
 
     var attachMode = attach("onInputHelperInput", function (data) {
+      // Detect-only mode: ignore UI helper input events
+      if (!isInputHelperUiEnabled()) return;
       var text = "";
       try {
         if (typeof data === "string") text = data;
@@ -204,15 +286,23 @@
     attach("onInputHelperClear", function () {
       try {
         if (DO.state && DO.state.disposed) return;
+        // Detect-only mode: ignore clear events to avoid flicker
+        if (!isInputHelperUiEnabled()) return;
+        var n = nowMs();
+        // Many builds fire this event repeatedly; throttle to avoid UI flicker/log spam
+        if (DO.state._ihLastClearAt && n - DO.state._ihLastClearAt < CLEAR_THROTTLE_MS) return;
+        DO.state._ihLastClearAt = n;
         // Hide helper when editor asks to clear suggestions.
         hideHelper();
-        DO.debugLog("inputHelper_clear");
+        if (shouldLogThrottle("clear", ITEMS_LOG_THROTTLE_MS)) DO.debugLog("inputHelper_clear");
       } catch (e) {}
     });
 
     attach("onInputHelperItemClick", function (data) {
       try {
         if (DO.state && DO.state.disposed) return;
+        // Detect-only mode: ignore item clicks (no UI suggestions anyway)
+        if (!isInputHelperUiEnabled()) return;
         var value = "";
         if (typeof data === "string") value = data;
         else if (data && typeof data.text === "string") value = data.text;
@@ -258,11 +348,37 @@
           if (token && token !== DO.state.lastToken) {
             DO.state.lastToken = token;
             DO.debugLog("token_detected", { token: token });
-            updateSuggestions(token);
           }
         });
       }, 250);
     });
+
+    // When content/selection changes, schedule a check (reduces reliance on polling)
+    function scheduleRecheck() {
+      if (DO.state && DO.state.disposed) return;
+      if (DO.state._ihRecheckTimer) return;
+      DO.state._ihRecheckTimer = setTimeout(function () {
+        DO.state._ihRecheckTimer = 0;
+        try {
+          DO.editor.getCurrentParagraphText(function (paraText) {
+            if (DO.state && DO.state.disposed) return;
+            var paraStr = String(paraText || "");
+            var token = extractLastToken(paraStr);
+            if (token && token !== DO.state.lastToken) {
+              DO.state.lastToken = token;
+              DO.debugLog("token_detected", { token: token, via: "event" });
+            }
+            // Update lastParaText for diff-based typing detection to reduce false "bulk" diffs
+            DO.state.lastParaText = paraStr;
+            DO.state._ihHasContentEvents = true;
+          });
+        } catch (e0) {}
+      }, 120);
+    }
+
+    attach("onDocumentContentChanged", scheduleRecheck);
+    attach("onSelectionChanged", scheduleRecheck);
+    attach("onChangeSelection", scheduleRecheck);
 
     try {
       DO.debugLog("events_attached", { mode: attachMode || "none" });
@@ -293,7 +409,7 @@
               if (!paraStr) DO.state._pollEmpty = (DO.state._pollEmpty || 0) + 1;
 
               // periodic heartbeat to prove we can read paragraph text
-              if ((DO.state._pollTick || 0) % 25 === 0) {
+              if ((DO.state._pollTick || 0) % HEARTBEAT_EVERY_TICKS === 0) {
                 try {
                   DO.debugLog("para_poll_heartbeat", {
                     tick: DO.state._pollTick,
@@ -322,17 +438,38 @@
                       // Adaptive poll: speed up shortly after change, but throttle logs.
                       DO.state._pollFastUntil = now + 2500;
                       var lastTL = DO.state._pollLastTypingLogAt || 0;
-                      if (!lastTL || now - lastTL > 900) {
-                        DO.state._pollLastTypingLogAt = now;
-                        if (d.inserted && d.inserted.length) {
-                          DO.debugLog("typing_detected", {
-                            insertedLen: d.inserted.length,
-                            insertedPreview: String(d.inserted).slice(0, 60),
-                            start: d.start,
-                            removedLen: (d.removed || "").length,
-                          });
-                        } else if (d.removed && d.removed.length) {
-                          DO.debugLog("delete_detected", { removedLen: d.removed.length, start: d.start });
+                      // If content-change events exist, rely less on poll for typing logs
+                      if (!DO.state._ihHasContentEvents && (!lastTL || now - lastTL > TYPING_LOG_THROTTLE_MS)) {
+                        // Dedupe by signature to avoid repeated same diff logs
+                        var sig =
+                          String(d.start) +
+                          "|" +
+                          String((d.inserted || "").length) +
+                          "|" +
+                          String((d.removed || "").length) +
+                          "|" +
+                          String(d.inserted || "").slice(0, 8) +
+                          "|" +
+                          String(d.removed || "").slice(0, 8);
+                        if (DO.state._pollLastDiffSig !== sig) {
+                          DO.state._pollLastDiffSig = sig;
+                          DO.state._pollLastTypingLogAt = now;
+
+                          // Ignore huge diffs (paste/replace) to reduce noise
+                          var insLen = (d.inserted || "").length;
+                          var remLen = (d.removed || "").length;
+                          if (insLen <= 3 && remLen <= 3) {
+                            if (insLen) {
+                              DO.debugLog("typing_detected", {
+                                insertedLen: insLen,
+                                insertedPreview: String(d.inserted).slice(0, 60),
+                                start: d.start,
+                                removedLen: remLen,
+                              });
+                            } else if (remLen) {
+                              DO.debugLog("delete_detected", { removedLen: remLen, start: d.start });
+                            }
+                          }
                         }
                       }
                     }
@@ -344,7 +481,6 @@
               if (token && token !== DO.state.lastToken) {
                 DO.state.lastToken = token;
                 DO.debugLog("token_detected", { token: token, via: "poll" });
-                updateSuggestions(token);
               }
             });
           } catch (e0) {}
@@ -352,7 +488,8 @@
           if (DO.state && DO.state.disposed) return;
           var now2 = Date.now();
           var fastUntil = DO.state._pollFastUntil || 0;
-          var delay = now2 < fastUntil ? 350 : 1100;
+          // If we have content-change events, keep polling very slow as a safety net
+          var delay = DO.state._ihHasContentEvents ? 2500 : now2 < fastUntil ? 350 : 1100;
           scheduleNext(delay);
         }
 

@@ -1,17 +1,22 @@
 {
   "name": "Speech To Text",
   "guid": "asc.{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",
-  "version": "0.2.0",
+  "version": "0.3.5",
   "baseUrl": "",
   "variations": [
     {
-      "description": "Speech To Text plugin for OnlyOffice - Floating Window",
-      "url": "index.html?v=0.2.0",
-      "type": "window",
+      "description": "Speech To Text (non-modal floating)",
+      "url": "index.html?v=0.3.5",
       "isViewer": false,
       "isActivated": true,
       "EditorsSupport": ["word"],
-      "size": [400, 320],
+      "isVisual": true,
+      "isModal": false,
+      "isInsideMode": false,
+      "initDataType": "text",
+      "initData": "",
+      "isUpdateOleOnResize": false,
+      "size": [400, 240],
       "icons": [
         "resources/icon.svg"
       ],

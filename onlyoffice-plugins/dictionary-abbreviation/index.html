@@ -4,29 +4,70 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dictionary & Abbreviation</title>
-    <!-- ONLYOFFICE Plugin SDK -->
+    <!-- IMPORTANT:
+      - We MUST load `plugins.js` for the plugin bridge (`Asc.plugin.executeMethod`, `callCommand`, InputHelper).
+      - We intentionally do NOT load `plugins-ui.js/plugins.css` because those have caused panel UI distortion in some builds.
+    -->
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
-    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
-    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
 
-    <!-- reuse styles + core from document-office to avoid duplication -->
-    <link rel="stylesheet" href="../document-office/styles.css?v=0.1.11" />
-    <script type="text/javascript" src="../document-office/core/ns.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/core/util.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/core/telemetry.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/core/storage.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/core/editor.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/core/bus.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/core/uiwatch.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/ui/tabs.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/ui/debug.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/features/dictionary.js?v=0.1.11"></script>
-    <script type="text/javascript" src="../document-office/features/abbreviation.js?v=0.1.11"></script>
-    <script type="text/javascript" src="inputhelper.js?v=0.1.0"></script>
+    <!-- own core files for independent development -->
+    <link rel="stylesheet" href="core/styles.css?v=0.1.26" />
+    <script>
+      // Early crash overlay (shows inside the plugin panel even if other JS fails)
+      (function () {
+        var buf = (window.__DA_BOOT_ERRORS__ = window.__DA_BOOT_ERRORS__ || []);
+        function push(msg) {
+          try { buf.push(String(msg || "")); } catch (e0) {}
+          try {
+            var el = document.getElementById("daFlowMarker") || document.getElementById("daBootMarker");
+            if (el) el.textContent = "DA error: " + String(msg || "").slice(0, 180);
+          } catch (e1) {}
+          try {
+            var st = document.getElementById("status");
+            if (st) st.textContent = "error";
+          } catch (e2) {}
+        }
+        window.addEventListener("error", function (e) {
+          try { push((e && (e.message || e.error)) ? (e.message || String(e.error)) : "window.error"); } catch (e0) {}
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          try { push("unhandledrejection: " + String((e && e.reason) || "")); } catch (e0) {}
+        });
+        document.addEventListener("DOMContentLoaded", function () {
+          try {
+            if (!buf.length) return;
+            var el = document.getElementById("daFlowMarker") || document.getElementById("daBootMarker");
+            if (el) el.textContent = "DA errors: " + buf.slice(0, 3).join(" | ").slice(0, 220);
+          } catch (e0) {}
+        });
+      })();
+    </script>
+    <script type="text/javascript" src="core/ns.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/telemetry.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/bus.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/uiwatch.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/tabs.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/debug.js?v=0.1.26"></script>
+    <script type="text/javascript" src="features/dictionary.js?v=0.1.26"></script>
+    <script type="text/javascript" src="features/abbreviation.js?v=0.1.26"></script>
+    <script type="text/javascript" src="inputhelper.js?v=0.1.26"></script>
 
-    <script type="text/javascript" src="bootstrap.js?v=0.1.0"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.1.26"></script>
   </head>
   <body>
+    <!-- Fallback marker: if you see this, HTML loaded but CSS/JS may be blocked -->
+    <div id="daBootMarker" style="position:fixed;left:6px;bottom:6px;z-index:2147483647;background:rgba(0,0,0,0.55);color:#fff;font:12px system-ui;padding:2px 6px;border-radius:6px;pointer-events:none;">
+      DA boot (0.1.26)
+    </div>
+    <!-- Flow marker: visible even if fixed positioning breaks -->
+    <div id="daFlowMarker" style="padding:6px 10px;font:12px system-ui;color:#111; background:#fff; border-bottom:1px dashed #ddd;">
+      DA flow marker (0.1.26)
+    </div>
+    <!-- Focus trap: used to capture Arrow/Tab/Enter for suggestions (panel-only mode) -->
+    <div id="doFocusTrap" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;"></div>
     <div class="doRoot">
       <header class="doHeader">
         <div class="doHeaderLeft">
