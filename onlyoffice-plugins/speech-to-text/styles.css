@@ -39,10 +39,79 @@
   gap: 16px;
 }
 
+.stt-panelLike {
+  background: #fff;
+}
+
+.stt-panelTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stt-panelTopLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stt-panelSubtitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stt-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #10b981; /* green */
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+  flex: 0 0 auto;
+}
+
+.stt-dot.isOff {
+  background: #9ca3af;
+  box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.18);
+}
+
+.stt-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 .stt-controls {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.stt-controls-compact .stt-btn {
+  flex: 0 0 auto;
+  min-width: auto;
+  padding: 8px 12px;
+}
+
+.stt-btn-ghost {
+  background: #ffffff;
+  color: #374151;
+  border-color: #e5e7eb;
+}
+
+.stt-btn-ghost:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #d1d5db;
 }
 
 .stt-btn {
@@ -94,6 +163,20 @@
   border-color: #565e64;
 }
 
+.stt-btn-send {
+  width: 100%;
+  flex: 1;
+  background: #198754; /* bootstrap success */
+  border-color: #198754;
+  color: #fff;
+  font-weight: 700;
+}
+
+.stt-btn-send:hover:not(:disabled) {
+  background: #157347;
+  border-color: #146c43;
+}
+
 .stt-textarea-wrapper {
   flex: 1;
   min-height: 200px;
@@ -110,6 +193,11 @@
   font-family: inherit;
   resize: vertical;
   background: #f9fafb;
+}
+
+.stt-textarea-panel {
+  background: #fff7ed; /* warm panel-like */
+  border-color: #f3d5b6;
 }
 
 .stt-textarea:focus {
@@ -162,7 +250,17 @@
   flex: 1;
 }
 
+.stt-select-compact {
+  flex: 0 0 auto;
+  min-width: 80px;
+}
+
 .stt-select:focus {
   outline: none;
   border-color: #0d6efd;
+}
+
+.stt-muted {
+  font-size: 12px;
+  color: #6b7280;
 }

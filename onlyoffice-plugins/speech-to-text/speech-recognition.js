@@ -6,6 +6,15 @@
   STT.isListening = false;
   STT.currentText = "";
 
+  function updateWordCount(text) {
+    try {
+      var t = String(text || "").trim();
+      var words = t ? t.split(/\s+/).filter(Boolean) : [];
+      var el = STT.$("sttWordCount");
+      if (el) el.textContent = words.length + " คำ";
+    } catch {}
+  }
+
   function initRecognition() {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
       STT.setStatus("Browser ไม่รองรับ Speech Recognition");
@@ -30,12 +39,9 @@
       var btnStop = STT.$("btnStop");
       if (btnStart) btnStart.disabled = true;
       if (btnStop) btnStop.disabled = false;
-      
-      // Update status indicator
-      var indicator = STT.$("stt-status-indicator");
-      if (indicator) {
-        indicator.className = "stt-status-indicator stt-status-listening";
-      }
+
+      var dot = STT.$("sttDot");
+      if (dot) dot.classList.remove("isOff");
     };
 
     STT.recognition.onresult = function (event) {
@@ -58,12 +64,14 @@
           textOutput.value = STT.currentText + interimTranscript;
         }
         STT.updateButtonStates();
+        updateWordCount(STT.currentText + interimTranscript);
       } else if (interimTranscript) {
         var textOutput = STT.$("textOutput");
         if (textOutput) {
           textOutput.value = STT.currentText + interimTranscript;
         }
         STT.updateButtonStates();
+        updateWordCount(STT.currentText + interimTranscript);
       }
     };
 
@@ -87,12 +95,9 @@
       var btnStop = STT.$("btnStop");
       if (btnStart) btnStart.disabled = false;
       if (btnStop) btnStop.disabled = true;
-      
-      // Update status indicator
-      var indicator = STT.$("stt-status-indicator");
-      if (indicator) {
-        indicator.className = "stt-status-indicator stt-status-ready";
-      }
+
+      var dot = STT.$("sttDot");
+      if (dot) dot.classList.add("isOff");
     };
 
     return true;
@@ -143,6 +148,7 @@
     var btnAppend = STT.$("btnAppend");
     if (btnInsert) btnInsert.disabled = true;
     if (btnAppend) btnAppend.disabled = true;
+    updateWordCount("");
   };
 
   STT.updateButtonStates = function () {

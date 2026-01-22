@@ -20,44 +20,50 @@
         <div class="stt-status" id="status">Ready</div>
       </header>
 
-      <main class="stt-main">
-        <div class="stt-controls">
+      <main class="stt-main stt-panelLike">
+        <div class="stt-panelTop">
+          <div class="stt-panelTopLeft">
+            <span class="stt-dot" id="sttDot" aria-hidden="true"></span>
+            <span class="stt-panelSubtitle">แปลงเสียงเป็นข้อความ...</span>
+          </div>
+          <div class="stt-panelTopRight">
+            <span class="stt-badge" id="sttWordCount">0 คำ</span>
+          </div>
+        </div>
+
+        <div class="stt-controls stt-controls-compact">
           <button id="btnStart" class="stt-btn stt-btn-primary" type="button">
             เริ่มฟัง
           </button>
           <button id="btnStop" class="stt-btn stt-btn-secondary" type="button" disabled>
             หยุดฟัง
           </button>
-          <button id="btnClear" class="stt-btn stt-btn-secondary" type="button">
+          <button id="btnClear" class="stt-btn stt-btn-ghost" type="button">
             ล้าง
           </button>
+          <select id="langSelect" class="stt-select stt-select-compact" aria-label="Language">
+            <option value="th-TH">ไทย</option>
+            <option value="en-US">EN</option>
+          </select>
         </div>
 
         <div class="stt-textarea-wrapper">
-          <textarea id="textOutput" class="stt-textarea" placeholder="ข้อความที่ถอดเสียงจะแสดงที่นี่..." readonly></textarea>
+          <textarea
+            id="textOutput"
+            class="stt-textarea stt-textarea-panel"
+            placeholder="แปลงเสียงเป็นข้อความ... (กดเริ่มฟัง)"
+            readonly
+          ></textarea>
         </div>
 
         <div class="stt-actions">
-          <button id="btnInsert" class="stt-btn stt-btn-primary" type="button" disabled>
-            Insert ไปยังเอกสาร
-          </button>
-          <button id="btnAppend" class="stt-btn stt-btn-primary" type="button" disabled>
-            Append ที่ท้ายเอกสาร
+          <button id="btnAppend" class="stt-btn stt-btn-send" type="button" disabled>
+            ส่งเข้าเอกสาร
           </button>
         </div>
 
-        <div class="stt-info">
-          <div class="stt-info-item">
-            <span class="stt-label">ภาษา:</span>
-            <select id="langSelect" class="stt-select">
-              <option value="th-TH">ไทย (th-TH)</option>
-              <option value="en-US">English (en-US)</option>
-            </select>
-          </div>
-          <div class="stt-info-item">
-            <span class="stt-label">สถานะ:</span>
-            <span id="recognitionStatus" class="stt-value">ไม่มีการฟัง</span>
-          </div>
+        <div class="stt-muted">
+          สถานะ: <span id="recognitionStatus">ไม่มีการฟัง</span>
         </div>
       </main>
     </div>
