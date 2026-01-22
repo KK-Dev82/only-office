@@ -42,10 +42,18 @@
     }
   }
 
-  function showHelper() {
+  function showHelper(isKeyboardTake) {
     try {
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
-        window.Asc.plugin.executeMethod("ShowInputHelper", [PLUGIN_GUID, 80, 40, true]);
+        window.Asc.plugin.executeMethod("ShowInputHelper", [PLUGIN_GUID, 80, 40, Boolean(isKeyboardTake)]);
+      }
+    } catch (e) {}
+  }
+
+  function hideHelper() {
+    try {
+      if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
+        window.Asc.plugin.executeMethod("UnShowInputHelper", [PLUGIN_GUID, true]);
       }
     } catch (e) {}
   }
@@ -62,8 +70,6 @@
   function updateSuggestions(query) {
     var q = String(query || "").trim().toLowerCase();
     if (!q) return;
-
-    showHelper();
 
     var list = [];
     var seen = {};
@@ -112,6 +118,16 @@
       }
     }
 
+    if (!list.length) {
+      // Avoid showing an empty helper window (looks like "UI เพี้ยน")
+      hideHelper();
+      DO.debugLog("inputHelper_items", { count: 0 });
+      return;
+    }
+
+    // Show helper only when we actually have items.
+    // Do NOT take keyboard here; typing detection comes from document polling.
+    showHelper(false);
     setItems(list);
     DO.debugLog("inputHelper_items", { count: list.length });
   }
@@ -162,15 +178,10 @@
       }
     });
 
-    // IMPORTANT: Show helper AFTER handlers are attached (avoid missing first events)
-    try {
-      showHelper();
-      DO.debugLog("inputHelper_shown", { keyboardTake: true, attachMode: attachMode || "none" });
-    } catch (eShow) {}
-
     attach("onInputHelperClear", function () {
       try {
-        // Keep helper active so we can keep detecting typing.
+        // Hide helper when editor asks to clear suggestions.
+        hideHelper();
         DO.debugLog("inputHelper_clear");
       } catch (e) {}
     });
