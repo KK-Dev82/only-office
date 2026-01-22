@@ -9,11 +9,29 @@
   }
 
   function replyOk(id, result) {
-    DO.sendToHost({ type: "do:response", id: String(id), ok: true, result: result });
+    var ok = false;
+    try {
+      ok = DO.sendToHost({ type: "do:response", id: String(id), ok: true, result: result }) === true;
+    } catch (e0) {}
+    if (!ok) {
+      try {
+        // eslint-disable-next-line no-console
+        console.warn("[DocumentOfficePlugin] replyOk_failed", id);
+      } catch (e1) {}
+    }
   }
 
   function replyErr(id, error) {
-    DO.sendToHost({ type: "do:response", id: String(id), ok: false, error: String(error || "Unknown error") });
+    var ok = false;
+    try {
+      ok = DO.sendToHost({ type: "do:response", id: String(id), ok: false, error: String(error || "Unknown error") }) === true;
+    } catch (e0) {}
+    if (!ok) {
+      try {
+        // eslint-disable-next-line no-console
+        console.warn("[DocumentOfficePlugin] replyErr_failed", id, error);
+      } catch (e1) {}
+    }
   }
 
   window.Asc = window.Asc || {};
@@ -22,6 +40,10 @@
   window.Asc.plugin.onExternalPluginMessage = function (msg) {
     try {
       if (!msg || typeof msg !== "object") return;
+      try {
+        // eslint-disable-next-line no-console
+        console.log("[DocumentOfficePlugin] bus_rx", msg);
+      } catch (eLog) {}
 
       // v1 envelope (request/response)
       if (msg.type === "do:command" && msg.id && msg.command) {
@@ -44,6 +66,10 @@
 
           // STT-safe: always append at end (ignore cursor)
           if (cmd === "appendToEnd") {
+            try {
+              // eslint-disable-next-line no-console
+              console.log("[DocumentOfficePlugin] bus_appendToEnd", { len: ((payload && payload.text) || "").length });
+            } catch (e0) {}
             DO.editor.appendToDocumentEnd((payload && payload.text) || "", { forceNewParagraph: true });
             replyOk(id, true);
             return;

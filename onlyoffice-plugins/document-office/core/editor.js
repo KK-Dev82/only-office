@@ -21,6 +21,14 @@
     return false;
   }
 
+  function canCallCommand() {
+    try {
+      return Boolean(window.Asc && window.Asc.plugin && typeof window.Asc.plugin.callCommand === "function");
+    } catch (e) {
+      return false;
+    }
+  }
+
   function execWithTimeout(name, params, timeoutMs, cb) {
     var done = false;
     var tId = 0;
@@ -46,6 +54,54 @@
       });
     } catch (e3) {
       finish(undefined);
+    }
+  }
+
+  // Reliable way to read current paragraph text:
+  // - executeMethod("GetCurrentParagraph") is not supported on some builds / returns empty
+  // - callCommand + ApiParagraph.GetRange().GetText works across more versions
+  function getCurrentParagraphTextViaCallCommand(cb) {
+    if (!canCallCommand()) {
+      try {
+        cb && cb("");
+      } catch (e0) {}
+      return;
+    }
+    try {
+      window.Asc.plugin.callCommand(
+        function () {
+          try {
+            var doc = Api.GetDocument();
+            if (!doc || !doc.GetCurrentParagraph) return "";
+            var p = doc.GetCurrentParagraph();
+            if (!p) return "";
+            var r = p.GetRange ? p.GetRange() : null;
+            if (!r || !r.GetText) return "";
+            return String(
+              r.GetText({
+                Numbering: false,
+                Math: false,
+                ParaSeparator: "\n",
+                TableRowSeparator: "\n",
+                NewLineSeparator: "\n",
+              }) || ""
+            );
+          } catch (e) {
+            return "";
+          }
+        },
+        false,
+        true,
+        function (text) {
+          try {
+            cb && cb(String(text || ""));
+          } catch (e1) {}
+        }
+      );
+    } catch (e2) {
+      try {
+        cb && cb("");
+      } catch (e3) {}
     }
   }
 
@@ -118,14 +174,6 @@
     DO.setOutput({ ok: false, error: "Insert failed: executeMethod/callCommand unavailable" });
   };
 
-  function canCallCommand() {
-    try {
-      return Boolean(window.Asc && window.Asc.plugin && typeof window.Asc.plugin.callCommand === "function");
-    } catch (e) {
-      return false;
-    }
-  }
-
   DO.editor.appendToDocumentEnd = function (text, opts) {
     var t = String(text || "");
     if (!t) return;
@@ -190,16 +238,26 @@
   };
 
   DO.editor.getCurrentParagraphText = function (cb) {
-    execWithTimeout("GetCurrentParagraph", [], 400, function (p) {
-      var text = "";
-      try {
-        if (typeof p === "string") text = p || "";
-        else if (p && typeof p.text === "string") text = p.text || "";
-        else if (p && p.GetText) text = p.GetText() || "";
-      } catch (e) {}
-      try {
-        cb && cb(text);
-      } catch (e2) {}
+    // Prefer callCommand approach for reliability (works even when executeMethod is misleading/unsupported)
+    getCurrentParagraphTextViaCallCommand(function (t) {
+      if (t && String(t).length) {
+        try {
+          cb && cb(String(t));
+        } catch (e0) {}
+        return;
+      }
+      // Fallback: executeMethod (best-effort)
+      execWithTimeout("GetCurrentParagraph", [], 400, function (p) {
+        var text = "";
+        try {
+          if (typeof p === "string") text = p || "";
+          else if (p && typeof p.text === "string") text = p.text || "";
+          else if (p && p.GetText) text = p.GetText() || "";
+        } catch (e) {}
+        try {
+          cb && cb(text);
+        } catch (e2) {}
+      });
     });
   };
 

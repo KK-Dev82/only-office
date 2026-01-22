@@ -47,10 +47,10 @@
       // log editor API availability (helps diagnose missing methods/events)
       try {
         DO.debugLog("editor_api", {
-          executeMethod: Boolean(window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod),
-          callCommand: Boolean(window.Asc && window.Asc.plugin && window.Asc.plugin.callCommand),
-          attachEditorEvent: Boolean(window.Asc && window.Asc.plugin && window.Asc.plugin.attachEditorEvent),
-          attachEvent: Boolean(window.Asc && window.Asc.plugin && window.Asc.plugin.attachEvent),
+          executeMethod: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) === "function",
+          callCommand: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.callCommand) === "function",
+          attachEditorEvent: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.attachEditorEvent) === "function",
+          attachEvent: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.attachEvent) === "function",
         });
       } catch (e0) {}
 
