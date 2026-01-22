@@ -26,7 +26,28 @@
   DO.editor.insertText = function (text) {
     var t = String(text || "");
     if (!t) return;
-    // Prefer callCommand if available (more reliable from panel clicks)
+    // NOTE: Try executeMethod first. In real usage, callCommand may "succeed" but
+    // fail silently depending on editor state/selection, and we would never reach PasteText.
+    // PasteText: insert at cursor / replace selection
+    if (exec("PasteText", [t])) {
+      try {
+        DO.state = DO.state || {};
+        DO.state.lastInsertAt = Date.now();
+        DO.debugLog("insert_ok", { via: "PasteText", len: t.length });
+      } catch (e0) {}
+      return;
+    }
+    // InputText: insert at cursor (fallback)
+    if (exec("InputText", [t])) {
+      try {
+        DO.state = DO.state || {};
+        DO.state.lastInsertAt = Date.now();
+        DO.debugLog("insert_ok", { via: "InputText", len: t.length });
+      } catch (e1) {}
+      return;
+    }
+
+    // Last resort: callCommand (macro API)
     if (canCallCommand()) {
       try {
         window.Asc.scope = window.Asc.scope || {};
@@ -34,29 +55,37 @@
         window.Asc.plugin.callCommand(
           function () {
             try {
+              var s = Asc.scope.__do_insert_text || "";
               var doc = Api.GetDocument();
+              if (doc && typeof doc.InsertText === "function") {
+                doc.InsertText(s);
+                return;
+              }
               var p = Api.CreateParagraph();
-              p.AddText(Asc.scope.__do_insert_text || "");
-              // Insert at current cursor position
-              doc.InsertContent([p], true);
+              p.AddText(s);
+              // Insert at current cursor position (do not pass extra args for compatibility)
+              doc.InsertContent([p]);
             } catch (e) {}
           },
           false,
           true
         );
-        return;
-      } catch (e0) {
         try {
-          DO.debugLog("insert_callCommand_failed", { error: String(e0) });
-        } catch (e1) {}
+          DO.state = DO.state || {};
+          DO.state.lastInsertAt = Date.now();
+          DO.debugLog("insert_ok", { via: "callCommand", len: t.length });
+        } catch (e2) {}
+        return;
+      } catch (e3) {
+        try {
+          DO.debugLog("insert_callCommand_failed", { error: String(e3) });
+        } catch (e4) {}
       }
     }
 
-    // PasteText: insert at cursor / replace selection
-    if (exec("PasteText", [t])) return;
-    // Fallback: InputText (insert)
-    if (exec("InputText", [t])) return;
-
+    try {
+      DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
+    } catch (e5) {}
     DO.setOutput({ ok: false, error: "Cannot insert: PasteText/InputText/callCommand unavailable" });
   };
 

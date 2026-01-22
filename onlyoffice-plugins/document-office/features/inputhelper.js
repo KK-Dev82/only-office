@@ -5,6 +5,32 @@
 
   var PLUGIN_GUID = "asc.{C6A86F5A-5A0F-49F8-9E72-9E8E1E2F86A1}";
 
+  function diffText(prev, next) {
+    try {
+      var a = String(prev || "");
+      var b = String(next || "");
+      if (a === b) return null;
+
+      var start = 0;
+      var aLen = a.length;
+      var bLen = b.length;
+      while (start < aLen && start < bLen && a.charAt(start) === b.charAt(start)) start++;
+
+      var endA = aLen - 1;
+      var endB = bLen - 1;
+      while (endA >= start && endB >= start && a.charAt(endA) === b.charAt(endB)) {
+        endA--;
+        endB--;
+      }
+
+      var removed = a.slice(start, endA + 1);
+      var inserted = b.slice(start, endB + 1);
+      return { start: start, removed: removed, inserted: inserted, prevLen: aLen, nextLen: bLen };
+    } catch (e) {
+      return null;
+    }
+  }
+
   function extractLastToken(text) {
     try {
       var s = String(text || "");
@@ -161,6 +187,43 @@
         DO.state.inputPollTimer = setInterval(function () {
           try {
             DO.editor.getCurrentParagraphText(function (paraText) {
+              // Detect typing / changes (best-effort by diffing current paragraph text)
+              try {
+                var now = Date.now();
+                // Skip immediate window after programmatic insert to reduce noisy logs
+                var lastInsertAt = DO.state.lastInsertAt || 0;
+                if (lastInsertAt && now - lastInsertAt < 250) {
+                  DO.state.lastParaText = String(paraText || "");
+                } else {
+                  var prev = DO.state.lastParaText;
+                  var next = String(paraText || "");
+                  if (prev === undefined) {
+                    DO.state.lastParaText = next;
+                  } else if (prev !== next) {
+                    var d = diffText(prev, next);
+                    DO.state.lastParaText = next;
+                    if (d) {
+                      // Prefer logging inserted characters (what user typed/pasted)
+                      if (d.inserted && d.inserted.length) {
+                        DO.debugLog("typing_detected", {
+                          inserted: d.inserted,
+                          insertedLen: d.inserted.length,
+                          start: d.start,
+                          removedLen: (d.removed || "").length,
+                        });
+                      } else if (d.removed && d.removed.length) {
+                        DO.debugLog("delete_detected", {
+                          removedLen: d.removed.length,
+                          start: d.start,
+                        });
+                      } else {
+                        DO.debugLog("text_change_detected", { start: d.start });
+                      }
+                    }
+                  }
+                }
+              } catch (eTyping) {}
+
               var token = extractLastToken(paraText || "");
               if (token && token !== DO.state.lastToken) {
                 DO.state.lastToken = token;
@@ -169,8 +232,8 @@
               }
             });
           } catch (e0) {}
-        }, 600);
-        DO.debugLog("token_poll_started", { intervalMs: 600 });
+        }, 400);
+        DO.debugLog("token_poll_started", { intervalMs: 400 });
       }
     } catch (e2) {}
   }
