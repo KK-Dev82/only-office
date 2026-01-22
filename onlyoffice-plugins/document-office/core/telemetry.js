@@ -8,7 +8,7 @@
       var p = window.Asc && window.Asc.plugin;
       if (!p) return false;
       return (
-        typeof p.executeMethod === "function" ||
+        // NOTE: executeMethod existing does NOT guarantee SendExternalMessage exists in this build
         typeof p.sendToExternalPlugin === "function" ||
         typeof p.sendToExternalMessage === "function" ||
         typeof p.sendExternalMessage === "function" ||
@@ -68,7 +68,6 @@
         } catch (eExec) {
           // Some builds have executeMethod but not this method. Fall through to enqueue + retry.
         }
-        return true;
       }
 
       // Fallbacks: some builds expose direct helpers instead of executeMethod
