@@ -1,12 +1,12 @@
 {
   "name": "DocumentOffice Assistant",
   "guid": "asc.{C6A86F5A-5A0F-49F8-9E72-9E8E1E2F86A1}",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "baseUrl": "",
   "variations": [
     {
       "description": "DocumentOffice assistant panel",
-      "url": "index.html?v=0.1.7",
+      "url": "index.html?v=0.1.8",
       "type": "panelRight",
       "isViewer": false,
       "isActivated": true,
