@@ -149,13 +149,6 @@
       }
     } catch (e0) {}
 
-    // IMPORTANT: Enable input helper keyboard capture early so `onInputHelperInput`
-    // can fire while the user types in the editor (otherwise it's circular).
-    try {
-      showHelper();
-      DO.debugLog("inputHelper_shown", { keyboardTake: true });
-    } catch (eShow) {}
-
     var attachMode = attach("onInputHelperInput", function (data) {
       var text = "";
       try {
@@ -168,6 +161,12 @@
         updateSuggestions(text);
       }
     });
+
+    // IMPORTANT: Show helper AFTER handlers are attached (avoid missing first events)
+    try {
+      showHelper();
+      DO.debugLog("inputHelper_shown", { keyboardTake: true, attachMode: attachMode || "none" });
+    } catch (eShow) {}
 
     attach("onInputHelperClear", function () {
       try {

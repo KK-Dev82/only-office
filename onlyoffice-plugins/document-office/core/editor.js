@@ -7,15 +7,11 @@
   function exec(name, params, cb) {
     try {
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
-        var ok = window.Asc.plugin.executeMethod(name, params || [], cb);
-        // In many ONLYOFFICE builds executeMethod does not return `true`.
-        // Treat it as success unless it explicitly returns `false` or throws.
-        if (ok === false) {
-          try {
-            DO.debugLog("executeMethod_not_supported", { name: name, ok: ok });
-          } catch (e0) {}
-        }
-        return ok !== false;
+        // NOTE:
+        // - executeMethod return value is not reliable across builds (we've seen `false` even when it works).
+        // - Treat presence of executeMethod as "supported" and rely on callbacks/timeouts for verification.
+        window.Asc.plugin.executeMethod(name, params || [], cb);
+        return true;
       }
     } catch (e) {
       try {
@@ -45,10 +41,9 @@
     } catch (e2) {}
 
     try {
-      var ok = exec(name, params || [], function (v) {
+      exec(name, params || [], function (v) {
         finish(v);
       });
-      if (ok === false) finish(undefined);
     } catch (e3) {
       finish(undefined);
     }
