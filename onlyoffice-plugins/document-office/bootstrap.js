@@ -34,6 +34,12 @@
     var toggleDebug = DO.$("toggleDebug");
     if (toggleDebug) toggleDebug.addEventListener("click", function () { DO.ui.toggleDebugPanel(); });
     DO.ui.toggleDebugPanel(DO.state.debugOpen);
+
+    // UI/layout + cursor change watchers (diagnose "panel collapse after moving cursor")
+    try {
+      if (DO.startUiWatch) DO.startUiWatch();
+      if (DO.bindCursorWatch) DO.bindCursorWatch();
+    } catch (e) {}
   }
 
   // Basic init
