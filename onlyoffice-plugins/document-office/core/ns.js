@@ -4,7 +4,7 @@
   window.DO = window.DO || {};
 
   // Sync version with config/index + host cache-busting
-  window.DO.VERSION = "0.1.6";
+  window.DO.VERSION = "0.1.7";
 
   // Toggle verbose logs
   window.DO.DEBUG = true;
