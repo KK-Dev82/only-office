@@ -118,7 +118,8 @@
       });
     }
 
-    // Global mouse events
+    // Global mouse events (not passive - we need to control dragging/resizing)
+    // Note: These warnings are expected for drag/resize functionality
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
 
@@ -288,6 +289,30 @@
         console.warn("[STT] callCommand not available - text insertion may not work");
       }
 
+      // Add button to toolbar (Top Panel)
+      try {
+        if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+          var toolbarItems = [
+            {
+              id: "stt-button",
+              type: "button",
+              text: "Speech To Text",
+              hint: "เปิด Speech To Text Panel",
+              icons: {
+                "normal": "resources/icon.svg",
+                "hover": "resources/icon.svg"
+              }
+            }
+          ];
+          window.Asc.plugin.executeMethod("AddToolbarMenuItem", [toolbarItems]);
+          console.log("[STT] Toolbar button added");
+        } else {
+          console.warn("[STT] executeMethod not available - button may not appear in toolbar");
+        }
+      } catch (e) {
+        console.warn("[STT] Failed to add toolbar button:", e);
+      }
+
       console.log("[STT] Plugin initialized (Draggable Panel)", { version: "0.2.0", hasCallCommand: hasCallCommand });
     } catch (e) {
       console.error("[STT] Init error:", e);
@@ -303,6 +328,13 @@
   // Execute command handler
   window.Asc.plugin.executeCommand = function (id) {
     togglePanel();
+  };
+
+  // Toolbar menu click handler
+  window.Asc.plugin.onToolbarMenuClick = function (id) {
+    if (id === "stt-button") {
+      togglePanel();
+    }
   };
 
   // Defensive: if init isn't called, still initialize
