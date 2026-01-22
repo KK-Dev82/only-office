@@ -154,6 +154,25 @@
         });
       }, 250);
     });
+
+    // Extra fallback: poll current paragraph (covers cases where events don't fire on typing)
+    try {
+      if (!DO.state.inputPollTimer) {
+        DO.state.inputPollTimer = setInterval(function () {
+          try {
+            DO.editor.getCurrentParagraphText(function (paraText) {
+              var token = extractLastToken(paraText || "");
+              if (token && token !== DO.state.lastToken) {
+                DO.state.lastToken = token;
+                DO.debugLog("token_detected", { token: token, via: "poll" });
+                updateSuggestions(token);
+              }
+            });
+          } catch (e0) {}
+        }, 600);
+        DO.debugLog("token_poll_started", { intervalMs: 600 });
+      }
+    } catch (e2) {}
   }
 
   DO.features.inputhelper = {

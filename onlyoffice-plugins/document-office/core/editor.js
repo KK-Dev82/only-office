@@ -7,8 +7,13 @@
   function exec(name, params, cb) {
     try {
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
-        window.Asc.plugin.executeMethod(name, params || [], cb);
-        return true;
+        var ok = window.Asc.plugin.executeMethod(name, params || [], cb);
+        if (ok !== true) {
+          try {
+            DO.debugLog("executeMethod_not_supported", { name: name, ok: ok });
+          } catch (e0) {}
+        }
+        return ok === true;
       }
     } catch (e) {
       try {
@@ -21,11 +26,38 @@
   DO.editor.insertText = function (text) {
     var t = String(text || "");
     if (!t) return;
+    // Prefer callCommand if available (more reliable from panel clicks)
+    if (canCallCommand()) {
+      try {
+        window.Asc.scope = window.Asc.scope || {};
+        window.Asc.scope.__do_insert_text = t;
+        window.Asc.plugin.callCommand(
+          function () {
+            try {
+              var doc = Api.GetDocument();
+              var p = Api.CreateParagraph();
+              p.AddText(Asc.scope.__do_insert_text || "");
+              // Insert at current cursor position
+              doc.InsertContent([p], true);
+            } catch (e) {}
+          },
+          false,
+          true
+        );
+        return;
+      } catch (e0) {
+        try {
+          DO.debugLog("insert_callCommand_failed", { error: String(e0) });
+        } catch (e1) {}
+      }
+    }
+
     // PasteText: insert at cursor / replace selection
     if (exec("PasteText", [t])) return;
     // Fallback: InputText (insert)
     if (exec("InputText", [t])) return;
-    DO.setOutput({ ok: false, error: "Cannot insert: PasteText/InputText not available" });
+
+    DO.setOutput({ ok: false, error: "Cannot insert: PasteText/InputText/callCommand unavailable" });
   };
 
   function canCallCommand() {
