@@ -25,6 +25,12 @@ html, body {
   height: 100% !important;
   min-height: 100% !important;
   width: 100% !important;
+  /* isolate from parent/layout changes caused by plugins.css + editor resize */
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
   contain: layout style;
 }
 
