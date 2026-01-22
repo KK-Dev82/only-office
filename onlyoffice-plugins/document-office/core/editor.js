@@ -181,6 +181,7 @@
     var forceNewParagraph = opts.forceNewParagraph !== false; // default: true
 
     // Best-effort: guaranteed "end of document" insertion
+    // Following OnlyOffice plugin examples pattern using callCommand
     if (canCallCommand()) {
       try {
         window.Asc.scope = window.Asc.scope || {};
@@ -190,33 +191,61 @@
           function () {
             try {
               var doc = Api.GetDocument();
-              var body = doc && doc.GetBody ? doc.GetBody() : null;
-              if (!body) return;
+              if (!doc) return;
+              
+              var body = doc.GetBody ? doc.GetBody() : null;
+              if (!body) {
+                // Fallback: use InsertContent if GetBody not available
+                var p = Api.CreateParagraph();
+                p.AddText(Asc.scope.__do_append_text || "");
+                doc.InsertContent([p]);
+                return;
+              }
 
               var txt = Asc.scope.__do_append_text || "";
               var newPara = Asc.scope.__do_append_newpara ? true : false;
 
               // Append at end by creating a new paragraph (safe, predictable)
+              // This matches the pattern from OnlyOffice plugin examples
               if (newPara) {
                 var p = body.AddParagraph();
-                p.AddText(txt);
+                if (p && p.AddText) {
+                  p.AddText(txt);
+                } else {
+                  // Fallback: use InsertContent
+                  doc.InsertContent([Api.CreateParagraph().AddText(txt)]);
+                }
               } else {
                 // Try append to last paragraph if API exists, else fallback to new paragraph
                 var last = null;
                 try {
                   if (body.GetLastParagraph) last = body.GetLastParagraph();
                 } catch (e0) {}
-                if (last && last.AddText) last.AddText(txt);
-                else {
+                if (last && last.AddText) {
+                  last.AddText(txt);
+                } else {
                   var p2 = body.AddParagraph();
-                  p2.AddText(txt);
+                  if (p2 && p2.AddText) {
+                    p2.AddText(txt);
+                  } else {
+                    // Final fallback: use InsertContent
+                    doc.InsertContent([Api.CreateParagraph().AddText(txt)]);
+                  }
                 }
               }
-            } catch (e) {}
+            } catch (e) {
+              try {
+                // eslint-disable-next-line no-console
+                console.error("[DocumentOfficePlugin] appendToEnd error in callCommand", e);
+              } catch (eLog) {}
+            }
           },
-          false,
-          true
+          false, // isClose: don't close plugin
+          true   // isCalc: recalculate document
         );
+        try {
+          DO.debugLog("appendToEnd_ok", { via: "callCommand", len: t.length, newPara: forceNewParagraph });
+        } catch (e3) {}
         return;
       } catch (e1) {
         try {
@@ -226,6 +255,10 @@
     }
 
     // Fallback: cannot guarantee end; inserts at cursor
+    // This is still better than nothing
+    try {
+      DO.debugLog("appendToEnd_fallback_to_insertText", { len: t.length });
+    } catch (e4) {}
     DO.editor.insertText(t);
   };
 

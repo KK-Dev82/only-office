@@ -67,21 +67,21 @@
       DO.initLocalData();
       bindCoreUi();
 
-      // bind features - ONLY CLIPBOARD ENABLED
+      // bind features - Clipboard and Dictionary enabled
       if (DO.features && DO.features.clipboard) {
         DO.features.clipboard.bind();
         DO.features.clipboard.render();
+      }
+
+      if (DO.features && DO.features.dictionary) {
+        DO.features.dictionary.bind();
+        DO.features.dictionary.renderSaved();
       }
 
       // DISABLED: Other features to reduce UI layout changes
       // if (DO.features && DO.features.macros) {
       //   DO.features.macros.bind();
       //   DO.features.macros.render();
-      // }
-
-      // if (DO.features && DO.features.dictionary) {
-      //   DO.features.dictionary.bind();
-      //   DO.features.dictionary.renderSaved();
       // }
 
       // if (DO.features && DO.features.abbreviation) {
