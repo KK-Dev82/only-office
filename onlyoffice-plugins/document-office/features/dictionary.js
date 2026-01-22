@@ -15,16 +15,16 @@
       if (!word) continue;
 
       var div = document.createElement("div");
-      div.className = "item";
+      div.className = "doItem";
       var row = document.createElement("div");
-      row.className = "itemRow";
+      row.className = "doItemRow";
       var text = document.createElement("div");
-      text.className = "itemText";
+      text.className = "doItemText";
       var desc = w.description || w.Description || "";
       text.textContent = word + (desc ? " — " + desc : "");
 
       var actions = document.createElement("div");
-      actions.className = "itemActions";
+      actions.className = "doItemActions";
       var btn = document.createElement("button");
       btn.textContent = "Insert";
       btn.addEventListener(
@@ -44,7 +44,7 @@
 
     if (!items.length) {
       var empty = document.createElement("div");
-      empty.className = "muted";
+      empty.className = "doMuted";
       empty.textContent = "ไม่พบคำ";
       root.appendChild(empty);
     }
@@ -62,15 +62,15 @@
       if (!word) continue;
 
       var div = document.createElement("div");
-      div.className = "item";
+      div.className = "doItem";
       var row = document.createElement("div");
-      row.className = "itemRow";
+      row.className = "doItemRow";
       var text = document.createElement("div");
-      text.className = "itemText";
+      text.className = "doItemText";
       text.textContent = word + ((w.description || w.Description) ? " — " + (w.description || w.Description) : "");
 
       var actions = document.createElement("div");
-      actions.className = "itemActions";
+      actions.className = "doItemActions";
       var btnInsert = document.createElement("button");
       btnInsert.textContent = "Insert";
       btnInsert.addEventListener(
@@ -108,7 +108,7 @@
 
     if (!items.length) {
       var empty = document.createElement("div");
-      empty.className = "muted";
+      empty.className = "doMuted";
       empty.textContent = "ยังไม่มีคำที่บันทึกไว้";
       root.appendChild(empty);
     }

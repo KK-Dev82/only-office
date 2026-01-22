@@ -15,15 +15,15 @@
       if (!word) continue;
 
       var div = document.createElement("div");
-      div.className = "item";
+      div.className = "doItem";
       var row = document.createElement("div");
-      row.className = "itemRow";
+      row.className = "doItemRow";
       var text = document.createElement("div");
-      text.className = "itemText";
+      text.className = "doItemText";
       text.textContent = word;
 
       var actions = document.createElement("div");
-      actions.className = "itemActions";
+      actions.className = "doItemActions";
       var btnDel = document.createElement("button");
       btnDel.textContent = "Delete";
       btnDel.addEventListener(
@@ -51,7 +51,7 @@
 
     if (!items.length) {
       var empty = document.createElement("div");
-      empty.className = "muted";
+      empty.className = "doMuted";
       empty.textContent = "ยังไม่มีคำฟุ่มเฟือย";
       root.appendChild(empty);
     }
@@ -66,11 +66,11 @@
     for (var i = 0; i < matches.length; i++) {
       var m = matches[i];
       var div = document.createElement("div");
-      div.className = "item";
+      div.className = "doItem";
       var row = document.createElement("div");
-      row.className = "itemRow";
+      row.className = "doItemRow";
       var text = document.createElement("div");
-      text.className = "itemText";
+      text.className = "doItemText";
       text.textContent = m.word + " (" + m.count + ")";
       row.appendChild(text);
       div.appendChild(row);
@@ -79,7 +79,7 @@
 
     if (!matches.length) {
       var empty = document.createElement("div");
-      empty.className = "muted";
+      empty.className = "doMuted";
       empty.textContent = "ไม่พบคำฟุ่มเฟือยในข้อความ";
       root.appendChild(empty);
     }

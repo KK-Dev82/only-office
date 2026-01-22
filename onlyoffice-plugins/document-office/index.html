@@ -28,17 +28,17 @@
     <script type="text/javascript" src="bootstrap.js?v=0.1.6"></script>
   </head>
   <body>
-    <div class="root">
-      <header class="header">
-        <div class="headerLeft">
-          <div class="title">DocumentOffice</div>
-          <div class="badges">
-            <span class="badge" id="pluginVersion">v?</span>
+    <div class="doRoot">
+      <header class="doHeader">
+        <div class="doHeaderLeft">
+          <div class="doTitle">DocumentOffice</div>
+          <div class="doBadges">
+            <span class="doBadge" id="pluginVersion">v?</span>
           </div>
         </div>
-        <div class="headerRight">
-          <div class="status" id="status">loading…</div>
-          <button class="btnGhost" id="toggleDebug" type="button">Debug</button>
+        <div class="doHeaderRight">
+          <div class="doStatus" id="status">loading…</div>
+          <button class="doBtnGhost" id="toggleDebug" type="button">Debug</button>
         </div>
       </header>
 
@@ -57,92 +57,92 @@
         </button>
       </div>
 
-      <main class="main">
+      <main class="doMain">
         <section class="tabPanel isActive" id="tab-clipboard" data-tab="clipboard">
-          <div class="panelHeader">
-            <div class="panelTitle">📋 Clipboard & Macros</div>
-            <div class="panelActions">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">📋 Clipboard & Macros</div>
+            <div class="doPanelActions">
               <button id="macroReload" type="button">Reload Macros</button>
               <button id="clipReload" type="button">Reload Clipboard</button>
             </div>
           </div>
 
-          <div class="row">
-            <input id="clipText" class="input" placeholder="ข้อความที่ต้องการเพิ่มใน Clipboard..." />
+          <div class="doRow">
+            <input id="clipText" class="doInput" placeholder="ข้อความที่ต้องการเพิ่มใน Clipboard..." />
             <button id="clipAdd" type="button">เพิ่ม Clipboard</button>
           </div>
 
-          <div class="split2">
-            <div class="card">
-              <div class="subtitle">Clipboard</div>
-              <div id="clipList" class="list"></div>
+          <div class="doSplit2">
+            <div class="doCard">
+              <div class="doSubtitle">Clipboard</div>
+              <div id="clipList" class="doList"></div>
             </div>
-            <div class="card">
-              <div class="subtitle">Macros</div>
-              <div id="macroList" class="list"></div>
+            <div class="doCard">
+              <div class="doSubtitle">Macros</div>
+              <div id="macroList" class="doList"></div>
             </div>
           </div>
         </section>
 
         <section class="tabPanel" id="tab-dictionary" data-tab="dictionary">
-          <div class="panelHeader">
-            <div class="panelTitle">📚 Dictionary</div>
-            <div class="panelActions">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">📚 Dictionary</div>
+            <div class="doPanelActions">
               <button id="dictToggleAdd" type="button">เพิ่มคำ</button>
             </div>
           </div>
 
-          <div class="row">
-            <input id="dictQuery" class="input" placeholder="พิมพ์คำเพื่อค้นหา..." />
+          <div class="doRow">
+            <input id="dictQuery" class="doInput" placeholder="พิมพ์คำเพื่อค้นหา..." />
             <button id="dictSearch" type="button">ค้นหา</button>
           </div>
 
-          <div class="card isHidden" id="dictAddCard">
-            <div class="subtitle">เพิ่มคำใหม่ (Local)</div>
-            <div class="row">
-              <input id="dictNewWord" class="input" placeholder="คำศัพท์" />
-              <input id="dictNewDesc" class="input" placeholder="คำอธิบาย (ไม่บังคับ)" />
+          <div class="doCard isHidden" id="dictAddCard">
+            <div class="doSubtitle">เพิ่มคำใหม่ (Local)</div>
+            <div class="doRow">
+              <input id="dictNewWord" class="doInput" placeholder="คำศัพท์" />
+              <input id="dictNewDesc" class="doInput" placeholder="คำอธิบาย (ไม่บังคับ)" />
               <button id="dictAdd" type="button">เพิ่ม</button>
             </div>
           </div>
 
-          <div class="split2">
-            <div class="card">
-              <div class="subtitle">ผลการค้นหา</div>
-              <div id="dictResults" class="list"></div>
+          <div class="doSplit2">
+            <div class="doCard">
+              <div class="doSubtitle">ผลการค้นหา</div>
+              <div id="dictResults" class="doList"></div>
             </div>
-            <div class="card">
-              <div class="subtitle">คำที่บันทึกไว้ (Local)</div>
-              <div id="dictSavedList" class="list"></div>
+            <div class="doCard">
+              <div class="doSubtitle">คำที่บันทึกไว้ (Local)</div>
+              <div id="dictSavedList" class="doList"></div>
             </div>
           </div>
         </section>
 
         <section class="tabPanel" id="tab-abbreviation" data-tab="abbreviation">
-          <div class="panelHeader">
-            <div class="panelTitle">📝 คำย่อ</div>
-            <div class="panelActions">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">📝 คำย่อ</div>
+            <div class="doPanelActions">
               <button id="abbrExpandSelection" type="button">Expand selection</button>
             </div>
           </div>
 
-          <div class="row">
-            <input id="abbrShort" class="input" placeholder="คำย่อ" />
-            <input id="abbrFull" class="input" placeholder="คำเต็ม" />
+          <div class="doRow">
+            <input id="abbrShort" class="doInput" placeholder="คำย่อ" />
+            <input id="abbrFull" class="doInput" placeholder="คำเต็ม" />
             <button id="abbrAdd" type="button">เพิ่ม</button>
           </div>
 
-          <div class="card">
-            <div class="subtitle">รายการคำย่อ</div>
-            <div id="abbrList" class="list"></div>
+          <div class="doCard">
+            <div class="doSubtitle">รายการคำย่อ</div>
+            <div id="abbrList" class="doList"></div>
           </div>
         </section>
 
         <section class="tabPanel" id="tab-redundant" data-tab="redundant">
-          <div class="panelHeader">
-            <div class="panelTitle">🗑️ คำฟุ่มเฟือย</div>
-            <div class="panelActions">
-              <label class="inlineLabel">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">🗑️ คำฟุ่มเฟือย</div>
+            <div class="doPanelActions">
+              <label class="doInlineLabel">
                 <span>Mode</span>
                 <select id="checkMode">
                   <option value="selection">Selection</option>
@@ -155,33 +155,33 @@
             </div>
           </div>
 
-          <div class="row">
-            <input id="redundantNewWord" class="input" placeholder="เพิ่มคำฟุ่มเฟือย (Local)" />
+          <div class="doRow">
+            <input id="redundantNewWord" class="doInput" placeholder="เพิ่มคำฟุ่มเฟือย (Local)" />
             <button id="redundantAdd" type="button">เพิ่ม</button>
           </div>
 
-          <div class="split2">
-            <div class="card">
-              <div class="subtitle">ผลการตรวจ</div>
-              <div id="redundantResults" class="list"></div>
+          <div class="doSplit2">
+            <div class="doCard">
+              <div class="doSubtitle">ผลการตรวจ</div>
+              <div id="redundantResults" class="doList"></div>
             </div>
-            <div class="card">
-              <div class="subtitle">รายการคำฟุ่มเฟือย (Local)</div>
-              <div id="redundantList" class="list"></div>
+            <div class="doCard">
+              <div class="doSubtitle">รายการคำฟุ่มเฟือย (Local)</div>
+              <div id="redundantList" class="doList"></div>
             </div>
           </div>
         </section>
 
         <section class="debugPanel isHidden" id="debugPanel">
-          <div class="panelHeader">
-            <div class="panelTitle">Debug</div>
-            <div class="panelActions">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">Debug</div>
+            <div class="doPanelActions">
               <button id="btnGetSelection" type="button">Get selection</button>
               <button id="btnGetContext" type="button">Get context</button>
               <button id="btnInsertDemo" type="button">Insert demo</button>
             </div>
           </div>
-          <pre class="output" id="output"></pre>
+          <pre class="doOutput" id="output"></pre>
         </section>
       </main>
     </div>

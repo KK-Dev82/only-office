@@ -1,4 +1,4 @@
-html, body, .root {
+html, body, .doRoot {
   height: 100%;
 }
 
@@ -8,16 +8,19 @@ html, body {
   overflow: hidden;
 }
 
-.root {
+.doRoot, .doRoot * {
+  box-sizing: border-box;
+}
+
+.doRoot {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   color: #1f2937;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   background: #ffffff;
 }
 
-.header {
+.doHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,31 +29,31 @@ html, body {
   gap: 10px;
 }
 
-.title {
+.doTitle {
   font-weight: 700;
 }
 
-.headerLeft {
+.doHeaderLeft {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-.headerRight {
+.doHeaderRight {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
 
-.badges {
+.doBadges {
   display: flex;
   gap: 6px;
   align-items: center;
 }
 
-.badge {
+.doBadge {
   font-size: 11px;
   color: #374151;
   background: #f3f4f6;
@@ -61,12 +64,12 @@ html, body {
   white-space: nowrap;
 }
 
-.status {
+.doStatus {
   font-size: 12px;
   color: #6b7280;
 }
 
-.btnGhost {
+.doBtnGhost {
   font-size: 12px;
   padding: 6px 8px;
   border: 1px solid #e5e7eb;
@@ -116,7 +119,7 @@ html, body {
   background: #eef5ff;
 }
 
-.main {
+.doMain {
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -133,7 +136,7 @@ html, body {
   display: block;
 }
 
-.panelHeader {
+.doPanelHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -141,20 +144,20 @@ html, body {
   margin-bottom: 10px;
 }
 
-.panelTitle {
+.doPanelTitle {
   font-size: 14px;
   font-weight: 600;
   min-width: 0;
 }
 
-.panelActions {
+.doPanelActions {
   display: flex;
   gap: 6px;
   align-items: center;
   flex-shrink: 0;
 }
 
-.inlineLabel {
+.doInlineLabel {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -162,24 +165,24 @@ html, body {
   color: #374151;
 }
 
-.inlineLabel select {
+.doInlineLabel select {
   font-size: 12px;
   padding: 6px 8px;
 }
 
-.row {
+.doRow {
   display: flex;
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
 }
 
-select, button {
+.doRoot select, .doRoot button {
   font-size: 12px;
   padding: 6px 8px;
 }
 
-.input, .textarea {
+.doInput, .doTextarea {
   font-size: 12px;
   padding: 6px 8px;
   border: 1px solid #e5e7eb;
@@ -187,12 +190,12 @@ select, button {
   width: 100%;
 }
 
-.textarea {
+.doTextarea {
   min-height: 70px;
   resize: vertical;
 }
 
-.split2 {
+.doSplit2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -200,12 +203,12 @@ select, button {
 }
 
 @media (max-width: 420px) {
-  .split2 {
+  .doSplit2 {
     grid-template-columns: 1fr;
   }
 }
 
-.card {
+.doCard {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 10px;
@@ -213,44 +216,44 @@ select, button {
   min-height: 60px;
 }
 
-.card.isHidden {
+.doCard.isHidden {
   display: none;
 }
 
-.list {
+.doList {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.item {
+.doItem {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   padding: 6px 8px;
   background: #f9fafb;
 }
 
-.itemRow {
+.doItemRow {
   display: flex;
   gap: 8px;
   align-items: center;
   justify-content: space-between;
 }
 
-.itemText {
+.doItemText {
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.itemActions {
+.doItemActions {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
 }
 
-.output {
+.doOutput {
   margin: 0;
   padding: 8px;
   background: #f9fafb;
@@ -262,12 +265,12 @@ select, button {
   white-space: pre-wrap;
 }
 
-.subtitle {
+.doSubtitle {
   font-weight: 600;
   margin-bottom: 6px;
 }
 
-.muted {
+.doMuted {
   font-size: 12px;
   color: #6b7280;
   line-height: 1.4;

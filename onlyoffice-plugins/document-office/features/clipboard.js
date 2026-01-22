@@ -14,16 +14,16 @@
       if (!c || !c.text) continue;
 
       var div = document.createElement("div");
-      div.className = "item";
+      div.className = "doItem";
       var row = document.createElement("div");
-      row.className = "itemRow";
+      row.className = "doItemRow";
 
       var text = document.createElement("div");
-      text.className = "itemText";
+      text.className = "doItemText";
       text.textContent = c.text;
 
       var actions = document.createElement("div");
-      actions.className = "itemActions";
+      actions.className = "doItemActions";
 
       var btnInsert = document.createElement("button");
       btnInsert.textContent = "Insert";
@@ -63,7 +63,7 @@
 
     if (!items.length) {
       var empty = document.createElement("div");
-      empty.className = "muted";
+      empty.className = "doMuted";
       empty.textContent = "ยังไม่มี clipboard";
       root.appendChild(empty);
     }
