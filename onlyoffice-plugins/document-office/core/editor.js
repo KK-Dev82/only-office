@@ -1,4 +1,4 @@
-// Editor bridge: avoid callCommand; prefer executeMethod
+// Editor bridge: executeMethod + callCommand helpers
 (function () {
   var DO = (window.DO = window.DO || {});
 
@@ -26,6 +26,69 @@
     // Fallback: InputText (insert)
     if (exec("InputText", [t])) return;
     DO.setOutput({ ok: false, error: "Cannot insert: PasteText/InputText not available" });
+  };
+
+  function canCallCommand() {
+    try {
+      return Boolean(window.Asc && window.Asc.plugin && typeof window.Asc.plugin.callCommand === "function");
+    } catch (e) {
+      return false;
+    }
+  }
+
+  DO.editor.appendToDocumentEnd = function (text, opts) {
+    var t = String(text || "");
+    if (!t) return;
+    opts = opts || {};
+    var forceNewParagraph = opts.forceNewParagraph !== false; // default: true
+
+    // Best-effort: guaranteed "end of document" insertion
+    if (canCallCommand()) {
+      try {
+        window.Asc.scope = window.Asc.scope || {};
+        window.Asc.scope.__do_append_text = t;
+        window.Asc.scope.__do_append_newpara = forceNewParagraph ? 1 : 0;
+        window.Asc.plugin.callCommand(
+          function () {
+            try {
+              var doc = Api.GetDocument();
+              var body = doc && doc.GetBody ? doc.GetBody() : null;
+              if (!body) return;
+
+              var txt = Asc.scope.__do_append_text || "";
+              var newPara = Asc.scope.__do_append_newpara ? true : false;
+
+              // Append at end by creating a new paragraph (safe, predictable)
+              if (newPara) {
+                var p = body.AddParagraph();
+                p.AddText(txt);
+              } else {
+                // Try append to last paragraph if API exists, else fallback to new paragraph
+                var last = null;
+                try {
+                  if (body.GetLastParagraph) last = body.GetLastParagraph();
+                } catch (e0) {}
+                if (last && last.AddText) last.AddText(txt);
+                else {
+                  var p2 = body.AddParagraph();
+                  p2.AddText(txt);
+                }
+              }
+            } catch (e) {}
+          },
+          false,
+          true
+        );
+        return;
+      } catch (e1) {
+        try {
+          DO.debugLog("appendToEnd_callCommand_failed", { error: String(e1) });
+        } catch (e2) {}
+      }
+    }
+
+    // Fallback: cannot guarantee end; inserts at cursor
+    DO.editor.insertText(t);
   };
 
   DO.editor.getSelectedText = function (cb) {

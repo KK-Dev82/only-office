@@ -1,0 +1,111 @@
+// Host <-> Plugin message bus (DocsAPI.DocEditor.sendExternalMessage)
+(function () {
+  var DO = (window.DO = window.DO || {});
+
+  function mergeOptions(payload) {
+    if (!payload || typeof payload !== "object") return;
+    DO.pluginOptions = DO.pluginOptions || {};
+    for (var k in payload) DO.pluginOptions[k] = payload[k];
+  }
+
+  function replyOk(id, result) {
+    DO.sendToHost({ type: "do:response", id: String(id), ok: true, result: result });
+  }
+
+  function replyErr(id, error) {
+    DO.sendToHost({ type: "do:response", id: String(id), ok: false, error: String(error || "Unknown error") });
+  }
+
+  window.Asc = window.Asc || {};
+  window.Asc.plugin = window.Asc.plugin || {};
+
+  window.Asc.plugin.onExternalPluginMessage = function (msg) {
+    try {
+      if (!msg || typeof msg !== "object") return;
+
+      // v1 envelope (request/response)
+      if (msg.type === "do:command" && msg.id && msg.command) {
+        var id = String(msg.id);
+        var cmd = String(msg.command);
+        var payload = msg.payload;
+
+        try {
+          if (cmd === "setOptions" && payload && typeof payload === "object") {
+            mergeOptions(payload);
+            replyOk(id, { hasAccessToken: Boolean(DO.pluginOptions && DO.pluginOptions.accessToken) });
+            return;
+          }
+
+          if (cmd === "insertText") {
+            DO.editor.insertText((payload && payload.text) || "");
+            replyOk(id, true);
+            return;
+          }
+
+          // STT-safe: always append at end (ignore cursor)
+          if (cmd === "appendToEnd") {
+            DO.editor.appendToDocumentEnd((payload && payload.text) || "", { forceNewParagraph: true });
+            replyOk(id, true);
+            return;
+          }
+
+          if (cmd === "replaceContext") {
+            var mode2 = (payload && payload.mode) || (DO.pluginOptions && DO.pluginOptions.defaultCheckMode) || "paragraph";
+            var text2 = (payload && payload.text) || "";
+            if (mode2 === "selection") DO.editor.replaceSelectionText(text2);
+            else DO.editor.replaceCurrentParagraph(text2);
+            replyOk(id, true);
+            return;
+          }
+
+          if (cmd === "getStatus") {
+            replyOk(id, {
+              plugin: "DocumentOffice",
+              version: DO.VERSION,
+              hasAccessToken: Boolean(DO.pluginOptions && DO.pluginOptions.accessToken),
+              apiBaseUrl: (DO.pluginOptions && DO.pluginOptions.apiBaseUrl) || "",
+              defaultCheckMode: (DO.pluginOptions && DO.pluginOptions.defaultCheckMode) || "paragraph",
+            });
+            return;
+          }
+
+          if (cmd === "getContext") {
+            var mode = (payload && payload.mode) || (DO.pluginOptions && DO.pluginOptions.defaultCheckMode) || "paragraph";
+            DO.editor.getContext(mode, function (ctx) {
+              replyOk(id, { context: ctx });
+            });
+            return;
+          }
+
+          replyErr(id, "Unknown command: " + cmd);
+          return;
+        } catch (e) {
+          replyErr(id, e);
+          return;
+        }
+      }
+
+      // legacy messages (no response)
+      var type = msg.type;
+      if (type === "setOptions" && msg.data) {
+        mergeOptions(msg.data);
+        DO.setOutput({ ok: true, type: "setOptions", hasAccessToken: Boolean(DO.pluginOptions && DO.pluginOptions.accessToken) });
+        return;
+      }
+
+      if (type === "insertText") {
+        DO.editor.insertText(msg.text || "");
+        return;
+      }
+
+      if (type === "appendToEnd") {
+        DO.editor.appendToDocumentEnd(msg.text || "", { forceNewParagraph: true });
+        return;
+      }
+    } catch (e2) {
+      DO.setOutput({ ok: false, error: String(e2) });
+      DO.sendToHost({ type: "do:pluginError", error: String(e2) });
+    }
+  };
+})();
+

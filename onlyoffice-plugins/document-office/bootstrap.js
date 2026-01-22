@@ -1,6 +1,7 @@
 // Plugin bootstrap: init, bind UI, attach events
 (function () {
   var DO = (window.DO = window.DO || {});
+  DO.state = DO.state || {};
 
   function tryReadInjectedOptions() {
     try {
@@ -40,6 +41,8 @@
   window.Asc.plugin = window.Asc.plugin || {};
 
   window.Asc.plugin.init = function () {
+    if (DO.state.inited) return;
+    DO.state.inited = true;
     try {
       var injected = tryReadInjectedOptions();
       mergeOptions(injected);
@@ -51,6 +54,30 @@
       if (DO.features && DO.features.clipboard) {
         DO.features.clipboard.bind();
         DO.features.clipboard.render();
+      }
+
+      if (DO.features && DO.features.macros) {
+        DO.features.macros.bind();
+        DO.features.macros.render();
+      }
+
+      if (DO.features && DO.features.dictionary) {
+        DO.features.dictionary.bind();
+        DO.features.dictionary.renderSaved();
+      }
+
+      if (DO.features && DO.features.abbreviation) {
+        DO.features.abbreviation.bind();
+        DO.features.abbreviation.render();
+      }
+
+      if (DO.features && DO.features.redundant) {
+        DO.features.redundant.bind();
+        DO.features.redundant.renderSaved();
+      }
+
+      if (DO.ui && DO.ui.bindDebug) {
+        DO.ui.bindDebug();
       }
 
       // attach input helper + fallback token detection
@@ -82,6 +109,19 @@
         DO.appendOutputLine("dom_ready (script_loaded)");
         bindCoreUi();
       } catch (e) {}
+
+      // If SDK missed calling init (common when plugin scripts are deferred),
+      // run init ourselves shortly after DOM is ready.
+      try {
+        setTimeout(function () {
+          try {
+            if (!DO.state.inited && window.Asc && window.Asc.plugin && typeof window.Asc.plugin.init === "function") {
+              DO.appendOutputLine("init_fallback_call");
+              window.Asc.plugin.init();
+            }
+          } catch (e2) {}
+        }, 50);
+      } catch (e3) {}
     });
   } catch (e) {}
 })();
