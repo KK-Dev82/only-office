@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DocumentOffice Assistant</title>
+    <!-- ONLYOFFICE Plugin SDK (required for window.Asc.plugin.executeMethod/callCommand/etc.) -->
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
     <link rel="stylesheet" href="styles.css?v=0.1.6" />
     <!-- no bundler: load multiple scripts in order -->
     <!-- NOTE: do NOT use defer; SDK may call Asc.plugin.init before deferred scripts run -->
