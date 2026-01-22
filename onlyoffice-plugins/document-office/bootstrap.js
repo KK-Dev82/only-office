@@ -44,6 +44,16 @@
     if (DO.state.inited) return;
     DO.state.inited = true;
     try {
+      // log editor API availability (helps diagnose missing methods/events)
+      try {
+        DO.debugLog("editor_api", {
+          executeMethod: Boolean(window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod),
+          callCommand: Boolean(window.Asc && window.Asc.plugin && window.Asc.plugin.callCommand),
+          attachEditorEvent: Boolean(window.Asc && window.Asc.plugin && window.Asc.plugin.attachEditorEvent),
+          attachEvent: Boolean(window.Asc && window.Asc.plugin && window.Asc.plugin.attachEvent),
+        });
+      } catch (e0) {}
+
       var injected = tryReadInjectedOptions();
       mergeOptions(injected);
 

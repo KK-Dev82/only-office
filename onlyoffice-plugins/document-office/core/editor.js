@@ -25,6 +25,35 @@
     return false;
   }
 
+  function execWithTimeout(name, params, timeoutMs, cb) {
+    var done = false;
+    var tId = 0;
+    function finish(v) {
+      if (done) return;
+      done = true;
+      try {
+        if (tId) clearTimeout(tId);
+      } catch (e0) {}
+      try {
+        cb && cb(v);
+      } catch (e1) {}
+    }
+    try {
+      tId = setTimeout(function () {
+        finish(undefined);
+      }, Math.max(0, Number(timeoutMs || 0) || 0));
+    } catch (e2) {}
+
+    try {
+      var ok = exec(name, params || [], function (v) {
+        finish(v);
+      });
+      if (ok === false) finish(undefined);
+    } catch (e3) {
+      finish(undefined);
+    }
+  }
+
   DO.editor.insertText = function (text) {
     var t = String(text || "");
     if (!t) return;
@@ -70,45 +99,85 @@
       exec("SetFocusToEditor", []);
     } catch (e3) {}
 
-    // Verify insertion by checking current paragraph text change
-    DO.editor.getCurrentParagraphText(function (beforeText) {
-      var before = String(beforeText || "");
-      try {
-        DO.debugLog("insert_attempt", { via: "PasteText", len: t.length });
-      } catch (e4) {}
+    // Snapshot (best-effort) then insert then verify.
+    execWithTimeout("GetSelectedText", [], 200, function (beforeSel) {
+      var before = beforeSel;
+      var beforeVia = "GetSelectedText";
 
-      // Attempt executeMethod insert (may return undefined; still can work)
+      if (before === undefined) {
+        execWithTimeout("GetCurrentParagraph", [], 250, function (p) {
+          beforeVia = "GetCurrentParagraph";
+          before = p;
+          doInsertAndVerify(before, beforeVia);
+        });
+        return;
+      }
+      doInsertAndVerify(before, beforeVia);
+    });
+
+    function normalizeTextSnapshot(v) {
+      try {
+        if (typeof v === "string") return v || "";
+        if (v && typeof v.text === "string") return v.text || "";
+        if (v && v.GetText) return v.GetText() || "";
+      } catch (e0) {}
+      return "";
+    }
+
+    function doInsertAndVerify(beforeSnap, beforeVia) {
+      var beforeText = normalizeTextSnapshot(beforeSnap);
+
+      try {
+        DO.debugLog("insert_attempt", { via: "PasteText", len: t.length, beforeVia: beforeVia });
+      } catch (e1) {}
+
+      // Attempt executeMethod insert (docs: InputText requires 2 params)
       try {
         exec("PasteText", [t]);
-      } catch (e5) {}
+      } catch (e2) {}
       try {
-        exec("InputText", [t]);
-      } catch (e6) {}
+        exec("InputText", [t, ""]);
+      } catch (e3) {}
 
       setTimeout(function () {
-        DO.editor.getCurrentParagraphText(function (afterText) {
-          var after = String(afterText || "");
-          if (after !== before) {
+        execWithTimeout(beforeVia === "GetSelectedText" ? "GetSelectedText" : "GetCurrentParagraph", [], 250, function (afterSnap) {
+          var afterText = normalizeTextSnapshot(afterSnap);
+
+          // If we cannot read snapshots reliably, still try macro insert once (most robust)
+          if (afterSnap === undefined && beforeSnap === undefined) {
             try {
-              DO.debugLog("insert_verified", { changed: true, beforeLen: before.length, afterLen: after.length });
-            } catch (e7) {}
+              DO.debugLog("insert_verify_unavailable", { beforeVia: beforeVia });
+            } catch (e4) {}
+            if (!callCommandInsert()) {
+              try {
+                DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
+              } catch (e5) {}
+              DO.setOutput({ ok: false, error: "Insert failed: no editor methods available" });
+            }
+            return;
+          }
+
+          if (afterText !== beforeText) {
+            try {
+              DO.debugLog("insert_verified", { changed: true, beforeLen: beforeText.length, afterLen: afterText.length, via: beforeVia });
+            } catch (e6) {}
             return;
           }
 
           // No change detected → try macro API fallback
           try {
-            DO.debugLog("insert_verify_nochange", { beforeLen: before.length, afterLen: after.length });
-          } catch (e8) {}
+            DO.debugLog("insert_verify_nochange", { beforeLen: beforeText.length, afterLen: afterText.length, via: beforeVia });
+          } catch (e7) {}
 
           if (!callCommandInsert()) {
             try {
               DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
-            } catch (e9) {}
-            DO.setOutput({ ok: false, error: "Insert failed: cannot verify PasteText/InputText and callCommand unavailable" });
+            } catch (e8) {}
+            DO.setOutput({ ok: false, error: "Insert failed: PasteText/InputText no effect and callCommand unavailable" });
           }
         });
-      }, 160);
-    });
+      }, 220);
+    }
   };
 
   function canCallCommand() {
@@ -175,7 +244,7 @@
   };
 
   DO.editor.getSelectedText = function (cb) {
-    exec("GetSelectedText", [], function (text) {
+    execWithTimeout("GetSelectedText", [], 300, function (text) {
       try {
         cb && cb(text || "");
       } catch (e) {}
@@ -183,7 +252,7 @@
   };
 
   DO.editor.getCurrentParagraphText = function (cb) {
-    exec("GetCurrentParagraph", [], function (p) {
+    execWithTimeout("GetCurrentParagraph", [], 400, function (p) {
       var text = "";
       try {
         if (typeof p === "string") text = p || "";

@@ -129,6 +129,10 @@
           window.Asc.plugin.attachEvent(id, fn);
           return "attachEvent";
         }
+        // Some builds deliver events by calling Asc.plugin[EventName] directly
+        // when the event is listed in config.json.
+        window.Asc.plugin[id] = fn;
+        return "direct";
       } catch (e) {}
       return "";
     }
