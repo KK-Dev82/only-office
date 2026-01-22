@@ -1,0 +1,24 @@
+{
+  "name": "Dictionary & Abbreviation",
+  "guid": "asc.{8B6B9F89-7C57-4E1F-8B78-2B3D6B31E0DE}",
+  "version": "0.1.0",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Dictionary + Abbreviation tools (separate from Clipboard)",
+      "url": "index.html?v=0.1.0",
+      "type": "panelRight",
+      "isViewer": false,
+      "isActivated": true,
+      "EditorsSupport": ["word"],
+      "icons": [
+        "../document-office/resources/icon.svg"
+      ],
+      "buttons": [
+        { "text": "Close", "primary": false }
+      ]
+    }
+  ],
+  "events": []
+}
+

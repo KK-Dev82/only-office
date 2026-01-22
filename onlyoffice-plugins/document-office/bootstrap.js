@@ -67,15 +67,10 @@
       DO.initLocalData();
       bindCoreUi();
 
-      // bind features - Clipboard and Dictionary enabled
+      // bind features - Clipboard enabled
       if (DO.features && DO.features.clipboard) {
         DO.features.clipboard.bind();
         DO.features.clipboard.render();
-      }
-
-      if (DO.features && DO.features.dictionary) {
-        DO.features.dictionary.bind();
-        DO.features.dictionary.renderSaved();
       }
 
       // DISABLED: SpeechToText feature - now using separate plugin
@@ -103,15 +98,10 @@
         DO.ui.bindDebug();
       }
 
-      // Enable input helper for typing detection (needed for Dictionary)
-      if (DO.features && DO.features.inputhelper) {
-        DO.features.inputhelper.attachEvents();
-      }
-
       DO.setStatus("ready");
       DO.sendToHost({ type: "do:pluginReady", version: DO.VERSION });
       DO.setOutput({
-        plugin: "DocumentOffice",
+        plugin: "DocumentOffice (Clipboard)",
         version: DO.VERSION,
         hasAccessToken: Boolean(DO.pluginOptions.accessToken),
         apiBaseUrl: DO.pluginOptions.apiBaseUrl || "",

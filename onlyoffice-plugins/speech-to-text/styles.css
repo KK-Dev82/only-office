@@ -182,7 +182,8 @@
   min-height: 0;
 }
 
-.stt-textarea {
+.stt-textarea,
+.stt-transcript {
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -191,21 +192,62 @@
   border-radius: 6px;
   font-size: 13px;
   font-family: inherit;
-  resize: none;
   background: #f9fafb;
-  overflow: auto; /* textarea scroll */
+  overflow: auto; /* scroll เฉพาะพื้นที่ข้อความ */
 }
 
-.stt-textarea-panel {
+.stt-textarea-panel,
+.stt-transcript-panel {
   background: #fff7ed; /* warm panel-like */
   border-color: #f3d5b6;
 }
 
-.stt-textarea:focus {
+.stt-textarea:focus,
+.stt-transcript:focus {
   outline: none;
   border-color: #0d6efd;
   background: #fff;
   box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+}
+
+.stt-transcript {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+.stt-transcript:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+}
+
+.stt-word {
+  display: inline;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.stt-word:hover {
+  filter: brightness(0.98);
+  outline: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.stt-word.is-striked {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.stt-hl--green {
+  background: rgba(16, 185, 129, 0.18);
+}
+
+.stt-hl--yellow {
+  background: rgba(245, 158, 11, 0.18);
+}
+
+.stt-hl--red {
+  background: rgba(239, 68, 68, 0.16);
 }
 
 .stt-actions {

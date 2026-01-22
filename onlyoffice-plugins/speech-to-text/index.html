@@ -48,12 +48,13 @@
         </div>
 
         <div class="stt-textarea-wrapper">
-          <textarea
+          <div
             id="textOutput"
-            class="stt-textarea stt-textarea-panel"
-            placeholder="แปลงเสียงเป็นข้อความ... (กดเริ่มฟัง)"
-            readonly
-          ></textarea>
+            class="stt-transcript stt-transcript-panel"
+            data-placeholder="แปลงเสียงเป็นข้อความ... (กดเริ่มฟัง)"
+            role="textbox"
+            aria-readonly="true"
+          ></div>
         </div>
 
         <div class="stt-actions">

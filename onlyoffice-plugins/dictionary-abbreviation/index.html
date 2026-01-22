@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dictionary & Abbreviation</title>
+    <!-- ONLYOFFICE Plugin SDK -->
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+
+    <!-- reuse styles + core from document-office to avoid duplication -->
+    <link rel="stylesheet" href="../document-office/styles.css?v=0.1.11" />
+    <script type="text/javascript" src="../document-office/core/ns.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/core/util.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/core/telemetry.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/core/storage.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/core/editor.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/core/bus.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/core/uiwatch.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/ui/tabs.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/ui/debug.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/features/dictionary.js?v=0.1.11"></script>
+    <script type="text/javascript" src="../document-office/features/abbreviation.js?v=0.1.11"></script>
+
+    <script type="text/javascript" src="bootstrap.js?v=0.1.0"></script>
+  </head>
+  <body>
+    <div class="doRoot">
+      <header class="doHeader">
+        <div class="doHeaderLeft">
+          <div class="doTitle">Language Tools</div>
+          <div class="doBadges">
+            <span class="doBadge" id="pluginVersion">v?</span>
+          </div>
+        </div>
+        <div class="doHeaderRight">
+          <div class="doStatus" id="status">loading…</div>
+          <button class="doBtnGhost" id="toggleDebug" type="button">Debug</button>
+        </div>
+      </header>
+
+      <div class="doTabsScroll" role="tablist" aria-label="Language tools tabs">
+        <button class="doTabBtn doIsActive" id="tabBtn-dictionary" type="button" data-tab="dictionary">
+          📚 Dictionary
+        </button>
+        <button class="doTabBtn" id="tabBtn-abbreviation" type="button" data-tab="abbreviation">
+          📝 คำย่อ
+        </button>
+      </div>
+
+      <main class="doMain">
+        <section class="doTabPanel doIsActive" id="tab-dictionary" data-tab="dictionary">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">📚 Dictionary</div>
+            <div class="doPanelActions">
+              <button id="dictToggleAdd" type="button">เพิ่มคำ</button>
+            </div>
+          </div>
+
+          <div class="doRow">
+            <input id="dictQuery" class="doInput" placeholder="พิมพ์คำเพื่อค้นหา..." />
+            <button id="dictSearch" type="button">ค้นหา</button>
+          </div>
+
+          <div class="doCard doIsHidden" id="dictAddCard">
+            <div class="doSubtitle">เพิ่มคำใหม่ (Local)</div>
+            <div class="doRow">
+              <input id="dictNewWord" class="doInput" placeholder="คำศัพท์" />
+              <input id="dictNewDesc" class="doInput" placeholder="คำอธิบาย (ไม่บังคับ)" />
+              <button id="dictAdd" type="button">เพิ่ม</button>
+            </div>
+          </div>
+
+          <div class="doSplit2">
+            <div class="doCard">
+              <div class="doSubtitle">ผลการค้นหา</div>
+              <div id="dictResults" class="doList"></div>
+            </div>
+            <div class="doCard">
+              <div class="doSubtitle">คำที่บันทึกไว้ (Local)</div>
+              <div id="dictSavedList" class="doList"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doTabPanel" id="tab-abbreviation" data-tab="abbreviation">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">📝 คำย่อ</div>
+            <div class="doPanelActions">
+              <button id="abbrExpandSelection" type="button">Expand selection</button>
+            </div>
+          </div>
+
+          <div class="doRow">
+            <input id="abbrShort" class="doInput" placeholder="คำย่อ" />
+            <input id="abbrFull" class="doInput" placeholder="คำเต็ม" />
+            <button id="abbrAdd" type="button">เพิ่ม</button>
+          </div>
+
+          <div class="doCard">
+            <div class="doSubtitle">รายการคำย่อ</div>
+            <div id="abbrList" class="doList"></div>
+          </div>
+        </section>
+
+        <section class="doDebugPanel doIsHidden" id="debugPanel">
+          <div class="doPanelHeader">
+            <div class="doPanelTitle">Debug</div>
+            <div class="doPanelActions">
+              <button id="btnGetSelection" type="button">Get selection</button>
+              <button id="btnGetContext" type="button">Get context</button>
+              <button id="btnInsertDemo" type="button">Insert demo</button>
+            </div>
+          </div>
+          <pre class="doOutput" id="output"></pre>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
+

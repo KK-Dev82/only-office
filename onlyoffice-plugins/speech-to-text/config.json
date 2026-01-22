@@ -15,9 +15,7 @@
       "icons": [
         "resources/icon.svg"
       ],
-      "buttons": [
-        { "text": "Close", "primary": false }
-      ]
+      "buttons": []
     }
   ],
   "events": []

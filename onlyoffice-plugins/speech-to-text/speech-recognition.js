@@ -6,15 +6,6 @@
   STT.isListening = false;
   STT.currentText = "";
 
-  function updateWordCount(text) {
-    try {
-      var t = String(text || "").trim();
-      var words = t ? t.split(/\s+/).filter(Boolean) : [];
-      var el = STT.$("sttWordCount");
-      if (el) el.textContent = words.length + " คำ";
-    } catch {}
-  }
-
   function initRecognition() {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
       STT.setStatus("Browser ไม่รองรับ Speech Recognition");
@@ -59,19 +50,11 @@
 
       if (finalTranscript) {
         STT.currentText += finalTranscript;
-        var textOutput = STT.$("textOutput");
-        if (textOutput) {
-          textOutput.value = STT.currentText + interimTranscript;
-        }
+        STT.renderTranscript(STT.currentText + interimTranscript);
         STT.updateButtonStates();
-        updateWordCount(STT.currentText + interimTranscript);
       } else if (interimTranscript) {
-        var textOutput = STT.$("textOutput");
-        if (textOutput) {
-          textOutput.value = STT.currentText + interimTranscript;
-        }
+        STT.renderTranscript(STT.currentText + interimTranscript);
         STT.updateButtonStates();
-        updateWordCount(STT.currentText + interimTranscript);
       }
     };
 
@@ -140,20 +123,15 @@
 
   STT.clearText = function () {
     STT.currentText = "";
-    var textOutput = STT.$("textOutput");
-    if (textOutput) {
-      textOutput.value = "";
-    }
+    STT.renderTranscript("");
     var btnInsert = STT.$("btnInsert");
     var btnAppend = STT.$("btnAppend");
     if (btnInsert) btnInsert.disabled = true;
     if (btnAppend) btnAppend.disabled = true;
-    updateWordCount("");
   };
 
   STT.updateButtonStates = function () {
-    var textOutput = STT.$("textOutput");
-    var hasText = textOutput && textOutput.value.trim().length > 0;
+    var hasText = String(STT.getPlainText() || "").trim().length > 0;
     var btnInsert = STT.$("btnInsert");
     var btnAppend = STT.$("btnAppend");
     if (btnInsert) btnInsert.disabled = !hasText;
@@ -170,14 +148,7 @@
     });
   }
 
-  // Watch textarea changes
-  var textOutput = STT.$("textOutput");
-  if (textOutput) {
-    textOutput.addEventListener("input", function () {
-      STT.currentText = textOutput.value;
-      STT.updateButtonStates();
-    });
-  }
+  // No manual input (transcript is rendered)
 
   // Export
   window.STT = STT;

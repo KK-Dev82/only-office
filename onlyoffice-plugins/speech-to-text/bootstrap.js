@@ -31,8 +31,7 @@
 
     if (btnInsert) {
       btnInsert.addEventListener("click", function () {
-        var textOutput = STT.$("textOutput");
-        var text = textOutput ? textOutput.value.trim() : "";
+        var text = String(STT.getPlainText ? STT.getPlainText() : "").trim();
         if (text) {
           if (STT.insertText(text)) {
             STT.setStatus("Insert สำเร็จ");
@@ -46,8 +45,7 @@
 
     if (btnAppend) {
       btnAppend.addEventListener("click", function () {
-        var textOutput = STT.$("textOutput");
-        var text = textOutput ? textOutput.value.trim() : "";
+        var text = String(STT.getPlainText ? STT.getPlainText() : "").trim();
         if (text) {
           if (STT.appendToDocumentEnd(text)) {
             STT.setStatus("Append สำเร็จ");
