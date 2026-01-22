@@ -12,13 +12,18 @@
       "isActivated": true,
       "EditorsSupport": ["word"],
       "icons": [
-        "../document-office/resources/icon.svg"
+        "resources/icon.svg"
       ],
       "buttons": [
         { "text": "Close", "primary": false }
       ]
     }
   ],
-  "events": []
+  "events": [
+    "onTargetPositionChanged",
+    "onInputHelperInput",
+    "onInputHelperClear",
+    "onInputHelperItemClick"
+  ]
 }
 

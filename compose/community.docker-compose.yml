@@ -1,0 +1,91 @@
+services:
+  onlyoffice-documentserver:
+    image: onlyoffice/documentserver:latest
+    container_name: onlyoffice-docs-community
+    restart: unless-stopped
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    ports:
+      - "${OO_HTTP_PORT:-8082}:80"
+    environment:
+      JWT_ENABLED: ${JWT_ENABLED:-true}
+      JWT_SECRET: ${JWT_SECRET:-change_me_super_secret}
+    volumes:
+      # Persist data/logs (recommended)
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+
+      # --- Custom Fonts (TH Sarabun) ---
+      - ../THSarabunITBold:/usr/share/fonts/truetype/th-sarabun:ro
+
+      # --- Plugin sources (we will copy into sdkjs-plugins on start) ---
+      - ../onlyoffice-plugins:/opt/kk-plugins-src:ro
+
+      # --- Thai dictionary sources (we will copy into dictionaries on start) ---
+      - ../dict:/opt/kk-dict-src:ro
+
+    # Run init (fonts/plugins/dicts) then start DocumentServer.
+    # We keep it idempotent using a marker file in /var/www/onlyoffice/Data
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+
+        INIT_MARK="/var/www/onlyoffice/Data/.kk_init_done"
+        if [ ! -f "$INIT_MARK" ]; then
+          echo "[KK] init: installing fonts/plugins/dicts..."
+
+          # Fonts: rebuild font cache + generate allfonts
+          (fc-cache -fv || true)
+          (/usr/bin/documentserver-generate-allfonts.sh || true)
+
+          # Plugins: copy all plugin folders
+          PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
+          mkdir -p "$PLUGINS_DST"
+          if [ -d "/opt/kk-plugins-src" ]; then
+            cp -R /opt/kk-plugins-src/* "$PLUGINS_DST"/ || true
+          fi
+
+          # Dictionaries: copy th_TH into DocumentServer dictionaries
+          DICS_DST="/var/www/onlyoffice/documentserver/dictionaries/th_TH"
+          mkdir -p "$DICS_DST"
+          if [ -f "/opt/kk-dict-src/th_TH/th_TH.dic" ]; then
+            cp "/opt/kk-dict-src/th_TH/th_TH.dic" "$DICS_DST/th_TH.dic"
+          fi
+          if [ -f "/opt/kk-dict-src/th_TH/th_TH.aff" ]; then
+            cp "/opt/kk-dict-src/th_TH/th_TH.aff" "$DICS_DST/th_TH.aff"
+          fi
+          # required json: Thai (Thailand) LCID 1054
+          if [ -f "/opt/kk-dict-src/th_TH/th_TH.json" ]; then
+            cp "/opt/kk-dict-src/th_TH/th_TH.json" "$DICS_DST/th_TH.json"
+          else
+            cat > "$DICS_DST/th_TH.json" <<'EOF'
+        { "codes": [1054] }
+        EOF
+          fi
+
+          # Update dictionary registry (best-effort; path differs by versions)
+          (python3 "/var/www/onlyoffice/documentserver/server/dictionaries/update.py" || true)
+
+          date > "$INIT_MARK"
+          echo "[KK] init: done."
+        else
+          echo "[KK] init: already done ($INIT_MARK)."
+        fi
+
+        # Start DocumentServer (path differs across images; try common locations)
+        if [ -x /app/run-document-server.sh ]; then
+          exec /app/run-document-server.sh
+        elif [ -x /run-document-server.sh ]; then
+          exec /run-document-server.sh
+        elif command -v run-document-server.sh >/dev/null 2>&1; then
+          exec run-document-server.sh
+        else
+          echo "Cannot find run-document-server.sh" >&2
+          exit 1
+        fi
+
+volumes:
+  onlyoffice_data:
+  onlyoffice_logs:
+

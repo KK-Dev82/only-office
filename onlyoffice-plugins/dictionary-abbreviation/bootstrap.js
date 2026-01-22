@@ -69,6 +69,13 @@
         DO.ui.bindDebug();
       }
 
+      // Enable dictionary auto-suggest (InputHelper: Tab/Enter/Esc)
+      try {
+        if (DO.features && DO.features.dictSuggest && typeof DO.features.dictSuggest.bind === "function") {
+          DO.features.dictSuggest.bind();
+        }
+      } catch (e0) {}
+
       DO.setStatus("ready");
       DO.sendToHost({ type: "do:pluginReady", version: DO.VERSION, plugin: "dictionary-abbreviation" });
       DO.setOutput({
