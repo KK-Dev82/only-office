@@ -5,17 +5,18 @@
   "baseUrl": "",
   "variations": [
     {
-      "description": "Speech To Text plugin for OnlyOffice - Draggable Panel",
+      "description": "Speech To Text plugin for OnlyOffice - Floating Window",
       "url": "index.html?v=0.2.0",
-      "type": "button",
+      "type": "window",
       "isViewer": false,
       "isActivated": true,
       "EditorsSupport": ["word"],
+      "size": [420, 680],
       "icons": [
         "resources/icon.svg"
       ],
       "buttons": [
-        { "text": "Speech To Text", "primary": false }
+        { "text": "Close", "primary": false }
       ]
     }
   ],
