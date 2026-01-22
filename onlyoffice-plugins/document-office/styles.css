@@ -77,7 +77,7 @@ html, body {
   border-radius: 8px;
 }
 
-.tabsScroll {
+.doTabsScroll {
   display: flex;
   gap: 6px;
   padding: 8px 10px;
@@ -89,21 +89,21 @@ html, body {
   scrollbar-width: thin;
 }
 
-.tabsScroll::-webkit-scrollbar {
+.doTabsScroll::-webkit-scrollbar {
   height: 6px;
 }
-.tabsScroll::-webkit-scrollbar-track {
+.doTabsScroll::-webkit-scrollbar-track {
   background: #f8f9fa;
 }
-.tabsScroll::-webkit-scrollbar-thumb {
+.doTabsScroll::-webkit-scrollbar-thumb {
   background: #cbd5e0;
   border-radius: 3px;
 }
-.tabsScroll::-webkit-scrollbar-thumb:hover {
+.doTabsScroll::-webkit-scrollbar-thumb:hover {
   background: #a0aec0;
 }
 
-.tabBtn {
+.doTabBtn {
   font-size: 11px;
   padding: 6px 10px;
   border: 1px solid #dee2e6;
@@ -113,7 +113,7 @@ html, body {
   flex-shrink: 0;
 }
 
-.tabBtn.isActive {
+.doTabBtn.doIsActive {
   border-color: #0d6efd;
   color: #0d6efd;
   background: #eef5ff;
@@ -126,13 +126,13 @@ html, body {
   padding: 10px;
 }
 
-.tabPanel {
+.doTabPanel {
   display: none;
   height: 100%;
   overflow: auto;
 }
 
-.tabPanel.isActive {
+.doTabPanel.doIsActive {
   display: block;
 }
 
@@ -216,7 +216,7 @@ html, body {
   min-height: 60px;
 }
 
-.doCard.isHidden {
+.doCard.doIsHidden {
   display: none;
 }
 
@@ -276,11 +276,11 @@ html, body {
   line-height: 1.4;
 }
 
-.debugPanel {
+.doDebugPanel {
   margin-top: 10px;
 }
 
-.debugPanel.isHidden {
+.doDebugPanel.doIsHidden {
   display: none;
 }
 

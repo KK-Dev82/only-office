@@ -178,9 +178,9 @@
       dictToggleAdd.addEventListener("click", function () {
         var card = DO.$("dictAddCard");
         if (!card) return;
-        if (card.classList.contains("isHidden")) card.classList.remove("isHidden");
-        else card.classList.add("isHidden");
-        DO.debugLog("dict_toggle_add", { open: !card.classList.contains("isHidden") });
+        if (card.classList.contains("doIsHidden")) card.classList.remove("doIsHidden");
+        else card.classList.add("doIsHidden");
+        DO.debugLog("dict_toggle_add", { open: !card.classList.contains("doIsHidden") });
       });
     }
 

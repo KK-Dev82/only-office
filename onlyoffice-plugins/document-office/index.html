@@ -42,23 +42,23 @@
         </div>
       </header>
 
-      <div class="tabsScroll" role="tablist" aria-label="DocumentOffice tabs">
-        <button class="tabBtn isActive" id="tabBtn-clipboard" type="button" data-tab="clipboard">
+      <div class="doTabsScroll" role="tablist" aria-label="DocumentOffice tabs">
+        <button class="doTabBtn doIsActive" id="tabBtn-clipboard" type="button" data-tab="clipboard">
           📋 Clipboard & Macros
         </button>
-        <button class="tabBtn" id="tabBtn-dictionary" type="button" data-tab="dictionary">
+        <button class="doTabBtn" id="tabBtn-dictionary" type="button" data-tab="dictionary">
           📚 Dictionary
         </button>
-        <button class="tabBtn" id="tabBtn-abbreviation" type="button" data-tab="abbreviation">
+        <button class="doTabBtn" id="tabBtn-abbreviation" type="button" data-tab="abbreviation">
           📝 คำย่อ
         </button>
-        <button class="tabBtn" id="tabBtn-redundant" type="button" data-tab="redundant">
+        <button class="doTabBtn" id="tabBtn-redundant" type="button" data-tab="redundant">
           🗑️ คำฟุ่มเฟือย
         </button>
       </div>
 
       <main class="doMain">
-        <section class="tabPanel isActive" id="tab-clipboard" data-tab="clipboard">
+        <section class="doTabPanel doIsActive" id="tab-clipboard" data-tab="clipboard">
           <div class="doPanelHeader">
             <div class="doPanelTitle">📋 Clipboard & Macros</div>
             <div class="doPanelActions">
@@ -84,7 +84,7 @@
           </div>
         </section>
 
-        <section class="tabPanel" id="tab-dictionary" data-tab="dictionary">
+        <section class="doTabPanel" id="tab-dictionary" data-tab="dictionary">
           <div class="doPanelHeader">
             <div class="doPanelTitle">📚 Dictionary</div>
             <div class="doPanelActions">
@@ -97,7 +97,7 @@
             <button id="dictSearch" type="button">ค้นหา</button>
           </div>
 
-          <div class="doCard isHidden" id="dictAddCard">
+          <div class="doCard doIsHidden" id="dictAddCard">
             <div class="doSubtitle">เพิ่มคำใหม่ (Local)</div>
             <div class="doRow">
               <input id="dictNewWord" class="doInput" placeholder="คำศัพท์" />
@@ -118,7 +118,7 @@
           </div>
         </section>
 
-        <section class="tabPanel" id="tab-abbreviation" data-tab="abbreviation">
+        <section class="doTabPanel" id="tab-abbreviation" data-tab="abbreviation">
           <div class="doPanelHeader">
             <div class="doPanelTitle">📝 คำย่อ</div>
             <div class="doPanelActions">
@@ -138,7 +138,7 @@
           </div>
         </section>
 
-        <section class="tabPanel" id="tab-redundant" data-tab="redundant">
+        <section class="doTabPanel" id="tab-redundant" data-tab="redundant">
           <div class="doPanelHeader">
             <div class="doPanelTitle">🗑️ คำฟุ่มเฟือย</div>
             <div class="doPanelActions">
@@ -172,7 +172,7 @@
           </div>
         </section>
 
-        <section class="debugPanel isHidden" id="debugPanel">
+        <section class="doDebugPanel doIsHidden" id="debugPanel">
           <div class="doPanelHeader">
             <div class="doPanelTitle">Debug</div>
             <div class="doPanelActions">

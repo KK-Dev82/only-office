@@ -13,20 +13,20 @@
       if (DO.canUseLocalStorage()) localStorage.setItem(DO.STORAGE_KEYS.activeTab, tab);
     } catch (e0) {}
 
-    var btns = document.querySelectorAll(".tabBtn[data-tab]");
+    var btns = document.querySelectorAll(".doTabBtn[data-tab]");
     for (var i = 0; i < btns.length; i++) {
       var b = btns[i];
       var t = b.getAttribute("data-tab");
-      if (t === tab) b.classList.add("isActive");
-      else b.classList.remove("isActive");
+      if (t === tab) b.classList.add("doIsActive");
+      else b.classList.remove("doIsActive");
     }
 
-    var panels = document.querySelectorAll(".tabPanel[data-tab]");
+    var panels = document.querySelectorAll(".doTabPanel[data-tab]");
     for (var j = 0; j < panels.length; j++) {
       var p = panels[j];
       var tp = p.getAttribute("data-tab");
-      if (tp === tab) p.classList.add("isActive");
-      else p.classList.remove("isActive");
+      if (tp === tab) p.classList.add("doIsActive");
+      else p.classList.remove("doIsActive");
     }
 
     DO.debugLog("tab_change", { tab: tab });
@@ -39,8 +39,8 @@
     else if (forceOpen === false) DO.state.debugOpen = false;
     else DO.state.debugOpen = !DO.state.debugOpen;
 
-    if (DO.state.debugOpen) panel.classList.remove("isHidden");
-    else panel.classList.add("isHidden");
+    if (DO.state.debugOpen) panel.classList.remove("doIsHidden");
+    else panel.classList.add("doIsHidden");
 
     try {
       if (DO.canUseLocalStorage()) localStorage.setItem(DO.STORAGE_KEYS.debugOpen, DO.state.debugOpen ? "1" : "0");
@@ -51,7 +51,7 @@
 
   DO.ui.bindTabs = function () {
     try {
-      var tabBtns = document.querySelectorAll(".tabBtn[data-tab]");
+      var tabBtns = document.querySelectorAll(".doTabBtn[data-tab]");
       for (var i = 0; i < tabBtns.length; i++) {
         tabBtns[i].addEventListener("click", function (ev) {
           try {
