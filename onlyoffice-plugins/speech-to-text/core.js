@@ -2,7 +2,7 @@
 (function () {
   var STT = (window.STT = window.STT || {});
 
-  STT.VERSION = "0.1.0";
+  STT.VERSION = "0.2.0";
 
   // Helper functions
   STT.$ = function (id) {

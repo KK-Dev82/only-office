@@ -30,6 +30,12 @@
       var btnStop = STT.$("btnStop");
       if (btnStart) btnStart.disabled = true;
       if (btnStop) btnStop.disabled = false;
+      
+      // Update status indicator
+      var indicator = STT.$("stt-status-indicator");
+      if (indicator) {
+        indicator.className = "stt-status-indicator stt-status-listening";
+      }
     };
 
     STT.recognition.onresult = function (event) {
@@ -81,6 +87,12 @@
       var btnStop = STT.$("btnStop");
       if (btnStart) btnStart.disabled = false;
       if (btnStop) btnStop.disabled = true;
+      
+      // Update status indicator
+      var indicator = STT.$("stt-status-indicator");
+      if (indicator) {
+        indicator.className = "stt-status-indicator stt-status-ready";
+      }
     };
 
     return true;

@@ -3,63 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Speech To Text</title>
+    <title>Speech To Text - Draggable Panel</title>
     <!-- ONLYOFFICE Plugin SDK -->
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
-    <link rel="stylesheet" href="styles.css?v=0.1.0" />
-    <script type="text/javascript" src="core.js?v=0.1.0"></script>
-    <script type="text/javascript" src="speech-recognition.js?v=0.1.0"></script>
-    <script type="text/javascript" src="bootstrap.js?v=0.1.0"></script>
+    <link rel="stylesheet" href="styles.css?v=0.2.0" />
+    <script type="text/javascript" src="core.js?v=0.2.0"></script>
+    <script type="text/javascript" src="speech-recognition.js?v=0.2.0"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.2.0"></script>
   </head>
   <body>
-    <div class="stt-root">
-      <header class="stt-header">
-        <div class="stt-title">🎤 Speech To Text</div>
-        <div class="stt-status" id="status">Ready</div>
-      </header>
-
-      <main class="stt-main">
-        <div class="stt-controls">
-          <button id="btnStart" class="stt-btn stt-btn-primary" type="button">
-            เริ่มฟัง
-          </button>
-          <button id="btnStop" class="stt-btn stt-btn-secondary" type="button" disabled>
-            หยุดฟัง
-          </button>
-          <button id="btnClear" class="stt-btn stt-btn-secondary" type="button">
-            ล้าง
-          </button>
-        </div>
-
-        <div class="stt-textarea-wrapper">
-          <textarea id="textOutput" class="stt-textarea" placeholder="ข้อความที่ถอดเสียงจะแสดงที่นี่..." readonly></textarea>
-        </div>
-
-        <div class="stt-actions">
-          <button id="btnInsert" class="stt-btn stt-btn-primary" type="button" disabled>
-            Insert ไปยังเอกสาร
-          </button>
-          <button id="btnAppend" class="stt-btn stt-btn-primary" type="button" disabled>
-            Append ที่ท้ายเอกสาร
-          </button>
-        </div>
-
-        <div class="stt-info">
-          <div class="stt-info-item">
-            <span class="stt-label">ภาษา:</span>
-            <select id="langSelect" class="stt-select">
-              <option value="th-TH">ไทย (th-TH)</option>
-              <option value="en-US">English (en-US)</option>
-            </select>
-          </div>
-          <div class="stt-info-item">
-            <span class="stt-label">สถานะ:</span>
-            <span id="recognitionStatus" class="stt-value">ไม่มีการฟัง</span>
-          </div>
-        </div>
-      </main>
-    </div>
+    <!-- Panel will be created dynamically by bootstrap.js -->
   </body>
 </html>
