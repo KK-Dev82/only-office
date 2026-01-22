@@ -83,7 +83,7 @@
           true
         );
         try {
-          DO.debugLog("insert_attempt", { via: "callCommand", len: t.length });
+          DO.debugLog("insert_ok", { via: "callCommand", len: t.length });
         } catch (e0) {}
         return true;
       } catch (e1) {
@@ -99,85 +99,28 @@
       exec("SetFocusToEditor", []);
     } catch (e3) {}
 
-    // Snapshot (best-effort) then insert then verify.
-    execWithTimeout("GetSelectedText", [], 200, function (beforeSel) {
-      var before = beforeSel;
-      var beforeVia = "GetSelectedText";
-
-      if (before === undefined) {
-        execWithTimeout("GetCurrentParagraph", [], 250, function (p) {
-          beforeVia = "GetCurrentParagraph";
-          before = p;
-          doInsertAndVerify(before, beforeVia);
-        });
-        return;
-      }
-      doInsertAndVerify(before, beforeVia);
-    });
-
-    function normalizeTextSnapshot(v) {
-      try {
-        if (typeof v === "string") return v || "";
-        if (v && typeof v.text === "string") return v.text || "";
-        if (v && v.GetText) return v.GetText() || "";
-      } catch (e0) {}
-      return "";
-    }
-
-    function doInsertAndVerify(beforeSnap, beforeVia) {
-      var beforeText = normalizeTextSnapshot(beforeSnap);
-
-      try {
-        DO.debugLog("insert_attempt", { via: "PasteText", len: t.length, beforeVia: beforeVia });
-      } catch (e1) {}
-
-      // Attempt executeMethod insert (docs: InputText requires 2 params)
+    // IMPORTANT: Do not call multiple insert methods in a row (will duplicate text).
+    // Prefer PasteText; fallback to callCommand if executeMethod is not available.
+    if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
       try {
         exec("PasteText", [t]);
-      } catch (e2) {}
-      try {
-        exec("InputText", [t, ""]);
-      } catch (e3) {}
-
-      setTimeout(function () {
-        execWithTimeout(beforeVia === "GetSelectedText" ? "GetSelectedText" : "GetCurrentParagraph", [], 250, function (afterSnap) {
-          var afterText = normalizeTextSnapshot(afterSnap);
-
-          // If we cannot read snapshots reliably, still try macro insert once (most robust)
-          if (afterSnap === undefined && beforeSnap === undefined) {
-            try {
-              DO.debugLog("insert_verify_unavailable", { beforeVia: beforeVia });
-            } catch (e4) {}
-            if (!callCommandInsert()) {
-              try {
-                DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
-              } catch (e5) {}
-              DO.setOutput({ ok: false, error: "Insert failed: no editor methods available" });
-            }
-            return;
-          }
-
-          if (afterText !== beforeText) {
-            try {
-              DO.debugLog("insert_verified", { changed: true, beforeLen: beforeText.length, afterLen: afterText.length, via: beforeVia });
-            } catch (e6) {}
-            return;
-          }
-
-          // No change detected → try macro API fallback
-          try {
-            DO.debugLog("insert_verify_nochange", { beforeLen: beforeText.length, afterLen: afterText.length, via: beforeVia });
-          } catch (e7) {}
-
-          if (!callCommandInsert()) {
-            try {
-              DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
-            } catch (e8) {}
-            DO.setOutput({ ok: false, error: "Insert failed: PasteText/InputText no effect and callCommand unavailable" });
-          }
-        });
-      }, 220);
+        try {
+          DO.debugLog("insert_ok", { via: "PasteText", len: t.length });
+        } catch (e4) {}
+        return;
+      } catch (e5) {
+        try {
+          DO.debugLog("insert_paste_failed", { error: String(e5) });
+        } catch (e6) {}
+      }
     }
+
+    if (callCommandInsert()) return;
+
+    try {
+      DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
+    } catch (e7) {}
+    DO.setOutput({ ok: false, error: "Insert failed: executeMethod/callCommand unavailable" });
   };
 
   function canCallCommand() {

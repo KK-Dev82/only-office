@@ -149,6 +149,13 @@
       }
     } catch (e0) {}
 
+    // IMPORTANT: Enable input helper keyboard capture early so `onInputHelperInput`
+    // can fire while the user types in the editor (otherwise it's circular).
+    try {
+      showHelper();
+      DO.debugLog("inputHelper_shown", { keyboardTake: true });
+    } catch (eShow) {}
+
     var attachMode = attach("onInputHelperInput", function (data) {
       var text = "";
       try {
@@ -164,9 +171,8 @@
 
     attach("onInputHelperClear", function () {
       try {
-        if (window.Asc && window.Asc.plugin) {
-          window.Asc.plugin.executeMethod("UnShowInputHelper", [PLUGIN_GUID, true]);
-        }
+        // Keep helper active so we can keep detecting typing.
+        DO.debugLog("inputHelper_clear");
       } catch (e) {}
     });
 
