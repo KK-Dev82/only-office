@@ -28,29 +28,11 @@
   DO.editor.insertText = function (text) {
     var t = String(text || "");
     if (!t) return;
-    // NOTE: Try executeMethod first. In real usage, callCommand may "succeed" but
-    // fail silently depending on editor state/selection, and we would never reach PasteText.
-    // PasteText: insert at cursor / replace selection
-    if (exec("PasteText", [t])) {
-      try {
-        DO.state = DO.state || {};
-        DO.state.lastInsertAt = Date.now();
-        DO.debugLog("insert_ok", { via: "PasteText", len: t.length });
-      } catch (e0) {}
-      return;
-    }
-    // InputText: insert at cursor (fallback)
-    if (exec("InputText", [t])) {
-      try {
-        DO.state = DO.state || {};
-        DO.state.lastInsertAt = Date.now();
-        DO.debugLog("insert_ok", { via: "InputText", len: t.length });
-      } catch (e1) {}
-      return;
-    }
+    DO.state = DO.state || {};
+    DO.state.lastInsertAt = Date.now();
 
-    // Last resort: callCommand (macro API)
-    if (canCallCommand()) {
+    function callCommandInsert() {
+      if (!canCallCommand()) return false;
       try {
         window.Asc.scope = window.Asc.scope || {};
         window.Asc.scope.__do_insert_text = t;
@@ -65,7 +47,6 @@
               }
               var p = Api.CreateParagraph();
               p.AddText(s);
-              // Insert at current cursor position (do not pass extra args for compatibility)
               doc.InsertContent([p]);
             } catch (e) {}
           },
@@ -73,22 +54,61 @@
           true
         );
         try {
-          DO.state = DO.state || {};
-          DO.state.lastInsertAt = Date.now();
-          DO.debugLog("insert_ok", { via: "callCommand", len: t.length });
-        } catch (e2) {}
-        return;
-      } catch (e3) {
+          DO.debugLog("insert_attempt", { via: "callCommand", len: t.length });
+        } catch (e0) {}
+        return true;
+      } catch (e1) {
         try {
-          DO.debugLog("insert_callCommand_failed", { error: String(e3) });
-        } catch (e4) {}
+          DO.debugLog("insert_callCommand_failed", { error: String(e1) });
+        } catch (e2) {}
+        return false;
       }
     }
 
+    // Best-effort focus (helps in some builds)
     try {
-      DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
-    } catch (e5) {}
-    DO.setOutput({ ok: false, error: "Cannot insert: PasteText/InputText/callCommand unavailable" });
+      exec("SetFocusToEditor", []);
+    } catch (e3) {}
+
+    // Verify insertion by checking current paragraph text change
+    DO.editor.getCurrentParagraphText(function (beforeText) {
+      var before = String(beforeText || "");
+      try {
+        DO.debugLog("insert_attempt", { via: "PasteText", len: t.length });
+      } catch (e4) {}
+
+      // Attempt executeMethod insert (may return undefined; still can work)
+      try {
+        exec("PasteText", [t]);
+      } catch (e5) {}
+      try {
+        exec("InputText", [t]);
+      } catch (e6) {}
+
+      setTimeout(function () {
+        DO.editor.getCurrentParagraphText(function (afterText) {
+          var after = String(afterText || "");
+          if (after !== before) {
+            try {
+              DO.debugLog("insert_verified", { changed: true, beforeLen: before.length, afterLen: after.length });
+            } catch (e7) {}
+            return;
+          }
+
+          // No change detected → try macro API fallback
+          try {
+            DO.debugLog("insert_verify_nochange", { beforeLen: before.length, afterLen: after.length });
+          } catch (e8) {}
+
+          if (!callCommandInsert()) {
+            try {
+              DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
+            } catch (e9) {}
+            DO.setOutput({ ok: false, error: "Insert failed: cannot verify PasteText/InputText and callCommand unavailable" });
+          }
+        });
+      }, 160);
+    });
   };
 
   function canCallCommand() {

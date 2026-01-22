@@ -202,19 +202,36 @@
     // Extra fallback: poll current paragraph (covers cases where events don't fire on typing)
     try {
       if (!DO.state.inputPollTimer) {
+        DO.state._pollTick = 0;
+        DO.state._pollEmpty = 0;
         DO.state.inputPollTimer = setInterval(function () {
           try {
             DO.editor.getCurrentParagraphText(function (paraText) {
+              DO.state._pollTick = (DO.state._pollTick || 0) + 1;
+              var paraStr = String(paraText || "");
+              if (!paraStr) DO.state._pollEmpty = (DO.state._pollEmpty || 0) + 1;
+
+              // periodic heartbeat to prove we can read paragraph text
+              if ((DO.state._pollTick || 0) % 15 === 0) {
+                try {
+                  DO.debugLog("para_poll_heartbeat", {
+                    tick: DO.state._pollTick,
+                    paraLen: paraStr.length,
+                    emptyCount: DO.state._pollEmpty || 0,
+                  });
+                } catch (eHb) {}
+              }
+
               // Detect typing / changes (best-effort by diffing current paragraph text)
               try {
                 var now = Date.now();
                 // Skip immediate window after programmatic insert to reduce noisy logs
                 var lastInsertAt = DO.state.lastInsertAt || 0;
                 if (lastInsertAt && now - lastInsertAt < 250) {
-                  DO.state.lastParaText = String(paraText || "");
+                  DO.state.lastParaText = paraStr;
                 } else {
                   var prev = DO.state.lastParaText;
-                  var next = String(paraText || "");
+                  var next = paraStr;
                   if (prev === undefined) {
                     DO.state.lastParaText = next;
                   } else if (prev !== next) {
