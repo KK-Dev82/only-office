@@ -35,11 +35,12 @@
     if (toggleDebug) toggleDebug.addEventListener("click", function () { DO.ui.toggleDebugPanel(); });
     DO.ui.toggleDebugPanel(DO.state.debugOpen);
 
-    // UI/layout + cursor change watchers (diagnose "panel collapse after moving cursor")
-    try {
-      if (DO.startUiWatch) DO.startUiWatch();
-      if (DO.bindCursorWatch) DO.bindCursorWatch();
-    } catch (e) {}
+    // DISABLED: UI/layout + cursor change watchers to prevent UI resizing
+    // These watchers cause UI layout changes when inserting text
+    // try {
+    //   if (DO.startUiWatch) DO.startUiWatch();
+    //   if (DO.bindCursorWatch) DO.bindCursorWatch();
+    // } catch (e) {}
   }
 
   // Basic init
@@ -66,40 +67,41 @@
       DO.initLocalData();
       bindCoreUi();
 
-      // bind features
+      // bind features - ONLY CLIPBOARD ENABLED
       if (DO.features && DO.features.clipboard) {
         DO.features.clipboard.bind();
         DO.features.clipboard.render();
       }
 
-      if (DO.features && DO.features.macros) {
-        DO.features.macros.bind();
-        DO.features.macros.render();
-      }
+      // DISABLED: Other features to reduce UI layout changes
+      // if (DO.features && DO.features.macros) {
+      //   DO.features.macros.bind();
+      //   DO.features.macros.render();
+      // }
 
-      if (DO.features && DO.features.dictionary) {
-        DO.features.dictionary.bind();
-        DO.features.dictionary.renderSaved();
-      }
+      // if (DO.features && DO.features.dictionary) {
+      //   DO.features.dictionary.bind();
+      //   DO.features.dictionary.renderSaved();
+      // }
 
-      if (DO.features && DO.features.abbreviation) {
-        DO.features.abbreviation.bind();
-        DO.features.abbreviation.render();
-      }
+      // if (DO.features && DO.features.abbreviation) {
+      //   DO.features.abbreviation.bind();
+      //   DO.features.abbreviation.render();
+      // }
 
-      if (DO.features && DO.features.redundant) {
-        DO.features.redundant.bind();
-        DO.features.redundant.renderSaved();
-      }
+      // if (DO.features && DO.features.redundant) {
+      //   DO.features.redundant.bind();
+      //   DO.features.redundant.renderSaved();
+      // }
 
       if (DO.ui && DO.ui.bindDebug) {
         DO.ui.bindDebug();
       }
 
-      // attach input helper + fallback token detection
-      if (DO.features && DO.features.inputhelper) {
-        DO.features.inputhelper.attachEvents();
-      }
+      // DISABLED: Input helper to reduce UI layout changes
+      // if (DO.features && DO.features.inputhelper) {
+      //   DO.features.inputhelper.attachEvents();
+      // }
 
       DO.setStatus("ready");
       DO.sendToHost({ type: "do:pluginReady", version: DO.VERSION });

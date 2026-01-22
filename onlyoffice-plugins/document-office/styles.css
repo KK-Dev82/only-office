@@ -31,7 +31,10 @@ html, body {
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  contain: layout style;
+  contain: layout style paint;
+  /* Prevent layout shifts when inserting text */
+  will-change: auto;
+  transform: translateZ(0);
 }
 
 .doHeader {

@@ -43,11 +43,12 @@
         </div>
       </header>
 
-      <div class="doTabsScroll" role="tablist" aria-label="DocumentOffice tabs">
+      <div class="doTabsScroll" role="tablist" aria-label="DocumentOffice tabs" style="display: none;">
         <button class="doTabBtn doIsActive" id="tabBtn-clipboard" type="button" data-tab="clipboard">
-          📋 Clipboard & Macros
+          📋 Clipboard
         </button>
-        <button class="doTabBtn" id="tabBtn-dictionary" type="button" data-tab="dictionary">
+        <!-- DISABLED: Other tabs to reduce UI complexity -->
+        <!-- <button class="doTabBtn" id="tabBtn-dictionary" type="button" data-tab="dictionary">
           📚 Dictionary
         </button>
         <button class="doTabBtn" id="tabBtn-abbreviation" type="button" data-tab="abbreviation">
@@ -55,15 +56,14 @@
         </button>
         <button class="doTabBtn" id="tabBtn-redundant" type="button" data-tab="redundant">
           🗑️ คำฟุ่มเฟือย
-        </button>
+        </button> -->
       </div>
 
       <main class="doMain">
         <section class="doTabPanel doIsActive" id="tab-clipboard" data-tab="clipboard">
           <div class="doPanelHeader">
-            <div class="doPanelTitle">📋 Clipboard & Macros</div>
+            <div class="doPanelTitle">📋 Clipboard</div>
             <div class="doPanelActions">
-              <button id="macroReload" type="button">Reload Macros</button>
               <button id="clipReload" type="button">Reload Clipboard</button>
             </div>
           </div>
@@ -73,15 +73,9 @@
             <button id="clipAdd" type="button">เพิ่ม Clipboard</button>
           </div>
 
-          <div class="doSplit2">
-            <div class="doCard">
-              <div class="doSubtitle">Clipboard</div>
-              <div id="clipList" class="doList"></div>
-            </div>
-            <div class="doCard">
-              <div class="doSubtitle">Macros</div>
-              <div id="macroList" class="doList"></div>
-            </div>
+          <div class="doCard">
+            <div class="doSubtitle">Clipboard</div>
+            <div id="clipList" class="doList"></div>
           </div>
         </section>
 

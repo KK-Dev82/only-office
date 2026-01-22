@@ -11,30 +11,61 @@
       // Primary: official way in many DocumentServer builds
       if (typeof p.executeMethod === "function") {
         try {
-          p.executeMethod("SendExternalMessage", [message]);
+          // Try with object parameter (some builds expect object instead of array)
+          var result = p.executeMethod("SendExternalMessage", [message]);
+          // Some builds return undefined/null on success, false on failure
+          // If no exception thrown, consider it success
           return true;
         } catch (eExec) {
           // Some builds have executeMethod but not this method. Try fallbacks.
+          try {
+            // Try with object parameter directly
+            p.executeMethod("SendExternalMessage", message);
+            return true;
+          } catch (eExec2) {
+            // Continue to fallbacks
+          }
         }
       }
 
       // Fallbacks: some builds expose direct helpers instead of executeMethod
       if (typeof p.sendToExternalPlugin === "function") {
-        p.sendToExternalPlugin(message);
-        return true;
+        try {
+          p.sendToExternalPlugin(message);
+          return true;
+        } catch (e1) {}
       }
       if (typeof p.sendToExternalMessage === "function") {
-        p.sendToExternalMessage(message);
-        return true;
+        try {
+          p.sendToExternalMessage(message);
+          return true;
+        } catch (e2) {}
       }
       if (typeof p.sendExternalMessage === "function") {
-        p.sendExternalMessage(message);
-        return true;
+        try {
+          p.sendExternalMessage(message);
+          return true;
+        } catch (e3) {}
       }
       if (typeof p.sendToPlugin === "function") {
-        p.sendToPlugin(message);
-        return true;
+        try {
+          p.sendToPlugin(message);
+          return true;
+        } catch (e4) {}
       }
+      // Additional fallback: try window.parent.postMessage if in iframe
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(
+            {
+              type: "do:pluginMessage",
+              data: message,
+            },
+            "*"
+          );
+          return true;
+        }
+      } catch (e5) {}
     } catch (e) {}
     return false;
   }
@@ -74,8 +105,17 @@
 
   DO.sendToHost = function (message) {
     try {
-      if (_sendDirect(message)) return true;
-    } catch (e) {}
+      if (_sendDirect(message)) {
+        // Reset fail count on success
+        DO.state._sendToHostFailCount = 0;
+        return true;
+      }
+    } catch (e) {
+      try {
+        // eslint-disable-next-line no-console
+        console.error("[DocumentOfficePlugin] sendToHost_exception", e);
+      } catch (eLog) {}
+    }
 
     // queue and retry: bridge may appear after init/ready
     _enqueue(message);
@@ -88,11 +128,31 @@
       DO.state._sendToHostLastFailAt = now;
       if (!lastWarn || now - lastWarn > 5000) {
         DO.state._sendToHostLastWarnAt = now;
-        // eslint-disable-next-line no-console
-        console.warn("[DocumentOfficePlugin] sendToHost_unavailable (throttled)", {
-          fails: DO.state._sendToHostFailCount,
-          sample: message && message.type ? String(message.type) : typeof message,
-        });
+        // Debug: log what methods are available
+        try {
+          var p = window.Asc && window.Asc.plugin;
+          var availableMethods = [];
+          if (p) {
+            if (typeof p.executeMethod === "function") availableMethods.push("executeMethod");
+            if (typeof p.sendToExternalPlugin === "function") availableMethods.push("sendToExternalPlugin");
+            if (typeof p.sendToExternalMessage === "function") availableMethods.push("sendToExternalMessage");
+            if (typeof p.sendExternalMessage === "function") availableMethods.push("sendExternalMessage");
+            if (typeof p.sendToPlugin === "function") availableMethods.push("sendToPlugin");
+          }
+          // eslint-disable-next-line no-console
+          console.warn("[DocumentOfficePlugin] sendToHost_unavailable (throttled)", {
+            fails: DO.state._sendToHostFailCount,
+            sample: message && message.type ? String(message.type) : typeof message,
+            availableMethods: availableMethods,
+            hasParent: window.parent !== window,
+          });
+        } catch (eDebug) {
+          // eslint-disable-next-line no-console
+          console.warn("[DocumentOfficePlugin] sendToHost_unavailable (throttled)", {
+            fails: DO.state._sendToHostFailCount,
+            sample: message && message.type ? String(message.type) : typeof message,
+          });
+        }
       }
     } catch (e2) {}
     return false;

@@ -70,8 +70,20 @@
               // eslint-disable-next-line no-console
               console.log("[DocumentOfficePlugin] bus_appendToEnd", { len: ((payload && payload.text) || "").length });
             } catch (e0) {}
-            DO.editor.appendToDocumentEnd((payload && payload.text) || "", { forceNewParagraph: true });
-            replyOk(id, true);
+            try {
+              DO.editor.appendToDocumentEnd((payload && payload.text) || "", { forceNewParagraph: true });
+              // Try to reply immediately (Community License may not support SendExternalMessage)
+              // If reply fails, the text was still inserted (best-effort)
+              try {
+                replyOk(id, true);
+              } catch (eReply) {
+                // eslint-disable-next-line no-console
+                console.warn("[DocumentOfficePlugin] replyOk failed (may be Community License limitation)", eReply);
+                // Text was inserted, but response may not reach host
+              }
+            } catch (eInsert) {
+              replyErr(id, "Insert failed: " + String(eInsert));
+            }
             return;
           }
 

@@ -143,10 +143,16 @@
     } catch (e0) {}
 
     // Resize observer for root (best signal for collapse)
+    // Throttle to prevent excessive logging when inserting text
     try {
       var root = document.querySelector(".doRoot");
       if (root && typeof window.ResizeObserver === "function") {
+        var lastLogTime = 0;
+        var throttleMs = 500; // Only log layout changes every 500ms
         var ro = new ResizeObserver(function () {
+          var now = Date.now();
+          if (now - lastLogTime < throttleMs) return;
+          lastLogTime = now;
           logLayout("ResizeObserver");
         });
         ro.observe(root);
