@@ -26,7 +26,6 @@
     <script type="text/javascript" src="features/abbreviation.js?v=0.1.11"></script>
     <script type="text/javascript" src="features/redundant.js?v=0.1.11"></script>
     <script type="text/javascript" src="features/inputhelper.js?v=0.1.11"></script>
-    <script type="text/javascript" src="features/speechtotext.js?v=0.1.11"></script>
     <script type="text/javascript" src="bootstrap.js?v=0.1.11"></script>
   </head>
   <body>
@@ -50,9 +49,6 @@
         </button>
         <button class="doTabBtn" id="tabBtn-dictionary" type="button" data-tab="dictionary">
           📚 Dictionary
-        </button>
-        <button class="doTabBtn" id="tabBtn-speechtotext" type="button" data-tab="speechtotext">
-          🎤 Speech To Text
         </button>
         <!-- DISABLED: Other tabs to reduce UI complexity -->
         <!-- <button class="doTabBtn" id="tabBtn-abbreviation" type="button" data-tab="abbreviation">
@@ -141,42 +137,6 @@
           <div class="doCard">
             <div class="doSubtitle">รายการคำย่อ</div>
             <div id="abbrList" class="doList"></div>
-          </div>
-        </section>
-
-        <section class="doTabPanel" id="tab-speechtotext" data-tab="speechtotext">
-          <div class="doPanelHeader">
-            <div class="doPanelTitle">🎤 Speech To Text</div>
-            <div class="doPanelActions">
-              <div class="doInlineLabel">
-                <span>ภาษา:</span>
-                <select id="sttLangSelect" class="doInput" style="width: auto; min-width: 120px;">
-                  <option value="th-TH">ไทย (th-TH)</option>
-                  <option value="en-US">English (en-US)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="doRow">
-            <button id="sttBtnStart" class="doBtnGhost" type="button">เริ่มฟัง</button>
-            <button id="sttBtnStop" class="doBtnGhost" type="button" disabled>หยุดฟัง</button>
-            <button id="sttBtnClear" class="doBtnGhost" type="button">ล้าง</button>
-          </div>
-
-          <div class="doCard">
-            <div class="doSubtitle">ข้อความที่ถอดเสียง</div>
-            <textarea id="sttTextOutput" class="doTextarea" placeholder="ข้อความที่ถอดเสียงจะแสดงที่นี่..." style="min-height: 150px; font-size: 13px;"></textarea>
-          </div>
-
-          <div class="doRow">
-            <button id="sttBtnInsert" class="doBtnGhost" type="button" disabled>Insert ไปยังเอกสาร</button>
-            <button id="sttBtnAppend" class="doBtnGhost" type="button" disabled>Append ที่ท้ายเอกสาร</button>
-          </div>
-
-          <div class="doMuted" style="font-size: 11px; margin-top: 8px;">
-            <div>สถานะ: <span id="sttStatus">ไม่มีการฟัง</span></div>
-            <div style="margin-top: 4px;">หมายเหตุ: ใช้ Web Speech API (ต้องมีไมโครโฟน)</div>
           </div>
         </section>
 
