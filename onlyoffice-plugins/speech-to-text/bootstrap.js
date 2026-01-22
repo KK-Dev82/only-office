@@ -292,7 +292,12 @@
       // Note: Button will appear in toolbar automatically when type: "button" in config.json
       // No need to use AddToolbarMenuItem (requires executeMethod which is not available in Community License)
 
-      console.log("[STT] Plugin initialized (Draggable Panel)", { version: "0.2.0", hasCallCommand: hasCallCommand });
+      console.log("[STT] Plugin initialized (Draggable Panel)", { 
+        version: "0.2.0", 
+        hasCallCommand: hasCallCommand,
+        pluginInfo: window.Asc && window.Asc.plugin && window.Asc.plugin.info,
+        pluginType: "button (should appear in toolbar automatically)"
+      });
     } catch (e) {
       console.error("[STT] Init error:", e);
       STT.setStatus("เกิดข้อผิดพลาดในการเริ่มต้น");
