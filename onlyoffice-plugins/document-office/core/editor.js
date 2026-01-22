@@ -168,21 +168,55 @@
 
     if (callCommandInsert()) return;
 
+    // Final fallback: Try using InsertText API directly if available
+    // This might work even when callCommand is not available
+    try {
+      if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+        // Try InsertText method as last resort
+        exec("InsertText", [t]);
+        try {
+          DO.debugLog("insert_ok", { via: "InsertText", len: t.length });
+        } catch (e8) {}
+        return;
+      }
+    } catch (e9) {
+      try {
+        DO.debugLog("insert_insertText_failed", { error: String(e9) });
+      } catch (e10) {}
+    }
+
     try {
       DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
+      // eslint-disable-next-line no-console
+      console.warn("[DocumentOfficePlugin] insertText failed - no supported method available", {
+        hasExecuteMethod: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) === "function",
+        hasCallCommand: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.callCommand) === "function",
+      });
     } catch (e7) {}
     DO.setOutput({ ok: false, error: "Insert failed: executeMethod/callCommand unavailable" });
   };
 
   DO.editor.appendToDocumentEnd = function (text, opts) {
     var t = String(text || "");
-    if (!t) return;
+    if (!t) {
+      try {
+        DO.debugLog("appendToEnd_empty_text");
+      } catch (e0) {}
+      return;
+    }
     opts = opts || {};
     var forceNewParagraph = opts.forceNewParagraph !== false; // default: true
+
+    try {
+      DO.debugLog("appendToEnd_start", { len: t.length, forceNewPara: forceNewParagraph });
+    } catch (e0) {}
 
     // Best-effort: guaranteed "end of document" insertion
     // Following OnlyOffice plugin examples pattern using callCommand
     if (canCallCommand()) {
+      try {
+        DO.debugLog("appendToEnd_using_callCommand");
+      } catch (e0) {}
       try {
         window.Asc.scope = window.Asc.scope || {};
         window.Asc.scope.__do_append_text = t;
@@ -258,7 +292,10 @@
     // This is still better than nothing
     try {
       DO.debugLog("appendToEnd_fallback_to_insertText", { len: t.length });
+      // eslint-disable-next-line no-console
+      console.warn("[DocumentOfficePlugin] appendToDocumentEnd: callCommand not available, using insertText fallback");
     } catch (e4) {}
+    // Use insertText which has multiple fallback mechanisms
     DO.editor.insertText(t);
   };
 

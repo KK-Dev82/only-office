@@ -39,7 +39,13 @@
 
   window.Asc.plugin.onExternalPluginMessage = function (msg) {
     try {
-      if (!msg || typeof msg !== "object") return;
+      // eslint-disable-next-line no-console
+      console.log("[DocumentOfficePlugin] bus_rx_raw", msg, typeof msg);
+      if (!msg || typeof msg !== "object") {
+        // eslint-disable-next-line no-console
+        console.warn("[DocumentOfficePlugin] bus_rx_invalid", { msg: msg, type: typeof msg });
+        return;
+      }
       try {
         // eslint-disable-next-line no-console
         console.log("[DocumentOfficePlugin] bus_rx", msg);
@@ -137,7 +143,18 @@
       }
 
       if (type === "appendToEnd") {
-        DO.editor.appendToDocumentEnd(msg.text || "", { forceNewParagraph: true });
+        try {
+          // eslint-disable-next-line no-console
+          console.log("[DocumentOfficePlugin] bus_legacy_appendToEnd", { len: ((msg.text || "") || "").length });
+        } catch (e0) {}
+        try {
+          DO.editor.appendToDocumentEnd(msg.text || "", { forceNewParagraph: true });
+          // eslint-disable-next-line no-console
+          console.log("[DocumentOfficePlugin] bus_legacy_appendToEnd_ok");
+        } catch (e1) {
+          // eslint-disable-next-line no-console
+          console.error("[DocumentOfficePlugin] bus_legacy_appendToEnd_failed", e1);
+        }
         return;
       }
     } catch (e2) {

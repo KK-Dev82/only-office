@@ -1,0 +1,160 @@
+/* Speech To Text Plugin Styles */
+.stt-root {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: #1f2937;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+  padding: 0;
+  margin: 0;
+}
+
+.stt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 16px;
+  background: #f9fafb;
+}
+
+.stt-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.stt-status {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.stt-main {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stt-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stt-btn {
+  font-size: 13px;
+  padding: 8px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  min-width: 80px;
+}
+
+.stt-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.stt-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stt-btn-primary {
+  background: #0d6efd;
+  color: white;
+  border-color: #0d6efd;
+}
+
+.stt-btn-primary:hover:not(:disabled) {
+  background: #0b5ed7;
+  border-color: #0a58ca;
+}
+
+.stt-btn-secondary {
+  background: #6c757d;
+  color: white;
+  border-color: #6c757d;
+}
+
+.stt-btn-secondary:hover:not(:disabled) {
+  background: #5c636a;
+  border-color: #565e64;
+}
+
+.stt-textarea-wrapper {
+  flex: 1;
+  min-height: 200px;
+}
+
+.stt-textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  background: #f9fafb;
+}
+
+.stt-textarea:focus {
+  outline: none;
+  border-color: #0d6efd;
+  background: #fff;
+}
+
+.stt-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.stt-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.stt-info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stt-label {
+  font-size: 12px;
+  color: #6b7280;
+  min-width: 60px;
+}
+
+.stt-value {
+  font-size: 12px;
+  color: #1f2937;
+  font-weight: 500;
+}
+
+.stt-select {
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.stt-select:focus {
+  outline: none;
+  border-color: #0d6efd;
+}

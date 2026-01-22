@@ -98,10 +98,10 @@
         DO.ui.bindDebug();
       }
 
-      // DISABLED: Input helper to reduce UI layout changes
-      // if (DO.features && DO.features.inputhelper) {
-      //   DO.features.inputhelper.attachEvents();
-      // }
+      // Enable input helper for typing detection (needed for Dictionary)
+      if (DO.features && DO.features.inputhelper) {
+        DO.features.inputhelper.attachEvents();
+      }
 
       DO.setStatus("ready");
       DO.sendToHost({ type: "do:pluginReady", version: DO.VERSION });
