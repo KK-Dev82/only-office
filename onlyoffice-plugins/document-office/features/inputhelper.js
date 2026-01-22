@@ -44,6 +44,7 @@
 
   function showHelper(isKeyboardTake) {
     try {
+      if (DO.state && DO.state.disposed) return;
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
         window.Asc.plugin.executeMethod("ShowInputHelper", [PLUGIN_GUID, 80, 40, Boolean(isKeyboardTake)]);
       }
@@ -52,6 +53,7 @@
 
   function hideHelper() {
     try {
+      if (DO.state && DO.state.disposed) return;
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
         window.Asc.plugin.executeMethod("UnShowInputHelper", [PLUGIN_GUID, true]);
       }
@@ -68,6 +70,7 @@
   }
 
   function updateSuggestions(query) {
+    if (DO.state && DO.state.disposed) return;
     var q = String(query || "").trim().toLowerCase();
     if (!q) return;
 
@@ -134,6 +137,26 @@
 
   function attachEvents() {
     if (!window.Asc || !window.Asc.plugin) return;
+    DO.state = DO.state || {};
+    DO.state.disposed = false;
+
+    function dispose() {
+      try {
+        DO.state.disposed = true;
+      } catch (e0) {}
+      try {
+        hideHelper();
+      } catch (e1) {}
+      try {
+        if (DO.state.targetTimer) clearTimeout(DO.state.targetTimer);
+      } catch (e2) {}
+      try {
+        if (DO.state.inputPollTimer) clearTimeout(DO.state.inputPollTimer);
+      } catch (e3) {}
+      DO.state.targetTimer = 0;
+      DO.state.inputPollTimer = 0;
+      DO.debugLog("inputHelper_disposed");
+    }
 
     function attach(id, fn) {
       try {
@@ -180,6 +203,7 @@
 
     attach("onInputHelperClear", function () {
       try {
+        if (DO.state && DO.state.disposed) return;
         // Hide helper when editor asks to clear suggestions.
         hideHelper();
         DO.debugLog("inputHelper_clear");
@@ -188,23 +212,48 @@
 
     attach("onInputHelperItemClick", function (data) {
       try {
+        if (DO.state && DO.state.disposed) return;
         var value = "";
         if (typeof data === "string") value = data;
         else if (data && typeof data.text === "string") value = data.text;
         else if (data && typeof data.value === "string") value = data.value;
         else if (data && data.item && typeof data.item.text === "string") value = data.item.text;
-        if (value) {
+        if (!value) return;
+
+        // IMPORTANT:
+        // Do NOT auto-insert into document by default.
+        // Auto-insert causes unexpected document changes and can trigger UI layout shifts.
+        // Enable explicitly via plugin options: features.dictionaryInsertToEditor = true
+        var allowInsert =
+          Boolean(DO.pluginOptions && DO.pluginOptions.features && DO.pluginOptions.features.dictionaryInsertToEditor);
+        if (allowInsert) {
           DO.editor.insertText(value);
+          try {
+            DO.debugLog("inputHelper_insert", { value: value });
+          } catch (e1) {}
+          return;
         }
+
+        // Default: copy to Clipboard input (no document mutation)
+        try {
+          var clip = DO.$("clipText");
+          if (clip) clip.value = value;
+        } catch (e2) {}
+        try {
+          DO.debugLog("inputHelper_copy_only", { value: value });
+        } catch (e3) {}
       } catch (e) {}
     });
 
     // Fallback: onTargetPositionChanged → throttle → read paragraph → detect token
     attach("onTargetPositionChanged", function () {
+      if (DO.state && DO.state.disposed) return;
       if (DO.state.targetTimer) return;
       DO.state.targetTimer = setTimeout(function () {
+        if (DO.state && DO.state.disposed) return;
         DO.state.targetTimer = 0;
         DO.editor.getCurrentParagraphText(function (paraText) {
+          if (DO.state && DO.state.disposed) return;
           var token = extractLastToken(paraText || "");
           if (token && token !== DO.state.lastToken) {
             DO.state.lastToken = token;
@@ -235,8 +284,10 @@
         }
 
         function pollOnce() {
+          if (DO.state && DO.state.disposed) return;
           try {
             DO.editor.getCurrentParagraphText(function (paraText) {
+              if (DO.state && DO.state.disposed) return;
               DO.state._pollTick = (DO.state._pollTick || 0) + 1;
               var paraStr = String(paraText || "");
               if (!paraStr) DO.state._pollEmpty = (DO.state._pollEmpty || 0) + 1;
@@ -298,6 +349,7 @@
             });
           } catch (e0) {}
           // schedule next (fast right after edits, slow otherwise)
+          if (DO.state && DO.state.disposed) return;
           var now2 = Date.now();
           var fastUntil = DO.state._pollFastUntil || 0;
           var delay = now2 < fastUntil ? 350 : 1100;
@@ -309,6 +361,9 @@
         DO.debugLog("token_poll_started", { intervalMs: "adaptive(350-1100)" });
       }
     } catch (e2) {}
+
+    // expose disposer so bootstrap can call it on close
+    DO.features.inputhelper.dispose = dispose;
   }
 
   DO.features.inputhelper = {

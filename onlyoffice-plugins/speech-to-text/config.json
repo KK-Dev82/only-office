@@ -11,7 +11,7 @@
       "isViewer": false,
       "isActivated": true,
       "EditorsSupport": ["word"],
-      "size": [420, 680],
+      "size": [400, 320],
       "icons": [
         "resources/icon.svg"
       ],

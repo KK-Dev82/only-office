@@ -125,6 +125,42 @@
     }
   };
 
+  function safeDisposeBeforeClose() {
+    try {
+      DO.state = DO.state || {};
+      DO.state.disposed = true;
+    } catch (e0) {}
+    try {
+      if (DO.features && DO.features.inputhelper && typeof DO.features.inputhelper.dispose === "function") {
+        DO.features.inputhelper.dispose();
+      }
+    } catch (e1) {}
+    // best-effort: hide helper even if feature not initialized
+    try {
+      if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
+        window.Asc.plugin.executeMethod("UnShowInputHelper", ["asc.{C6A86F5A-5A0F-49F8-9E72-9E8E1E2F86A1}", true]);
+      }
+    } catch (e2) {}
+  }
+
+  // Handle "Close" button in config.json (id usually 0)
+  window.Asc.plugin.button = function (id) {
+    try {
+      safeDisposeBeforeClose();
+    } catch (e0) {}
+    try {
+      // close plugin window/panel
+      this.executeCommand("close", "");
+    } catch (e1) {}
+  };
+
+  // Some builds call onClose when user closes panel via X
+  window.Asc.plugin.onClose = function () {
+    try {
+      safeDisposeBeforeClose();
+    } catch (e0) {}
+  };
+
   // Defensive: if init isn't called, still bind minimal UI so user sees something
   try {
     document.addEventListener("DOMContentLoaded", function () {
