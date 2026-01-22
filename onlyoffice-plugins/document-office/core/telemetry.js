@@ -1,6 +1,7 @@
 // Telemetry/logs: send messages to host + output panel
 (function () {
   var DO = (window.DO = window.DO || {});
+  DO.state = DO.state || {};
 
   DO.sendToHost = function (message) {
     try {
@@ -31,9 +32,20 @@
         return true;
       }
     } catch (e) {}
+    // Throttle noisy warnings (prevents UI freeze when host bridge unavailable)
     try {
-      // eslint-disable-next-line no-console
-      console.warn("[DocumentOfficePlugin] sendToHost_unavailable", message);
+      var now = Date.now();
+      var lastWarn = DO.state._sendToHostLastWarnAt || 0;
+      DO.state._sendToHostFailCount = (DO.state._sendToHostFailCount || 0) + 1;
+      DO.state._sendToHostLastFailAt = now;
+      if (!lastWarn || now - lastWarn > 5000) {
+        DO.state._sendToHostLastWarnAt = now;
+        // eslint-disable-next-line no-console
+        console.warn("[DocumentOfficePlugin] sendToHost_unavailable (throttled)", {
+          fails: DO.state._sendToHostFailCount,
+          sample: message && message.type ? String(message.type) : typeof message,
+        });
+      }
     } catch (e2) {}
     return false;
   };

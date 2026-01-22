@@ -213,7 +213,17 @@
       if (!DO.state.inputPollTimer) {
         DO.state._pollTick = 0;
         DO.state._pollEmpty = 0;
-        DO.state.inputPollTimer = setInterval(function () {
+        DO.state._pollFastUntil = 0;
+        DO.state._pollLastTypingLogAt = 0;
+
+        function scheduleNext(delayMs) {
+          try {
+            if (DO.state.inputPollTimer) clearTimeout(DO.state.inputPollTimer);
+          } catch (e0) {}
+          DO.state.inputPollTimer = setTimeout(pollOnce, Math.max(120, Number(delayMs || 0) || 0));
+        }
+
+        function pollOnce() {
           try {
             DO.editor.getCurrentParagraphText(function (paraText) {
               DO.state._pollTick = (DO.state._pollTick || 0) + 1;
@@ -221,7 +231,7 @@
               if (!paraStr) DO.state._pollEmpty = (DO.state._pollEmpty || 0) + 1;
 
               // periodic heartbeat to prove we can read paragraph text
-              if ((DO.state._pollTick || 0) % 15 === 0) {
+              if ((DO.state._pollTick || 0) % 25 === 0) {
                 try {
                   DO.debugLog("para_poll_heartbeat", {
                     tick: DO.state._pollTick,
@@ -247,21 +257,21 @@
                     var d = diffText(prev, next);
                     DO.state.lastParaText = next;
                     if (d) {
-                      // Prefer logging inserted characters (what user typed/pasted)
-                      if (d.inserted && d.inserted.length) {
-                        DO.debugLog("typing_detected", {
-                          inserted: d.inserted,
-                          insertedLen: d.inserted.length,
-                          start: d.start,
-                          removedLen: (d.removed || "").length,
-                        });
-                      } else if (d.removed && d.removed.length) {
-                        DO.debugLog("delete_detected", {
-                          removedLen: d.removed.length,
-                          start: d.start,
-                        });
-                      } else {
-                        DO.debugLog("text_change_detected", { start: d.start });
+                      // Adaptive poll: speed up shortly after change, but throttle logs.
+                      DO.state._pollFastUntil = now + 2500;
+                      var lastTL = DO.state._pollLastTypingLogAt || 0;
+                      if (!lastTL || now - lastTL > 900) {
+                        DO.state._pollLastTypingLogAt = now;
+                        if (d.inserted && d.inserted.length) {
+                          DO.debugLog("typing_detected", {
+                            insertedLen: d.inserted.length,
+                            insertedPreview: String(d.inserted).slice(0, 60),
+                            start: d.start,
+                            removedLen: (d.removed || "").length,
+                          });
+                        } else if (d.removed && d.removed.length) {
+                          DO.debugLog("delete_detected", { removedLen: d.removed.length, start: d.start });
+                        }
                       }
                     }
                   }
@@ -276,8 +286,16 @@
               }
             });
           } catch (e0) {}
-        }, 400);
-        DO.debugLog("token_poll_started", { intervalMs: 400 });
+          // schedule next (fast right after edits, slow otherwise)
+          var now2 = Date.now();
+          var fastUntil = DO.state._pollFastUntil || 0;
+          var delay = now2 < fastUntil ? 350 : 1100;
+          scheduleNext(delay);
+        }
+
+        // start
+        scheduleNext(600);
+        DO.debugLog("token_poll_started", { intervalMs: "adaptive(350-1100)" });
       }
     } catch (e2) {}
   }
