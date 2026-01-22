@@ -117,7 +117,21 @@
   }
 
   function attachEvents() {
-    if (!window.Asc || !window.Asc.plugin || !window.Asc.plugin.attachEditorEvent) return;
+    if (!window.Asc || !window.Asc.plugin) return;
+
+    function attach(id, fn) {
+      try {
+        if (window.Asc.plugin.attachEditorEvent) {
+          window.Asc.plugin.attachEditorEvent(id, fn);
+          return "attachEditorEvent";
+        }
+        if (window.Asc.plugin.attachEvent) {
+          window.Asc.plugin.attachEvent(id, fn);
+          return "attachEvent";
+        }
+      } catch (e) {}
+      return "";
+    }
 
     // ensure input helper exists (บาง build ต้อง create ก่อนถึงจะยิง event)
     try {
@@ -131,7 +145,7 @@
       }
     } catch (e0) {}
 
-    window.Asc.plugin.attachEditorEvent("onInputHelperInput", function (data) {
+    var attachMode = attach("onInputHelperInput", function (data) {
       var text = "";
       try {
         if (typeof data === "string") text = data;
@@ -144,7 +158,7 @@
       }
     });
 
-    window.Asc.plugin.attachEditorEvent("onInputHelperClear", function () {
+    attach("onInputHelperClear", function () {
       try {
         if (window.Asc && window.Asc.plugin) {
           window.Asc.plugin.executeMethod("UnShowInputHelper", [PLUGIN_GUID, true]);
@@ -152,7 +166,7 @@
       } catch (e) {}
     });
 
-    window.Asc.plugin.attachEditorEvent("onInputHelperItemClick", function (data) {
+    attach("onInputHelperItemClick", function (data) {
       try {
         var value = "";
         if (typeof data === "string") value = data;
@@ -166,7 +180,7 @@
     });
 
     // Fallback: onTargetPositionChanged → throttle → read paragraph → detect token
-    window.Asc.plugin.attachEditorEvent("onTargetPositionChanged", function () {
+    attach("onTargetPositionChanged", function () {
       if (DO.state.targetTimer) return;
       DO.state.targetTimer = setTimeout(function () {
         DO.state.targetTimer = 0;
@@ -180,6 +194,10 @@
         });
       }, 250);
     });
+
+    try {
+      DO.debugLog("events_attached", { mode: attachMode || "none" });
+    } catch (eDbg) {}
 
     // Extra fallback: poll current paragraph (covers cases where events don't fire on typing)
     try {

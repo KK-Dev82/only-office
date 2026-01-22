@@ -8,12 +8,14 @@
     try {
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
         var ok = window.Asc.plugin.executeMethod(name, params || [], cb);
-        if (ok !== true) {
+        // In many ONLYOFFICE builds executeMethod does not return `true`.
+        // Treat it as success unless it explicitly returns `false` or throws.
+        if (ok === false) {
           try {
             DO.debugLog("executeMethod_not_supported", { name: name, ok: ok });
           } catch (e0) {}
         }
-        return ok === true;
+        return ok !== false;
       }
     } catch (e) {
       try {
@@ -164,7 +166,9 @@
     exec("GetCurrentParagraph", [], function (p) {
       var text = "";
       try {
-        if (p && p.GetText) text = p.GetText() || "";
+        if (typeof p === "string") text = p || "";
+        else if (p && typeof p.text === "string") text = p.text || "";
+        else if (p && p.GetText) text = p.GetText() || "";
       } catch (e) {}
       try {
         cb && cb(text);
