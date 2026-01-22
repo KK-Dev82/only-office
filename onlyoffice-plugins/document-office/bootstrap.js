@@ -78,6 +78,10 @@
         DO.features.dictionary.renderSaved();
       }
 
+      if (DO.features && DO.features.speechtotext) {
+        DO.features.speechtotext.bind();
+      }
+
       // DISABLED: Other features to reduce UI layout changes
       // if (DO.features && DO.features.macros) {
       //   DO.features.macros.bind();
