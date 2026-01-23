@@ -89,6 +89,7 @@
       var tokenNow = String(st.lastToken || "").trim();
       var full = String(fullWord || "").trim();
       if (!full) return;
+      try { DO.debugLog && DO.debugLog("dict_accept", { full: full, token: tokenNow }); } catch (eLog) {}
 
       // If selection exists, replace it; else insert suffix (like autocomplete)
       if (DO.editor && typeof DO.editor.getSelectedText === "function") {
@@ -265,7 +266,8 @@
           (function (t) {
             return function () {
               try {
-                st.selectedIndex = i;
+                // best-effort keep selected index in sync for telemetry/UI
+                st.selectedIndex = st.selectedIndex || 0;
               } catch (e0) {}
               insertWord(t);
             };
@@ -284,6 +286,12 @@
             return function () {
               try {
                 st.selectedIndex = idx;
+                // Click = accept immediately (doesn't require panel focus / Enter)
+                var pick = (st.items || [])[idx] || "";
+                if (pick) {
+                  insertWord(pick);
+                  return;
+                }
                 DO.features.dictionary.renderInlineSuggestions(st.lastToken, st.items, st.selectedIndex);
               } catch (e0) {}
             };

@@ -109,9 +109,11 @@
   }
 
   // IMPORTANT:
-  // In some ONLYOFFICE builds, creating InputHelper window / showing helper can trigger iframe resize glitches.
-  // Default to "detect-only" and enable helper UI explicitly with `?ih=1`.
-  function isInputHelperUiEnabled() {
+  // In some ONLYOFFICE builds, calling ShowInputHelper forces the plugin iframe to shrink
+  // (observed: win/root becomes ~10x10), which makes the panel UI look "broken".
+  // Therefore InputHelper is **opt-in** only. Default is panel-only suggestions.
+  // Enable explicitly with `?ih=1` (optional: `&ihui=1` to show a visible helper window).
+  function isInputHelperEnabled() {
     try {
       var q = String((window.location && window.location.search) || "");
       return /(?:\?|&)ih=1(?:&|$)/.test(q);
@@ -120,17 +122,30 @@
     }
   }
 
+  function isInputHelperVisualEnabled() {
+    try {
+      var q = String((window.location && window.location.search) || "");
+      return /(?:\?|&)ihui=1(?:&|$)/.test(q);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function showHelper(takeKeyboard) {
     try {
-      if (!isInputHelperUiEnabled()) return;
+      if (!isInputHelperEnabled()) return;
       if (!canExecuteMethod()) return;
-      window.Asc.plugin.executeMethod("ShowInputHelper", [PLUGIN_GUID, 80, 40, Boolean(takeKeyboard)]);
+      // Signature: [guid, w_mm, h_mm, isKeyboardTake]
+      // Keep tiny by default to avoid visual popup; still captures Enter/Tab/Esc.
+      var w = isInputHelperVisualEnabled() ? 80 : 1;
+      var h = isInputHelperVisualEnabled() ? 40 : 1;
+      window.Asc.plugin.executeMethod("ShowInputHelper", [PLUGIN_GUID, w, h, Boolean(takeKeyboard)]);
     } catch (e) {}
   }
 
   function hideHelper() {
     try {
-      if (!isInputHelperUiEnabled()) return;
+      if (!isInputHelperEnabled()) return;
       if (!canExecuteMethod()) return;
       window.Asc.plugin.executeMethod("UnShowInputHelper", [PLUGIN_GUID, true]);
     } catch (e) {}
@@ -138,7 +153,7 @@
 
   function setItems(items) {
     try {
-      if (!isInputHelperUiEnabled()) return;
+      if (!isInputHelperEnabled()) return;
       if (!window.Asc || !window.Asc.plugin || !window.Asc.plugin.getInputHelper) return;
       var ih = window.Asc.plugin.getInputHelper();
       if (ih && ih.setItems) ih.setItems(items);
@@ -147,7 +162,7 @@
 
   function ensureInputHelperInit() {
     try {
-      if (!isInputHelperUiEnabled()) return;
+      if (!isInputHelperEnabled()) return;
       if (!window.Asc || !window.Asc.plugin) return;
       if (!window.Asc.plugin.createInputHelper) return;
       if (window.__do_dict_inputHelperInited) return;
@@ -199,17 +214,36 @@
     return out;
   }
 
+  function updatePanels(token, dictMatches) {
+    // Dictionary panel suggestions (always update)
+    try {
+      if (DA.features && DA.features.dictionary && typeof DA.features.dictionary.renderInlineSuggestions === "function") {
+        if (!token || token.length < 1) DA.features.dictionary.renderInlineSuggestions("", [], 0);
+        else DA.features.dictionary.renderInlineSuggestions(token, dictMatches || [], 0);
+      }
+    } catch (e0) {}
+
+    // Abbreviation panel suggestions (independent from dictionary)
+    try {
+      if (DA.features && DA.features.abbreviation && typeof DA.features.abbreviation.renderInlineSuggestions === "function") {
+        if (!token || token.length < 1) {
+          DA.features.abbreviation.renderInlineSuggestions("", [], 0);
+        } else {
+          var abbrs = findAbbrMatches(token);
+          DA.features.abbreviation.renderInlineSuggestions(token, abbrs, 0);
+        }
+      }
+    } catch (e1) {}
+  }
+
   function renderSuggestion(token) {
     var st = DA.state._dictSuggest;
     if (!token || token.length < MIN_CHARS) {
       st.lastToken = "";
       st.lastFull = "";
       hideHelper();
-      try {
-        if (DA.features && DA.features.dictionary && typeof DA.features.dictionary.renderInlineSuggestions === "function") {
-          DA.features.dictionary.renderInlineSuggestions("", [], 0);
-        }
-      } catch (e0) {}
+      // still update abbreviation panel for short tokens (e.g. 1-2 chars)
+      try { updatePanels(token, []); } catch (e0) {}
       return;
     }
 
@@ -218,11 +252,7 @@
       st.lastToken = token;
       st.lastFull = "";
       hideHelper();
-      try {
-        if (DA.features && DA.features.dictionary && typeof DA.features.dictionary.renderInlineSuggestions === "function") {
-          DA.features.dictionary.renderInlineSuggestions(token, [], 0);
-        }
-      } catch (e1) {}
+      try { updatePanels(token, []); } catch (e1) {}
       return;
     }
 
@@ -231,8 +261,8 @@
     st.lastToken = token;
     st.lastFull = full;
 
-    // Detect-only mode: log match but do not show helper UI
-    if (!isInputHelperUiEnabled()) {
+    // Panel-only mode (default): do NOT call ShowInputHelper (prevents iframe resize glitches).
+    if (!isInputHelperEnabled()) {
       try {
         // dedupe repeated logs/renders
         var key = token + "→" + full;
@@ -244,28 +274,16 @@
           if (DA.debugLog) DA.debugLog("dict_match", { token: token, full: full });
         }
       } catch (e0) {}
+      // Update both panels (dictionary + abbreviation). Dedupe via listKey for dict.
       try {
-        // Only re-render suggestion list when it actually changes
-        var lk = token + "|" + matches.join(",");
-        if (st._lastListKey !== lk) {
-          st._lastListKey = lk;
-          if (DA.features && DA.features.dictionary && typeof DA.features.dictionary.renderInlineSuggestions === "function") {
-            DA.features.dictionary.renderInlineSuggestions(token, matches, 0);
-          }
+        if (st._lastListKey !== listKey) {
+          st._lastListKey = listKey;
+          updatePanels(token, matches);
+        } else {
+          // still keep abbreviation updated if token changes without dict list change
+          updatePanels(token, matches);
         }
       } catch (e1) {}
-
-      // Abbreviation suggestions (panel-only) - render into abbrSuggest if available
-      try {
-        var abbrs = findAbbrMatches(token);
-        var abbrKey = token + "|" + abbrs.map(function (x) { return String(x.shortForm || "") + "→" + String(x.fullForm || ""); }).join(",");
-        if (st._lastAbbrKey !== abbrKey) {
-          st._lastAbbrKey = abbrKey;
-          if (DA.features && DA.features.abbreviation && typeof DA.features.abbreviation.renderInlineSuggestions === "function") {
-            DA.features.abbreviation.renderInlineSuggestions(token, abbrs, 0);
-          }
-        }
-      } catch (e2) {}
       return;
     }
 
@@ -377,8 +395,8 @@
       scheduleFromParagraph();
     });
 
-    // InputHelper-specific events only when helper UI enabled
-    if (isInputHelperUiEnabled()) {
+    // InputHelper events (used for keyboard accept, even when helper is tiny/invisible)
+    if (isInputHelperEnabled()) {
       // Some builds emit typed fragment here. Still treat as hint, but we re-check paragraph too.
       attach("onInputHelperInput", function (data) {
         // If event provides text, log it (best-effort)

@@ -181,6 +181,7 @@
     try {
       var full = String(fullText || "");
       if (!full) return;
+      try { DO.debugLog && DO.debugLog("abbr_accept", { fullLen: full.length }); } catch (eLog) {}
       DO.editor.insertText(full);
       // cancel suggestions immediately
       try { DO.features.abbreviation.renderInlineSuggestions("", [], 0); } catch (e0) {}
@@ -315,6 +316,12 @@
             return function () {
               try {
                 st.selectedIndex = idx;
+                // Click = accept immediately (doesn't require panel focus / Enter)
+                var pick = (st.items || [])[idx] || null;
+                if (pick && pick.fullForm) {
+                  insertExpanded(pick.fullForm);
+                  return;
+                }
                 DO.features.abbreviation.renderInlineSuggestions(st.lastToken, st.items, st.selectedIndex);
               } catch (e0) {}
             };
