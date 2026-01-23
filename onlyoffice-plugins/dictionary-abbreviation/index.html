@@ -11,7 +11,7 @@
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
 
     <!-- own core files for independent development -->
-    <link rel="stylesheet" href="core/styles.css?v=0.1.26" />
+    <link rel="stylesheet" href="core/styles.css?v=0.1.30" />
     <script>
       // Early crash overlay (shows inside the plugin panel even if other JS fails)
       (function () {
@@ -42,29 +42,29 @@
         });
       })();
     </script>
-    <script type="text/javascript" src="core/ns.js?v=0.1.26"></script>
-    <script type="text/javascript" src="core/util.js?v=0.1.26"></script>
-    <script type="text/javascript" src="core/telemetry.js?v=0.1.26"></script>
-    <script type="text/javascript" src="core/storage.js?v=0.1.26"></script>
-    <script type="text/javascript" src="core/editor.js?v=0.1.26"></script>
-    <script type="text/javascript" src="core/bus.js?v=0.1.26"></script>
-    <script type="text/javascript" src="core/uiwatch.js?v=0.1.26"></script>
-    <script type="text/javascript" src="core/tabs.js?v=0.1.26"></script>
-    <script type="text/javascript" src="core/debug.js?v=0.1.26"></script>
-    <script type="text/javascript" src="features/dictionary.js?v=0.1.26"></script>
-    <script type="text/javascript" src="features/abbreviation.js?v=0.1.26"></script>
-    <script type="text/javascript" src="inputhelper.js?v=0.1.26"></script>
+    <script type="text/javascript" src="core/ns.js?v=0.1.30"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.30"></script>
+    <script type="text/javascript" src="core/telemetry.js?v=0.1.30"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.30"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.30"></script>
+    <script type="text/javascript" src="core/bus.js?v=0.1.30"></script>
+    <script type="text/javascript" src="core/uiwatch.js?v=0.1.30"></script>
+    <script type="text/javascript" src="core/tabs.js?v=0.1.30"></script>
+    <script type="text/javascript" src="core/debug.js?v=0.1.30"></script>
+    <script type="text/javascript" src="features/dictionary.js?v=0.1.30"></script>
+    <script type="text/javascript" src="features/abbreviation.js?v=0.1.30"></script>
+    <script type="text/javascript" src="inputhelper.js?v=0.1.30"></script>
 
-    <script type="text/javascript" src="bootstrap.js?v=0.1.26"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.1.30"></script>
   </head>
   <body>
     <!-- Fallback marker: if you see this, HTML loaded but CSS/JS may be blocked -->
     <div id="daBootMarker" style="position:fixed;left:6px;bottom:6px;z-index:2147483647;background:rgba(0,0,0,0.55);color:#fff;font:12px system-ui;padding:2px 6px;border-radius:6px;pointer-events:none;">
-      DA boot (0.1.26)
+      DA boot (0.1.30)
     </div>
     <!-- Flow marker: visible even if fixed positioning breaks -->
     <div id="daFlowMarker" style="padding:6px 10px;font:12px system-ui;color:#111; background:#fff; border-bottom:1px dashed #ddd;">
-      DA flow marker (0.1.26)
+      DA flow marker (0.1.30)
     </div>
     <!-- Focus trap: used to capture Arrow/Tab/Enter for suggestions (panel-only mode) -->
     <div id="doFocusTrap" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;"></div>
@@ -138,6 +138,11 @@
             <input id="abbrShort" class="doInput" placeholder="คำย่อ" />
             <input id="abbrFull" class="doInput" placeholder="คำเต็ม" />
             <button id="abbrAdd" type="button">เพิ่ม</button>
+          </div>
+
+          <div class="doCard">
+            <div class="doSubtitle">คำแนะนำ (จากการพิมพ์)</div>
+            <div id="abbrSuggest" class="doList"></div>
           </div>
 
           <div class="doCard">

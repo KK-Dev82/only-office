@@ -2,6 +2,8 @@
 (function () {
   var DO = (window.DO = window.DO || {});
   DO.features = DO.features || {};
+  // Ensure namespace exists before attaching helpers
+  DO.features.dictionary = DO.features.dictionary || {};
   DO.state = DO.state || {};
   DO.state._dictUi = DO.state._dictUi || {
     lastToken: "",
@@ -95,14 +97,24 @@
             var selected = String(sel || "").trim();
             if (selected) {
               DO.editor.replaceSelectionText(full);
+              try {
+                // Clear suggestions after successful insert/replace
+                DO.features.dictionary.renderInlineSuggestions("", [], 0);
+              } catch (e0) {}
               return;
             }
             if (tokenNow && full.toLowerCase().indexOf(tokenNow.toLowerCase()) === 0) {
               var suffix = full.slice(tokenNow.length);
               if (suffix) DO.editor.insertText(suffix);
+              try {
+                DO.features.dictionary.renderInlineSuggestions("", [], 0);
+              } catch (e1) {}
               return;
             }
             DO.editor.insertText(full);
+            try {
+              DO.features.dictionary.renderInlineSuggestions("", [], 0);
+            } catch (e2) {}
           } catch (e0) {}
         });
         return;
@@ -114,6 +126,9 @@
       } else {
         DO.editor.insertText(full);
       }
+      try {
+        DO.features.dictionary.renderInlineSuggestions("", [], 0);
+      } catch (e3) {}
     } catch (e) {}
   }
 
@@ -128,13 +143,29 @@
           try {
             var st = DO.state._dictUi || {};
             var items = st.items || [];
+            var key = e && e.key ? String(e.key) : "";
+
+            // ESC should cancel suggestions even if list is empty (safe no-op)
+            if (key === "Escape") {
+              try {
+                st.selectedIndex = 0;
+                st.items = [];
+                st.lastToken = "";
+              } catch (e0) {}
+              try {
+                DO.features.dictionary.renderInlineSuggestions("", [], 0);
+              } catch (e1) {}
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
+
             if (!items.length) return;
 
             // Only handle when focus is inside plugin iframe (panel)
             var ae = document.activeElement;
             if (!ae) return;
 
-            var key = e && e.key ? String(e.key) : "";
             if (key !== "ArrowDown" && key !== "ArrowUp" && key !== "Enter" && key !== "Tab") return;
 
             // Prevent default tab navigation when suggestions active
@@ -165,7 +196,7 @@
 
   // Render "inline hints" into dictResults (no InputHelper)
   // token: current prefix, items: array of matched full words
-  DO.features.dictionary.renderInlineSuggestions = function (token, items, selectedIndex) {
+  function renderInlineSuggestions(token, items, selectedIndex) {
     try {
       var root = DO.$("dictResults");
       if (!root) return;
@@ -199,9 +230,15 @@
         return;
       }
 
+      // Build tip via DOM (avoid innerHTML quoting/encoding issues in some builds)
       var tip = document.createElement("div");
       tip.className = "doMuted";
-      tip.innerHTML = 'คำแนะนำสำหรับ "<span class="doHL">' + escHtml(token) + "</span>" — กด ↑/↓/Tab เลือก, Enter Insert";
+      tip.appendChild(document.createTextNode('คำแนะนำสำหรับ "'));
+      var sp = document.createElement("span");
+      sp.className = "doHL";
+      sp.textContent = token;
+      tip.appendChild(sp);
+      tip.appendChild(document.createTextNode('" - กด Up/Down/Tab เลือก, Enter เพื่อ Insert'));
       root.appendChild(tip);
 
       for (var i = 0; i < items.length; i++) {
@@ -278,7 +315,9 @@
         }
       } catch (e4) {}
     } catch (e1) {}
-  };
+  }
+
+  DO.features.dictionary.renderInlineSuggestions = renderInlineSuggestions;
 
   function renderSaved() {
     var root = DO.$("dictSavedList");
@@ -368,13 +407,22 @@
     var descEl = DO.$("dictNewDesc");
     var word = wordEl ? String(wordEl.value || "").trim() : "";
     var desc = descEl ? String(descEl.value || "").trim() : "";
-    if (!word) return;
+    if (!word) {
+      try {
+        DO.debugLog("dict_add_empty");
+        if (DO.setStatus) DO.setStatus("กรุณากรอกคำศัพท์");
+      } catch (e0) {}
+      return;
+    }
 
     DO.store.dictionary = DO.store.dictionary || [];
     var lw = word.toLowerCase();
     for (var i = 0; i < DO.store.dictionary.length; i++) {
       if (String(DO.store.dictionary[i].word || "").toLowerCase() === lw) {
         DO.debugLog("dict_add_skip_exists", { word: word });
+        try {
+          if (DO.setStatus) DO.setStatus('มีคำนี้แล้ว: "' + word + '"');
+        } catch (e0) {}
         return;
       }
     }
@@ -385,9 +433,22 @@
     if (descEl) descEl.value = "";
     renderSaved();
     DO.debugLog("dict_add", { word: word });
+    try {
+      if (DO.setStatus) DO.setStatus('เพิ่มแล้ว: "' + word + '"');
+    } catch (e1) {}
+    try {
+      // close card after add
+      var card = DO.$("dictAddCard");
+      if (card) card.classList.add("doIsHidden");
+    } catch (e2) {}
   }
 
   function bind() {
+    try {
+      if (DO.state._dictUi && DO.state._dictUi.bound) return;
+      if (DO.state._dictUi) DO.state._dictUi.bound = true;
+    } catch (e0) {}
+
     var dictSearch = DO.$("dictSearch");
     if (dictSearch) dictSearch.addEventListener("click", function () { doSearch(); });
 
@@ -411,18 +472,46 @@
         if (card.classList.contains("doIsHidden")) card.classList.remove("doIsHidden");
         else card.classList.add("doIsHidden");
         DO.debugLog("dict_toggle_add", { open: !card.classList.contains("doIsHidden") });
+        try {
+          if (!card.classList.contains("doIsHidden")) {
+            var w = DO.$("dictNewWord");
+            if (w && w.focus) w.focus();
+          }
+        } catch (e0) {}
       });
     }
 
     var dictAdd = DO.$("dictAdd");
     if (dictAdd) dictAdd.addEventListener("click", function () { addFromUi(); });
+
+    // Enter in word/desc triggers add
+    var dictNewWord = DO.$("dictNewWord");
+    if (dictNewWord) {
+      dictNewWord.addEventListener("keydown", function (e) {
+        try {
+          if (e && e.key === "Enter") {
+            e.preventDefault();
+            addFromUi();
+          }
+        } catch (e0) {}
+      });
+    }
+    var dictNewDesc = DO.$("dictNewDesc");
+    if (dictNewDesc) {
+      dictNewDesc.addEventListener("keydown", function (e) {
+        try {
+          if (e && e.key === "Enter") {
+            e.preventDefault();
+            addFromUi();
+          }
+        } catch (e0) {}
+      });
+    }
   }
 
-  DO.features.dictionary = {
-    bind: bind,
-    renderSaved: renderSaved,
-    search: doSearch,
-    renderInlineSuggestions: DO.features.dictionary.renderInlineSuggestions,
-  };
+  // Do not replace the whole object (other modules may attach to it)
+  DO.features.dictionary.bind = bind;
+  DO.features.dictionary.renderSaved = renderSaved;
+  DO.features.dictionary.search = doSearch;
 })();
 

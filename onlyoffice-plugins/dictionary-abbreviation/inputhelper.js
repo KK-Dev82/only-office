@@ -182,6 +182,23 @@
     return out;
   }
 
+  function findAbbrMatches(token) {
+    var q = String(token || "").trim().toLowerCase();
+    if (!q) return [];
+    var items = (DA.store && DA.store.abbreviations) ? DA.store.abbreviations : [];
+    var out = [];
+    for (var i = 0; i < items.length; i++) {
+      var a = items[i] || {};
+      var s = String(a.shortForm || "").trim();
+      if (!s) continue;
+      if (String(s).toLowerCase().indexOf(q) === 0) {
+        out.push({ id: a.id, shortForm: a.shortForm || "", fullForm: a.fullForm || "" });
+        if (out.length >= MAX_ITEMS) break;
+      }
+    }
+    return out;
+  }
+
   function renderSuggestion(token) {
     var st = DA.state._dictSuggest;
     if (!token || token.length < MIN_CHARS) {
@@ -237,6 +254,18 @@
           }
         }
       } catch (e1) {}
+
+      // Abbreviation suggestions (panel-only) - render into abbrSuggest if available
+      try {
+        var abbrs = findAbbrMatches(token);
+        var abbrKey = token + "|" + abbrs.map(function (x) { return String(x.shortForm || "") + "→" + String(x.fullForm || ""); }).join(",");
+        if (st._lastAbbrKey !== abbrKey) {
+          st._lastAbbrKey = abbrKey;
+          if (DA.features && DA.features.abbreviation && typeof DA.features.abbreviation.renderInlineSuggestions === "function") {
+            DA.features.abbreviation.renderInlineSuggestions(token, abbrs, 0);
+          }
+        }
+      } catch (e2) {}
       return;
     }
 
