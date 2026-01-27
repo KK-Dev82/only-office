@@ -12,8 +12,8 @@ CONTAINER_NAME="${1:-onlyoffice-documentserver}"
 
 # หา only-office root directory จากตำแหน่ง script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Script อยู่ใน onlyoffice-plugins/scripts/ ดังนั้นขึ้นไป 2 level
-DEFAULT_ONLYOFFICE_PATH="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Script อยู่ใน only-office/scripts/ ดังนั้นขึ้นไป 1 level
+DEFAULT_ONLYOFFICE_PATH="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ONLYOFFICE_PATH="${2:-$DEFAULT_ONLYOFFICE_PATH}"
 

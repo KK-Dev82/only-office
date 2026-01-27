@@ -4,35 +4,34 @@
 
 ```
 only-office/
-├── setup-onlyoffice.sh              # Wrapper script (เรียกจาก root)
-├── check-onlyoffice-status.sh       # Wrapper script (เรียกจาก root)
-├── onlyoffice-plugins/
-│   └── scripts/
-│       ├── setup-onlyoffice-server.sh  # Script จริง
-│       ├── check-onlyoffice-status.sh  # Script จริง
-│       └── README.md
+├── scripts/
+│   ├── setup-onlyoffice.sh              # Wrapper script (เรียก setup-onlyoffice-server.sh)
+│   ├── setup-onlyoffice-server.sh       # Script จริงสำหรับ setup
+│   ├── check-onlyoffice-status.sh       # Script สำหรับตรวจสอบสถานะ
+│   └── README.md
 ├── dict/
 │   └── th_TH/
+├── onlyoffice-plugins/
 ├── THSarabunITBold/
 └── ...
 ```
 
 ## 🚀 วิธีใช้งาน
 
-### วิธีที่ 1: ใช้ Wrapper Scripts (แนะนำ)
+### วิธีที่ 1: ใช้ Wrapper Script (แนะนำ)
 
 ```bash
-# รันจาก only-office root directory
-cd ~/deploy/only-office
+# รันจาก scripts directory
+cd ~/deploy/only-office/scripts
 ./setup-onlyoffice.sh onlyoffice-documentserver
 ./check-onlyoffice-status.sh onlyoffice-documentserver
 ```
 
-### วิธีที่ 2: ใช้ Scripts โดยตรง
+### วิธีที่ 2: ใช้ Script โดยตรง
 
 ```bash
 # รันจาก scripts directory
-cd ~/deploy/only-office/onlyoffice-plugins/scripts
+cd ~/deploy/only-office/scripts
 ./setup-onlyoffice-server.sh onlyoffice-documentserver
 ./check-onlyoffice-status.sh onlyoffice-documentserver
 ```
@@ -43,14 +42,10 @@ cd ~/deploy/only-office/onlyoffice-plugins/scripts
 
 ```bash
 # จาก local machine
-scp -r only-office/onlyoffice-plugins/scripts user@server:~/deploy/only-office/onlyoffice-plugins/
-
-# Copy wrapper scripts
-scp only-office/setup-onlyoffice.sh user@server:~/deploy/only-office/
-scp only-office/check-onlyoffice-status.sh user@server:~/deploy/only-office/
+scp -r only-office/scripts user@server:~/deploy/only-office/
 
 # ตั้ง permission
-ssh user@server "chmod +x ~/deploy/only-office/*.sh ~/deploy/only-office/onlyoffice-plugins/scripts/*.sh"
+ssh user@server "chmod +x ~/deploy/only-office/scripts/*.sh"
 ```
 
 ### วิธีที่ 2: ใช้ Git (ถ้า only-office เป็น git repo)
@@ -59,20 +54,17 @@ ssh user@server "chmod +x ~/deploy/only-office/*.sh ~/deploy/only-office/onlyoff
 # บน server
 cd ~/deploy/only-office
 git pull
-chmod +x setup-onlyoffice.sh check-onlyoffice-status.sh
-chmod +x onlyoffice-plugins/scripts/*.sh
+chmod +x scripts/*.sh
 ```
 
 ## ✅ ตรวจสอบว่า Scripts พร้อมใช้งาน
 
 ```bash
 # ตรวจสอบว่า scripts มีอยู่
-ls -la ~/deploy/only-office/setup-onlyoffice.sh
-ls -la ~/deploy/only-office/check-onlyoffice-status.sh
-ls -la ~/deploy/only-office/onlyoffice-plugins/scripts/
+ls -la ~/deploy/only-office/scripts/
 
 # ทดสอบรัน script
-cd ~/deploy/only-office
+cd ~/deploy/only-office/scripts
 ./setup-onlyoffice.sh onlyoffice-documentserver
 ```
 
@@ -82,10 +74,10 @@ cd ~/deploy/only-office
 
 ```bash
 # ตรวจสอบว่า scripts directory มีอยู่
-ls -la ~/deploy/only-office/onlyoffice-plugins/scripts/
+ls -la ~/deploy/only-office/scripts/
 
 # ถ้าไม่มี ให้ copy ไป
-mkdir -p ~/deploy/only-office/onlyoffice-plugins/scripts
+mkdir -p ~/deploy/only-office/scripts
 # แล้ว copy scripts ไป
 ```
 
@@ -93,13 +85,12 @@ mkdir -p ~/deploy/only-office/onlyoffice-plugins/scripts
 
 ```bash
 # ตั้ง permission
-chmod +x ~/deploy/only-office/*.sh
-chmod +x ~/deploy/only-office/onlyoffice-plugins/scripts/*.sh
+chmod +x ~/deploy/only-office/scripts/*.sh
 ```
 
 ## 📝 หมายเหตุ
 
-- Wrapper scripts (`setup-onlyoffice.sh`, `check-onlyoffice-status.sh`) อยู่ที่ root ของ only-office
-- Scripts จริงอยู่ที่ `onlyoffice-plugins/scripts/`
-- Wrapper scripts จะหาและเรียก scripts จริงอัตโนมัติ
-- Scripts จะหา only-office root directory อัตโนมัติจากตำแหน่ง script
+- Scripts ทั้งหมดอยู่ที่ `only-office/scripts/` directory
+- `setup-onlyoffice.sh` เป็น wrapper ที่เรียก `setup-onlyoffice-server.sh`
+- Scripts จะหา only-office root directory อัตโนมัติจากตำแหน่ง script (ขึ้นไป 1 level)
+- สามารถรันได้จาก scripts directory โดยตรง
