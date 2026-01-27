@@ -35,7 +35,28 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--tsc-border) transparent;
+}
+
+.tscRoot::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tscRoot::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tscRoot::-webkit-scrollbar-thumb {
+  background: var(--tsc-border);
+  border-radius: 4px;
+}
+
+.tscRoot::-webkit-scrollbar-thumb:hover {
+  background: var(--tsc-muted);
 }
 
 .tscHeader {
@@ -70,11 +91,8 @@ body {
 }
 
 .tscSection:last-child {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
 }
 
 .tscLabel {
@@ -148,30 +166,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  flex: 1;
-  min-height: 0;
-  /* Custom scrollbar styling */
-  scrollbar-width: thin;
-  scrollbar-color: var(--tsc-border) transparent;
-}
-
-.tscResults::-webkit-scrollbar {
-  width: 8px;
-}
-
-.tscResults::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.tscResults::-webkit-scrollbar-thumb {
-  background: var(--tsc-border);
-  border-radius: 4px;
-}
-
-.tscResults::-webkit-scrollbar-thumb:hover {
-  background: var(--tsc-muted);
 }
 
 .tscIssue {
