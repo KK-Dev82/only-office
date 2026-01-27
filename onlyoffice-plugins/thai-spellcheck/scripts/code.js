@@ -101,13 +101,31 @@
   function execMethod(name, params, cb) {
     try {
       if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
-        window.Asc.plugin.executeMethod(name, params || [], cb);
+        console.log('[ThaiSpellcheck] 📤 executeMethod', { name: name, params: params, hasCallback: typeof cb === 'function' });
+        window.Asc.plugin.executeMethod(name, params || [], function (result) {
+          console.log('[ThaiSpellcheck] 📥 executeMethod result', { name: name, result: result, resultType: typeof result });
+          try {
+            if (cb) cb(result);
+          } catch (eCb) {
+            console.error('[ThaiSpellcheck] ❌ executeMethod callback error', { name: name, error: eCb });
+          }
+        });
         return true;
+      } else {
+        console.warn('[ThaiSpellcheck] ⚠️ executeMethod not available', {
+          hasAsc: !!window.Asc,
+          hasPlugin: !!(window.Asc && window.Asc.plugin),
+          hasExecuteMethod: !!(window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function"),
+        });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[ThaiSpellcheck] ❌ executeMethod error', { name: name, error: e });
+    }
     try {
       cb && cb(undefined);
-    } catch (e2) {}
+    } catch (e2) {
+      console.error('[ThaiSpellcheck] ❌ executeMethod fallback callback error', { name: name, error: e2 });
+    }
     return false;
   }
 
@@ -302,10 +320,21 @@
   function replaceNext(word, suggestion) {
     var w = String(word || "").trim();
     var s = String(suggestion || "").trim();
-    if (!w || !s) return;
-    if (!ensureApiConfigured()) return; // keep UX consistent (API config is part of this plugin)
+    
+    console.log('[ThaiSpellcheck] 🔍 replaceNext called', { word: w, suggestion: s });
+    
+    if (!w || !s) {
+      console.warn('[ThaiSpellcheck] ⚠️ replaceNext: missing word or suggestion', { word: w, suggestion: s });
+      return;
+    }
+    if (!ensureApiConfigured()) {
+      console.warn('[ThaiSpellcheck] ⚠️ replaceNext: API not configured');
+      return; // keep UX consistent (API config is part of this plugin)
+    }
 
     setStatus('กำลังหา "' + w + '" แล้วแทนที่...');
+    console.log('[ThaiSpellcheck] 📤 Calling SearchNext', { searchString: w, matchCase: true });
+    
     execMethod(
       "SearchNext",
       [
@@ -316,12 +345,73 @@
         true,
       ],
       function (found) {
+        console.log('[ThaiSpellcheck] 📥 SearchNext result', { found: found, foundType: typeof found, foundValue: found });
+        
         // Some builds return unreliable values; still attempt replace if we can.
         if (found === false) {
+          console.warn('[ThaiSpellcheck] ⚠️ SearchNext: word not found', { word: w });
           setStatus('ไม่พบ "' + w + '" ถัดไปจากตำแหน่งเคอร์เซอร์');
           return;
         }
-        execMethod("ReplaceCurrentWord", [s, "entirely"], function () {
+        
+        console.log('[ThaiSpellcheck] 📤 Calling ReplaceCurrentWord', { replacement: s, mode: 'entirely' });
+        
+        // Try callCommand as fallback if executeMethod doesn't work
+        if (canCallCommand()) {
+          try {
+            window.Asc.scope = window.Asc.scope || {};
+            window.Asc.scope.__tsc_replace_word = s;
+            
+            window.Asc.plugin.callCommand(
+              function () {
+                try {
+                  var doc = Api.GetDocument();
+                  if (!doc) return { ok: false };
+                  
+                  var selection = Api.GetSelection();
+                  if (!selection) {
+                    console.warn('[ThaiSpellcheck] ⚠️ ReplaceCurrentWord: No selection available');
+                    return { ok: false, error: "No selection" };
+                  }
+                  
+                  var newText = String(Asc.scope.__tsc_replace_word || "");
+                  if (!newText) return { ok: false, error: "No replacement text" };
+                  
+                  console.log('[ThaiSpellcheck] 🔄 ReplaceCurrentWord: Deleting selection and inserting', { newText: newText });
+                  
+                  // Delete selected text and insert new text
+                  selection.Delete();
+                  doc.InsertText(newText);
+                  
+                  return { ok: true, replaced: true };
+                } catch (e) {
+                  console.error('[ThaiSpellcheck] ❌ ReplaceCurrentWord callCommand error', { error: e });
+                  return { ok: false, error: String(e) };
+                }
+              },
+              false,
+              true,
+              function (result) {
+                console.log('[ThaiSpellcheck] 📥 ReplaceCurrentWord callCommand result', {
+                  result: result,
+                  ok: result && result.ok,
+                  replaced: result && result.replaced,
+                });
+                if (result && result.ok) {
+                  setStatus('แทนที่ "' + w + '" -> "' + s + '" (ครั้งถัดไป) แล้ว');
+                } else {
+                  setStatus('แทนที่ "' + w + '" -> "' + s + '" ไม่สำเร็จ');
+                }
+              }
+            );
+            return;
+          } catch (eCall) {
+            console.error('[ThaiSpellcheck] ❌ ReplaceCurrentWord callCommand failed', { error: eCall });
+          }
+        }
+        
+        execMethod("ReplaceCurrentWord", [s, "entirely"], function (result) {
+          console.log('[ThaiSpellcheck] 📥 ReplaceCurrentWord executeMethod result', { result: result, resultType: typeof result });
           setStatus('แทนที่ "' + w + '" -> "' + s + '" (ครั้งถัดไป) แล้ว');
         });
       }
@@ -331,16 +421,137 @@
   function replaceAll(word, suggestion) {
     var w = String(word || "").trim();
     var s = String(suggestion || "").trim();
-    if (!w || !s) return;
+    
+    console.log('[ThaiSpellcheck] 🔍 replaceAll called', { word: w, suggestion: s });
+    
+    if (!w || !s) {
+      console.warn('[ThaiSpellcheck] ⚠️ replaceAll: missing word or suggestion', { word: w, suggestion: s });
+      return;
+    }
+    
     setStatus('กำลังแทนที่ทั้งหมด: "' + w + '" -> "' + s + '" ...');
-    execMethod("SearchAndReplace", [
+    
+    // Try using callCommand as fallback if executeMethod doesn't work
+    if (canCallCommand()) {
+      try {
+        console.log('[ThaiSpellcheck] 📤 Calling SearchAndReplace via callCommand', {
+          searchString: w,
+          replaceString: s,
+          matchCase: true,
+        });
+        
+        window.Asc.scope = window.Asc.scope || {};
+        window.Asc.scope.__tsc_replace_old = w;
+        window.Asc.scope.__tsc_replace_new = s;
+        
+        window.Asc.plugin.callCommand(
+          function () {
+            try {
+              var doc = Api.GetDocument();
+              if (!doc) return { ok: false, error: "No document" };
+              
+              var oldText = String(Asc.scope.__tsc_replace_old || "");
+              var newText = String(Asc.scope.__tsc_replace_new || "");
+              
+              if (!oldText) return { ok: false, error: "oldWord is required" };
+              
+              // Use Api.SearchAndReplace if available
+              if (Api && typeof Api.SearchAndReplace === "function") {
+                Api.SearchAndReplace(oldText, newText, true); // true = replace all
+                return { ok: true, replaced: true };
+              }
+              
+              // Fallback: Manual search and replace using paragraphs
+              var body = doc.GetBody ? doc.GetBody() : null;
+              if (!body) return { ok: false, error: "Cannot get document body" };
+              
+              var replaced = false;
+              var paraCount = body.GetElementsCount ? body.GetElementsCount() : 0;
+              
+              for (var i = 0; i < paraCount; i++) {
+                try {
+                  var para = body.GetElement ? body.GetElement(i) : null;
+                  if (!para || !para.GetRange) continue;
+                  
+                  var range = para.GetRange();
+                  if (!range || !range.GetText) continue;
+                  
+                  var paraText = range.GetText({
+                    Numbering: false,
+                    Math: false,
+                    ParaSeparator: "\n",
+                    TableRowSeparator: "\n",
+                    NewLineSeparator: "\n",
+                  }) || "";
+                  
+                  if (paraText.includes(oldText)) {
+                    var newParaText = paraText.split(oldText).join(newText);
+                    
+                    if (newParaText !== paraText) {
+                      para.RemoveAllElements();
+                      para.AddText(newParaText);
+                      replaced = true;
+                    }
+                  }
+                } catch (ePara) {
+                  // Continue with next paragraph
+                }
+              }
+              
+              return { ok: replaced, replaced: replaced };
+            } catch (e) {
+              return { ok: false, error: String(e) };
+            }
+          },
+          false,
+          true,
+          function (result) {
+            console.log('[ThaiSpellcheck] 📥 SearchAndReplace callCommand result', {
+              result: result,
+              resultType: typeof result,
+              ok: result && result.ok,
+            });
+            setStatus('แทนที่ทั้งหมด: "' + w + '" -> "' + s + '" แล้ว');
+          }
+        );
+        return;
+      } catch (eCall) {
+        console.error('[ThaiSpellcheck] ❌ replaceAll callCommand failed', { error: eCall });
+      }
+    }
+    
+    // Fallback: Use executeMethod
+    console.log('[ThaiSpellcheck] 📤 Calling SearchAndReplace via executeMethod', {
+      searchString: w,
+      replaceString: s,
+      matchCase: true,
+    });
+    
+    // SearchAndReplace might not support callback in some builds
+    // Try with callback first, but don't rely on it
+    var called = execMethod("SearchAndReplace", [
       {
         searchString: w,
         replaceString: s,
         matchCase: true,
       },
-    ]);
-    setStatus('สั่งแทนที่ทั้งหมดแล้ว (ตรวจผลในเอกสาร)');
+    ], function (result) {
+      console.log('[ThaiSpellcheck] 📥 SearchAndReplace executeMethod result', { result: result, resultType: typeof result });
+      setStatus('แทนที่ทั้งหมด: "' + w + '" -> "' + s + '" แล้ว');
+    });
+    
+    // If executeMethod is not available or doesn't support callback, set status immediately
+    if (!called) {
+      console.warn('[ThaiSpellcheck] ⚠️ SearchAndReplace: executeMethod not available');
+      setStatus('ไม่สามารถแทนที่ได้ (API ไม่พร้อม)');
+    } else {
+      // Even if called, some builds might not call the callback
+      // Set a timeout to update status if callback doesn't fire
+      setTimeout(function () {
+        console.log('[ThaiSpellcheck] ⏱️ SearchAndReplace timeout check (callback may not have fired)');
+        // Don't change status here - let user verify in document
+      }, 1000);
+    }
   }
 
   function addWord(word) {
@@ -673,12 +884,14 @@
           return;
         }
         if (act === "next") {
+          console.log('[ThaiSpellcheck] 🔘 Replace next button clicked', { word: word, chosen: chosen });
           replaceNext(word, chosen);
           // Note: Don't mark as replaced here because "next" only replaces one occurrence
           // User might want to replace more occurrences
           return;
         }
         if (act === "all") {
+          console.log('[ThaiSpellcheck] 🔘 Replace all button clicked', { word: word, chosen: chosen });
           // Replace-all is destructive; user can undo (Ctrl+Z)
           replaceAll(word, chosen);
           // Mark as replaced after replace-all

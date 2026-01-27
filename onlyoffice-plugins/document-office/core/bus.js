@@ -146,12 +146,52 @@
             var newWord = (payload && payload.newWord) || "";
             var replaceAll = payload && payload.replaceAll === true;
             
+            try {
+              if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                // eslint-disable-next-line no-console
+                console.log("[DocumentOfficePlugin] bus_replaceWord_command", {
+                  id: id,
+                  oldWord: oldWord,
+                  newWord: newWord,
+                  replaceAll: replaceAll,
+                  payload: payload,
+                });
+              }
+            } catch (eLog0) {}
+            
             if (!oldWord) {
+              try {
+                if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                  // eslint-disable-next-line no-console
+                  console.warn("[DocumentOfficePlugin] bus_replaceWord_missing_oldWord");
+                }
+              } catch (eLog1) {}
               replyErr(id, "oldWord is required");
               return;
             }
             
+            try {
+              if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                // eslint-disable-next-line no-console
+                console.log("[DocumentOfficePlugin] bus_replaceWord_calling_editor_replaceWord", {
+                  oldWord: oldWord,
+                  newWord: newWord,
+                  replaceAll: replaceAll,
+                });
+              }
+            } catch (eLog2) {}
+            
             DO.editor.replaceWord(oldWord, newWord, replaceAll, function (result) {
+              try {
+                if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                  // eslint-disable-next-line no-console
+                  console.log("[DocumentOfficePlugin] bus_replaceWord_callback", {
+                    id: id,
+                    result: result,
+                    ok: result && result.ok,
+                  });
+                }
+              } catch (eLog3) {}
               replyOk(id, result || { ok: false, error: "Unknown error" });
             });
             return;
