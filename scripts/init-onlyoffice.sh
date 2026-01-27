@@ -9,7 +9,7 @@ set -euo pipefail
 
 # ตรวจสอบว่าเราอยู่ใน container หรือไม่
 IN_CONTAINER=${IN_CONTAINER:-false}
-if [ -f "/.dockerenv" ] || [ -n "${DOCKER_CONTAINER:-}" ]; then
+if [ -f "/.dockerenv" ] || [ -n "${DOCKER_CONTAINER:-}" ] || [ -f "/var/www/onlyoffice/documentserver/server/dictionaries/update.py" ]; then
     IN_CONTAINER=true
 fi
 
