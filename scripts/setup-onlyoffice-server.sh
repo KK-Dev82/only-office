@@ -231,29 +231,63 @@ else
     if [ "$FONTS_MOUNTED" = false ]; then
         echo ""
         echo "   💡 Fonts ไม่ได้ mount ผ่าน volume"
-        echo "   💡 Copy fonts เข้า container..."
         
-        # Copy fonts เข้า container
-        docker exec "$CONTAINER_NAME" mkdir -p "$FONTS_DST" 2>/dev/null || true
-        
-        for font in "${FONT_FILES[@]}"; do
-            if [ -f "$FONTS_SRC/$font" ]; then
-                docker cp "$FONTS_SRC/$font" "$CONTAINER_NAME:$FONTS_DST/$font"
-                echo "     ✅ Copied $font"
-            else
-                echo "     ❌ $font not found in source"
-            fi
-        done
-        
-        # ตั้ง permission
-        docker exec "$CONTAINER_NAME" chown -R root:root "$FONTS_DST" 2>/dev/null || true
-        docker exec "$CONTAINER_NAME" chmod -R a+r "$FONTS_DST"/* 2>/dev/null || true
-        
-        # Rebuild font cache
-        echo "   Rebuilding font cache..."
-        docker exec "$CONTAINER_NAME" fc-cache -fv 2>&1 | grep -E "(THSarabun|Cache)" || true
-        docker exec "$CONTAINER_NAME" /usr/bin/documentserver-generate-allfonts.sh 2>&1 | tail -5 || true
-        echo "   ✅ Font cache rebuilt"
+        # ตรวจสอบว่า destination directory เป็น read-only หรือไม่
+        TEST_FILE="$FONTS_DST/.test_write"
+        if docker exec "$CONTAINER_NAME" sh -c "touch $TEST_FILE 2>/dev/null && rm -f $TEST_FILE" 2>/dev/null; then
+            # Directory เขียนได้
+            echo "   💡 Copy fonts เข้า container..."
+            
+            # Copy fonts เข้า container
+            docker exec "$CONTAINER_NAME" mkdir -p "$FONTS_DST" 2>/dev/null || true
+            
+            for font in "${FONT_FILES[@]}"; do
+                if [ -f "$FONTS_SRC/$font" ]; then
+                    if docker cp "$FONTS_SRC/$font" "$CONTAINER_NAME:$FONTS_DST/$font" 2>/dev/null; then
+                        echo "     ✅ Copied $font"
+                    else
+                        echo "     ❌ Failed to copy $font (may be read-only mount)"
+                    fi
+                else
+                    echo "     ❌ $font not found in source"
+                fi
+            done
+            
+            # ตั้ง permission
+            docker exec "$CONTAINER_NAME" chown -R root:root "$FONTS_DST" 2>/dev/null || true
+            docker exec "$CONTAINER_NAME" chmod -R a+r "$FONTS_DST"/* 2>/dev/null || true
+            
+            # Rebuild font cache
+            echo "   Rebuilding font cache..."
+            docker exec "$CONTAINER_NAME" fc-cache -fv 2>&1 | grep -E "(THSarabun|Cache)" || true
+            docker exec "$CONTAINER_NAME" /usr/bin/documentserver-generate-allfonts.sh 2>&1 | tail -5 || true
+            echo "   ✅ Font cache rebuilt"
+        else
+            # Directory เป็น read-only
+            echo "   ⚠️  Fonts directory เป็น read-only (mounted volume)"
+            echo "   💡 แนะนำให้ mount fonts ผ่าน docker-compose volume:"
+            echo "      ใน docker-compose.staging.yml เพิ่ม:"
+            echo "      - ./only-office/THSarabunITBold:/usr/share/fonts/truetype/th-sarabun:ro"
+            echo ""
+            echo "   💡 หรือ copy ไปที่ location อื่นที่เขียนได้:"
+            ALT_FONTS_DST="/var/www/onlyoffice/Data/fonts/th-sarabun"
+            echo "      Copying to alternative location: $ALT_FONTS_DST"
+            docker exec "$CONTAINER_NAME" mkdir -p "$ALT_FONTS_DST" 2>/dev/null || true
+            
+            for font in "${FONT_FILES[@]}"; do
+                if [ -f "$FONTS_SRC/$font" ]; then
+                    if docker cp "$FONTS_SRC/$font" "$CONTAINER_NAME:$ALT_FONTS_DST/$font" 2>/dev/null; then
+                        echo "     ✅ Copied $font to $ALT_FONTS_DST"
+                    else
+                        echo "     ❌ Failed to copy $font"
+                    fi
+                fi
+            done
+            
+            echo "   ⚠️  Note: Fonts ถูก copy ไปที่ $ALT_FONTS_DST"
+            echo "   ⚠️  Only Office อาจจะไม่เห็น fonts จนกว่าจะ rebuild font cache"
+            echo "   💡 ลอง mount fonts ผ่าน volume ใน docker-compose แทน"
+        fi
     else
         echo "   ✅ All fonts are mounted correctly"
         echo "   💡 If fonts don't appear, try rebuilding font cache:"
