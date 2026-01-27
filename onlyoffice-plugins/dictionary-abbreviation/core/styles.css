@@ -1,24 +1,17 @@
-/* --- Layout (iframe-safe) ---
- * เป้าหมาย: ให้ UI แสดง "เสถียร" ใน iframe ของ ONLYOFFICE ทุก build
- * หลักการ:
- * - หลีกเลี่ยง `position: fixed` (มักเพี้ยนเมื่อ parent มี transform/zoom)
- * - ใช้ `position: absolute; inset:0` แทน
- * - ให้ `.doMain` เป็นพื้นที่ scroll แทนการบังคับ overflow ที่ html/body
- */
-:root, html, body {
-  height: 100%;
-  width: 100%;
-}
-
+/* --- Layout lock (prevent plugins.css / translate pipeline from hiding iframe) --- */
 html, body {
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  /* Force visibility in case host/plugins.css hides iframe body */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  overflow: hidden !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  position: relative !important;
   background: #ffffff;
-}
-
-body {
-  position: relative;
 }
 
 .doRoot, .doRoot * {
@@ -31,11 +24,15 @@ body {
   display: flex !important;
   flex-direction: column !important;
   background: #ffffff !important;
-  position: absolute !important;
+  /* panel safe layout: fixed fill inside iframe */
+  position: fixed !important;
   inset: 0 !important;
-  height: auto !important;
-  min-height: 0 !important;
   width: auto !important;
+  height: auto !important;
+  overflow: hidden !important;
+  contain: layout style paint;
+  will-change: auto;
+  transform: translateZ(0);
 }
 
 .doHeader {
@@ -95,62 +92,32 @@ body {
   border-radius: 8px;
 }
 
-.doTabsScroll {
-  display: flex;
-  gap: 6px;
-  padding: 8px 10px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f8f9fa;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
-.doTabsScroll::-webkit-scrollbar {
-  height: 6px;
-}
-.doTabsScroll::-webkit-scrollbar-track {
-  background: #f8f9fa;
-}
-.doTabsScroll::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
-  border-radius: 3px;
-}
-.doTabsScroll::-webkit-scrollbar-thumb:hover {
-  background: #a0aec0;
-}
-
-.doTabBtn {
-  font-size: 11px;
-  padding: 6px 10px;
-  border: 1px solid #dee2e6;
-  background: #fff;
-  border-radius: 8px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.doTabBtn.doIsActive {
-  border-color: #0d6efd;
-  color: #0d6efd;
-  background: #eef5ff;
-}
-
 .doMain {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Single-page layout (Dictionary top / Abbreviation bottom) */
+.doMainSplit {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.doPane {
+  flex: 1 1 50%;
+  min-height: 0;
   overflow: auto;
   padding: 10px;
 }
 
-.doTabPanel {
-  display: none;
-  min-height: 0 !important;
-}
-
-.doTabPanel.doIsActive {
-  display: block;
+.doDivider {
+  height: 1px;
+  background: #e5e7eb;
+  flex: 0 0 auto;
 }
 
 .doPanelHeader {
@@ -282,6 +249,34 @@ body {
   flex-shrink: 0;
 }
 
+.doItemActionsUnder {
+  margin-top: 6px;
+  justify-content: flex-end;
+}
+
+.doIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 8px;
+  line-height: 1;
+  color: #374151;
+}
+
+.doIconBtn:hover {
+  background: #f3f4f6;
+}
+
+.doIconBtn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
 .doOutput {
   margin: 0;
   padding: 8px;
@@ -306,7 +301,17 @@ body {
 }
 
 .doDebugPanel {
-  margin-top: 10px;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 58px; /* below header */
+  bottom: 10px;
+  z-index: 50;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  overflow: auto;
 }
 
 .doDebugPanel.doIsHidden {

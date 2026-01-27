@@ -15,8 +15,10 @@
     } catch (e0) {}
     if (!ok) {
       try {
-        // eslint-disable-next-line no-console
-        console.warn("[DocumentOfficePlugin] replyOk_failed", id);
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.warn("[DocumentOfficePlugin] replyOk_failed", id);
+        }
       } catch (e1) {}
     }
   }
@@ -28,8 +30,10 @@
     } catch (e0) {}
     if (!ok) {
       try {
-        // eslint-disable-next-line no-console
-        console.warn("[DocumentOfficePlugin] replyErr_failed", id, error);
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.warn("[DocumentOfficePlugin] replyErr_failed", id, error);
+        }
       } catch (e1) {}
     }
   }
@@ -39,16 +43,26 @@
 
   window.Asc.plugin.onExternalPluginMessage = function (msg) {
     try {
-      // eslint-disable-next-line no-console
-      console.log("[DocumentOfficePlugin] bus_rx_raw", msg, typeof msg);
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.log("[DocumentOfficePlugin] bus_rx_raw", msg, typeof msg);
+        }
+      } catch (eLog0) {}
       if (!msg || typeof msg !== "object") {
-        // eslint-disable-next-line no-console
-        console.warn("[DocumentOfficePlugin] bus_rx_invalid", { msg: msg, type: typeof msg });
+        try {
+          if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+            // eslint-disable-next-line no-console
+            console.warn("[DocumentOfficePlugin] bus_rx_invalid", { msg: msg, type: typeof msg });
+          }
+        } catch (eLog1) {}
         return;
       }
       try {
-        // eslint-disable-next-line no-console
-        console.log("[DocumentOfficePlugin] bus_rx", msg);
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.log("[DocumentOfficePlugin] bus_rx", msg);
+        }
       } catch (eLog) {}
 
       // v1 envelope (request/response)
@@ -73,8 +87,10 @@
           // STT-safe: always append at end (ignore cursor)
           if (cmd === "appendToEnd") {
             try {
-              // eslint-disable-next-line no-console
-              console.log("[DocumentOfficePlugin] bus_appendToEnd", { len: ((payload && payload.text) || "").length });
+              if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                // eslint-disable-next-line no-console
+                console.log("[DocumentOfficePlugin] bus_appendToEnd", { len: ((payload && payload.text) || "").length });
+              }
             } catch (e0) {}
             try {
               DO.editor.appendToDocumentEnd((payload && payload.text) || "", { forceNewParagraph: true });
@@ -83,8 +99,12 @@
               try {
                 replyOk(id, true);
               } catch (eReply) {
-                // eslint-disable-next-line no-console
-                console.warn("[DocumentOfficePlugin] replyOk failed (may be Community License limitation)", eReply);
+                try {
+                  if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                    // eslint-disable-next-line no-console
+                    console.warn("[DocumentOfficePlugin] replyOk failed (may be Community License limitation)", eReply);
+                  }
+                } catch (eLog2) {}
                 // Text was inserted, but response may not reach host
               }
             } catch (eInsert) {
@@ -144,16 +164,26 @@
 
       if (type === "appendToEnd") {
         try {
-          // eslint-disable-next-line no-console
-          console.log("[DocumentOfficePlugin] bus_legacy_appendToEnd", { len: ((msg.text || "") || "").length });
+          if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+            // eslint-disable-next-line no-console
+            console.log("[DocumentOfficePlugin] bus_legacy_appendToEnd", { len: ((msg.text || "") || "").length });
+          }
         } catch (e0) {}
         try {
           DO.editor.appendToDocumentEnd(msg.text || "", { forceNewParagraph: true });
-          // eslint-disable-next-line no-console
-          console.log("[DocumentOfficePlugin] bus_legacy_appendToEnd_ok");
+          try {
+            if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+              // eslint-disable-next-line no-console
+              console.log("[DocumentOfficePlugin] bus_legacy_appendToEnd_ok");
+            }
+          } catch (eLog3) {}
         } catch (e1) {
-          // eslint-disable-next-line no-console
-          console.error("[DocumentOfficePlugin] bus_legacy_appendToEnd_failed", e1);
+          try {
+            if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+              // eslint-disable-next-line no-console
+              console.error("[DocumentOfficePlugin] bus_legacy_appendToEnd_failed", e1);
+            }
+          } catch (eLog4) {}
         }
         return;
       }

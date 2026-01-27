@@ -6,6 +6,19 @@
   DO.state = DO.state || {};
   DO.state._abbrUi = DO.state._abbrUi || { lastToken: "", items: [], selectedIndex: 0, keyBound: false, bound: false };
 
+  // จำนวนตัวอักษรขั้นต่ำของคำย่อที่ใช้สำหรับ live-suggest
+  var ABBR_MIN_CHARS = 2;
+
+  function isAutoFocusEnabled() {
+    try {
+      var href = String((window.location && window.location.href) || "");
+      var q = String((window.location && window.location.search) || "");
+      return /(?:\?|&)af=1(?:&|$)/.test(q) || /(?:\?|&)af=1(?:&|$)/.test(href);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function escHtml(s) {
     return String(s || "")
       .replace(/&/g, "&amp;")
@@ -30,6 +43,35 @@
     );
   }
 
+  function iconSvg(type) {
+    if (type === "insert") {
+      return (
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+        '<path fill="currentColor" d="M5 20h14v-2H5v2zm7-18c-.55 0-1 .45-1 1v9.17l-3.59-3.58L6 10l6 6 6-6-1.41-1.41L13 12.17V3c0-.55-.45-1-1-1z"/>' +
+        "</svg>"
+      );
+    }
+    if (type === "delete") {
+      return (
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+        '<path fill="currentColor" d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2H8l1-2zm-5 2h16v2H4V6z"/>' +
+        "</svg>"
+      );
+    }
+    return "";
+  }
+
+  function makeIconButton(opts) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "doIconBtn";
+    try { btn.setAttribute("aria-label", String(opts.ariaLabel || "")); } catch (e0) {}
+    try { btn.title = String(opts.title || opts.ariaLabel || ""); } catch (e1) {}
+    btn.innerHTML = String(opts.svg || "");
+    if (typeof opts.onClick === "function") btn.addEventListener("click", opts.onClick);
+    return btn;
+  }
+
   function render() {
     var root = DO.$("abbrList");
     if (!root) return;
@@ -38,6 +80,9 @@
     var items = DO.store.abbreviations || [];
     for (var i = 0; i < items.length; i++) {
       var a = items[i];
+      var scope = String(a.scope || a.Scope || "Local");
+      var isLocal = scope === "Local";
+      if (!isLocal) continue; // แสดงเฉพาะ Local ตาม requirement
       var div = document.createElement("div");
       div.className = "doItem";
       var row = document.createElement("div");
@@ -46,41 +91,43 @@
       text.className = "doItemText";
       text.textContent = String(a.shortForm || "") + " → " + String(a.fullForm || "");
       var actions = document.createElement("div");
-      actions.className = "doItemActions";
+      actions.className = "doItemActions doItemActionsUnder";
 
-      var btnInsert = document.createElement("button");
-      btnInsert.textContent = "Insert";
-      btnInsert.addEventListener(
-        "click",
-        (function (t, id) {
-          return function () {
-            DO.debugLog("abbr_insert", { id: id });
-            DO.editor.insertText(t);
-          };
-        })(a.fullForm || "", a.id)
+      actions.appendChild(
+        makeIconButton({
+          ariaLabel: "Insert",
+          title: "Insert",
+          svg: iconSvg("insert"),
+          onClick: (function (t, id) {
+            return function () {
+              DO.debugLog("abbr_insert", { id: id });
+              DO.editor.insertText(t);
+            };
+          })(a.fullForm || "", a.id),
+        })
       );
 
-      var btnDel = document.createElement("button");
-      btnDel.textContent = "Delete";
-      btnDel.addEventListener(
-        "click",
-        (function (id) {
-          return function () {
-            DO.store.abbreviations = (DO.store.abbreviations || []).filter(function (x) {
-              return String(x.id) !== String(id);
-            });
-            DO.persist.abbreviations();
-            render();
-            DO.debugLog("abbr_delete", { id: id });
-          };
-        })(a.id)
+      actions.appendChild(
+        makeIconButton({
+          ariaLabel: "Delete",
+          title: "Delete",
+          svg: iconSvg("delete"),
+          onClick: (function (id) {
+            return function () {
+              DO.store.abbreviations = (DO.store.abbreviations || []).filter(function (x) {
+                return String(x.id) !== String(id);
+              });
+              DO.persist.abbreviations();
+              render();
+              DO.debugLog("abbr_delete", { id: id });
+            };
+          })(a.id),
+        })
       );
 
-      actions.appendChild(btnInsert);
-      actions.appendChild(btnDel);
       row.appendChild(text);
-      row.appendChild(actions);
       div.appendChild(row);
+      div.appendChild(actions);
       root.appendChild(div);
     }
 
@@ -149,9 +196,6 @@
     var abbrAdd = DO.$("abbrAdd");
     if (abbrAdd) abbrAdd.addEventListener("click", function () { addFromUi(); });
 
-    var abbrExpand = DO.$("abbrExpandSelection");
-    if (abbrExpand) abbrExpand.addEventListener("click", function () { expandFromSelection(); });
-
     // Enter triggers add
     var sEl = DO.$("abbrShort");
     if (sEl) {
@@ -175,6 +219,17 @@
         } catch (e0) {}
       });
     }
+
+    // โหมดคำย่อ: ปรับให้เป็น auto เสมอ (ไม่มี checkbox)
+    try {
+      DO.state = DO.state || {};
+      DO.state.abbreviationMode = "auto";
+      try {
+        if (DO.canUseLocalStorage && DO.canUseLocalStorage() && DO.STORAGE_KEYS && DO.STORAGE_KEYS.abbreviationMode) {
+          DO.storageSave(DO.STORAGE_KEYS.abbreviationMode, "auto");
+        }
+      } catch (eStore) {}
+    } catch (e2) {}
   }
 
   function insertExpanded(fullText) {
@@ -182,11 +237,29 @@
       var full = String(fullText || "");
       if (!full) return;
       try { DO.debugLog && DO.debugLog("abbr_accept", { fullLen: full.length }); } catch (eLog) {}
-      DO.editor.insertText(full);
+      // Prefer replace token (autocomplete-like) instead of appending after token.
+      try {
+        var st = DO.state._abbrUi || {};
+        var tokenNow = String(st.lastToken || "").trim();
+        if (!tokenNow) {
+          // fallback: sometimes token is tracked under dictSuggest state (shared detector)
+          try { tokenNow = String((DO.state._dictSuggest && DO.state._dictSuggest.lastToken) || "").trim(); } catch (e1) {}
+        }
+        if (tokenNow && DO.editor && typeof DO.editor.replaceLastTokenInParagraph === "function") {
+          DO.editor.replaceLastTokenInParagraph(tokenNow, full);
+        } else {
+          DO.editor.insertText(full);
+        }
+      } catch (e0) {
+        DO.editor.insertText(full);
+      }
       // cancel suggestions immediately
       try { DO.features.abbreviation.renderInlineSuggestions("", [], 0); } catch (e0) {}
     } catch (e) {}
   }
+
+  // Expose accept method for InputHelper integration (keyboard from editor)
+  DO.features.abbreviation.insertExpanded = insertExpanded;
 
   function bindSuggestionKeysOnce() {
     try {
@@ -196,9 +269,20 @@
         "keydown",
         function (e) {
           try {
+            // Only handle keys when Abbreviation tab is active (avoid conflicts with Dictionary tab)
+            try {
+              if (DO.state && DO.state.activeTab && String(DO.state.activeTab) !== "abbreviation") return;
+            } catch (eTab) {}
             var st = DO.state._abbrUi || {};
             var items = st.items || [];
             var key = e && e.key ? String(e.key) : "";
+
+            // If user is typing into an input in the panel, do not hijack keys
+            try {
+              var tgt = e && e.target;
+              var tag = tgt && tgt.tagName ? String(tgt.tagName).toLowerCase() : "";
+              if (tag === "input" || tag === "textarea") return;
+            } catch (eTgt) {}
 
             if (key === "Escape") {
               st.selectedIndex = 0;
@@ -211,11 +295,21 @@
             }
 
             if (!items.length) return;
-            if (key !== "ArrowDown" && key !== "ArrowUp" && key !== "Enter" && key !== "Tab") return;
+            // Navigation + accept (works when plugin panel is focused):
+            // - ArrowUp/ArrowDown: select
+            // - Enter / ArrowRight / Tab: accept/insert
+            if (
+              key !== "ArrowDown" &&
+              key !== "ArrowUp" &&
+              key !== "Enter" &&
+              key !== "ArrowRight" &&
+              key !== "Tab"
+            )
+              return;
             e.preventDefault();
             e.stopPropagation();
 
-            if (key === "ArrowDown" || key === "Tab") {
+            if (key === "ArrowDown") {
               st.selectedIndex = (Number(st.selectedIndex || 0) + 1) % items.length;
               DO.features.abbreviation.renderInlineSuggestions(st.lastToken, items, st.selectedIndex);
               return;
@@ -225,7 +319,7 @@
               DO.features.abbreviation.renderInlineSuggestions(st.lastToken, items, st.selectedIndex);
               return;
             }
-            if (key === "Enter") {
+            if (key === "Enter" || key === "ArrowRight" || key === "Tab") {
               var pick = items[Number(st.selectedIndex || 0)] || null;
               if (pick && pick.fullForm) insertExpanded(pick.fullForm);
               return;
@@ -238,7 +332,7 @@
   }
 
   // Suggestion rendering for abbreviations (panel-only mode)
-  DO.features.abbreviation.renderInlineSuggestions = function (token, items, selectedIndex) {
+  function renderInlineSuggestions(token, items, selectedIndex) {
     try {
       var root = DO.$("abbrSuggest");
       if (!root) return;
@@ -247,6 +341,8 @@
       items = items || [];
 
       var st = DO.state._abbrUi || (DO.state._abbrUi = {});
+      var hadItems = Boolean(st.items && st.items.length);
+      var prevToken = String(st.lastToken || "");
       st.lastToken = token;
       st.items = items.slice(0);
       if (selectedIndex === undefined || selectedIndex === null) selectedIndex = st.selectedIndex || 0;
@@ -277,7 +373,7 @@
       sp.className = "doHL";
       sp.textContent = token;
       tip.appendChild(sp);
-      tip.appendChild(document.createTextNode('" — กด Up/Down/Tab เลือก, Enter Insert, Esc ยกเลิก'));
+      tip.appendChild(document.createTextNode('" — กด ↑/↓ เลือก, Enter เพื่อ Insert, Esc ยกเลิก'));
       root.appendChild(tip);
 
       for (var i = 0; i < items.length; i++) {
@@ -331,8 +427,280 @@
       }
 
       bindSuggestionKeysOnce();
+      // IMPORTANT:
+      // Auto-focus will steal focus from the editor, making it feel like "typing is blocked"
+      // when suggestions appear (e.g. after typing "สฟ"). Keep it opt-in only.
+      if (isAutoFocusEnabled()) {
+        try {
+          var shouldFocus = (!hadItems && items.length) || (prevToken !== token && items.length);
+          if (shouldFocus) {
+            try {
+              var p = window.Asc && window.Asc.plugin;
+              if (p && typeof p.executeMethod === "function") {
+                try { p.executeMethod("SetFocusToPlugin", []); } catch (e0) {}
+              }
+            } catch (e1) {}
+            try { window.focus(); } catch (e2) {}
+            try {
+              var trap = document.getElementById("doFocusTrap");
+              if (trap && trap.focus) trap.focus({ preventScroll: true });
+            } catch (e3) {}
+          }
+        } catch (e4) {}
+      }
     } catch (e2) {}
-  };
+  }
+
+  // เชื่อมต่อ function ภายในกับ namespace ภายนอก
+  DO.features.abbreviation.renderInlineSuggestions = renderInlineSuggestions;
+
+  // -------- Live-suggest handler (ใช้จาก inputhelper.js) --------
+
+  function shouldDetectAbbrFromTokenInfo(tokenInfo) {
+    // ปรับ boundary ให้ simple ขึ้น:
+    // - มองจาก token สุดท้ายอย่างเดียว
+    // - ขอเพียงยาวอย่างน้อย ABBR_MIN_CHARS ก็ให้เริ่ม detect ได้
+    // ทำให้กรณีที่คำย่อพิมพ์ต่อท้ายคำอื่น (เช่น "การสฝฝ") ก็ยัง detect ได้ตามที่ออกแบบไว้
+    try {
+      tokenInfo = tokenInfo || {};
+      var token = String(tokenInfo.token || "");
+      if (!token || token.length < ABBR_MIN_CHARS) return false;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function findAbbrMatchesForToken(token) {
+    var q = String(token || "").trim().toLowerCase();
+    if (!q) return [];
+    var items = (DO.store && DO.store.abbreviations) ? DO.store.abbreviations : [];
+    var out = [];
+    var seen = {};
+    for (var i = 0; i < items.length; i++) {
+      var a = items[i] || {};
+      var shortForm = String(a.shortForm || "").trim();
+      var fullForm = String(a.fullForm || "").trim();
+      if (!shortForm || !fullForm) continue;
+      if (shortForm.toLowerCase().indexOf(q) === 0) {
+        var key = shortForm.toLowerCase() + "|" + fullForm;
+        if (seen[key]) continue; // กัน duplicate จาก storage เก่า/ใหม่
+        seen[key] = true;
+        out.push({ id: a.id, shortForm: shortForm, fullForm: fullForm });
+      }
+    }
+    // เรียงยาวสุดก่อน (สสฝฝ ก่อน สฝฝ) ให้สอดคล้องกับ findCompletedAbbreviationFromParagraph
+    try {
+      out.sort(function (a, b) {
+        var la = (a.shortForm || "").length;
+        var lb = (b.shortForm || "").length;
+        return lb - la;
+      });
+    } catch (eSort) {}
+    return out;
+  }
+
+  function handleLiveToken(tokenInfo) {
+    try {
+      tokenInfo = tokenInfo || { token: "", start: -1, text: "" };
+      var token = String(tokenInfo.token || "").trim();
+
+      if (!token || !shouldDetectAbbrFromTokenInfo(tokenInfo)) {
+        try {
+          DO.state._lastAbbrHasMatches = false;
+        } catch (e0) {}
+        try {
+          renderInlineSuggestions("", [], 0);
+        } catch (e1) {}
+        return;
+      }
+
+      var matches = findAbbrMatchesForToken(token);
+
+      try {
+        DO.state = DO.state || {};
+        DO.state._lastAbbrHasMatches = matches.length > 0;
+      } catch (e0) {}
+      try {
+        if (DO.debugLog) 
+          DO.debugLog("abbr_live_token", { token: token, matches: matches.length });
+      } catch (eLog) {}
+
+      // ส่งข้อมูลเข้า hub กลาง (ถ้ามี) เพื่อเตรียมรวม Dict+Abbr ในอนาคต
+      try {
+        if (DO.features && DO.features.suggestHub && typeof DO.features.suggestHub.update === "function") {
+          DO.features.suggestHub.update(tokenInfo, null, matches);
+        }
+      } catch (eHub) {}
+
+      renderInlineSuggestions(token, matches, 0);
+    } catch (e) {}
+  }
+
+  DO.features.abbreviation.handleLiveToken = handleLiveToken;
+
+  // -------- ตรวจ “คำย่อที่พิมพ์ครบแล้ว” ทั้งย่อหน้า --------
+
+  function findCompletedAbbreviationFromParagraph(paraText) {
+    try {
+      var s = String(paraText || "")
+        .replace(/\u00A0/g, " ")
+        .replace(/\s+$/g, ""); // ตัดช่องว่าง/newline ท้ายสุดออก
+      if (!s) return null;
+
+      var list = (DO.store && DO.store.abbreviations) ? DO.store.abbreviations : [];
+      if (!list.length) return null;
+
+      var lower = s.toLowerCase();
+      var matches = [];
+      var seen = {};
+      for (var i = 0; i < list.length; i++) {
+        var a = list[i] || {};
+        var shortForm = String(a.shortForm || "").trim();
+        var fullForm = String(a.fullForm || "").trim();
+        if (!shortForm || !fullForm) continue;
+        if (shortForm.length < ABBR_MIN_CHARS) continue;
+
+        if (lower.slice(-shortForm.length).toLowerCase() === shortForm.toLowerCase()) {
+          var key = shortForm.toLowerCase() + "|" + fullForm;
+          if (seen[key]) continue; // กัน duplicate จาก prefix เก่า/ใหม่
+          seen[key] = true;
+          matches.push({ id: a.id, shortForm: shortForm, fullForm: fullForm });
+        }
+      }
+
+      if (!matches.length) return null;
+
+      // เรียงตามความยาว shortForm จากยาวไปสั้น (ยาวสุดก่อน) เพื่อจัดการคำย่อซ้อน เช่น สสฝฝ vs สฝฝ
+      // เมื่อท้าย paragraph ลงท้าย "สสฝฝ" จะเลือก สสฝฝ แทน สฝฝ
+      try {
+        matches.sort(function (a, b) {
+          var la = (a.shortForm || "").length;
+          var lb = (b.shortForm || "").length;
+          return lb - la;
+        });
+      } catch (eSort) {}
+
+      try {
+        if (DO.debugLog) DO.debugLog("abbr_completed_detected", { text: s.slice(-40), matches: matches.length });
+      } catch (eLog) {}
+
+      return { text: s, matches: matches };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function handleCompletedAbbreviation(abbrInfo) {
+    try {
+      if (!abbrInfo || !abbrInfo.matches || !abbrInfo.matches.length) return;
+      // ปรับเป็นโหมด auto เสมอ (ไม่มี UI ให้สลับ)
+      var mode = "auto";
+      var matches = abbrInfo.matches || [];
+      var first = matches[0];
+
+      DO.state = DO.state || {};
+
+      // Prevent duplicate attempts for same paragraph within a very short window
+      try {
+        var now0 = Date.now();
+        var fp0 = String(abbrInfo.text || "") + "|" + String(first.shortForm || "");
+        DO.state._abbrLastAttempt = DO.state._abbrLastAttempt || { fp: "", at: 0 };
+        if (DO.state._abbrLastAttempt.fp === fp0 && now0 - Number(DO.state._abbrLastAttempt.at || 0) < 600) {
+          return;
+        }
+        DO.state._abbrLastAttempt.fp = fp0;
+        DO.state._abbrLastAttempt.at = now0;
+      } catch (eDup) {}
+
+      // Circuit breaker:
+      // ถ้า replace ไม่สำเร็จจริง (เช่น Delete range ไม่ทำงาน) จะเกิด loop:
+      // - ตรวจพบคำย่อท้ายย่อหน้า
+      // - callCommand แทรกข้อความ แต่คำย่อเดิมยังอยู่
+      // - event onDocumentContentChanged ยิงซ้ำ -> detect ซ้ำ -> แทรกซ้ำแบบ "เพิ่มเองรัวๆ"
+      //
+      // ป้องกันโดยนับจำนวนครั้งที่ auto-expand token เดิมภายในช่วงเวลาสั้น ๆ
+      // ถ้าเกิน threshold ให้หยุด auto ชั่วคราวและปล่อยให้ผู้ใช้เลือกเองจาก panel
+      try {
+        var now = Date.now();
+        DO.state._abbrAutoGuard = DO.state._abbrAutoGuard || { token: "", count: 0, since: 0 };
+        var g = DO.state._abbrAutoGuard;
+        var tok = String(first.shortForm || "");
+        if (g.token === tok && (now - Number(g.since || 0)) < 2000) {
+          g.count = (Number(g.count || 0) || 0) + 1;
+        } else {
+          g.token = tok;
+          g.count = 1;
+          g.since = now;
+        }
+        if (g.count >= 4) {
+          DO.state._abbrAutoDisabledUntil = now + 10_000; // disable auto for 10s
+          try {
+            if (DO.debugLog) DO.debugLog("abbr_auto_guard_trip", { token: tok, count: g.count });
+          } catch (eLogGuard) {}
+          // Show suggestions instead of auto-replacing
+          renderInlineSuggestions(first.shortForm, matches, 0);
+          return false;
+        }
+      } catch (eGuard) {}
+
+      // matches เรียงตามความยาว shortForm ลดหลั่นแล้ว (ยาวสุดแรก)
+      // โหมด auto: ใช้ตัวแรก (ยาวสุด) แทนทันที ถ้ามีแค่ 1 ตัวเท่านั้น
+      if (mode === "auto" && matches.length === 1) {
+        try {
+          if (DO.editor && typeof DO.editor.replaceLastTokenInParagraph === "function") {
+            DO.editor.replaceLastTokenInParagraph(
+              first.shortForm,
+              first.fullForm,
+              { fallbackInsertAtCursor: false, verify: true },
+              function (result) {
+                // Only treat as success when verified.
+                var ok = false;
+                try {
+                  ok = !!(result && result.ok && result.verified);
+                } catch (e0) {
+                  ok = false;
+                }
+                if (!ok) {
+                  // If replacement didn't happen, show suggestions instead of claiming success.
+                  try { renderInlineSuggestions(first.shortForm, matches, 0); } catch (e1) {}
+                  try {
+                    var now = Date.now();
+                    DO.state._abbrAutoDisabledUntil = now + 1500; // short cool-down to avoid rapid retries
+                  } catch (e2) {}
+                  return;
+                }
+
+                // เคลียร์ panel ทั้งคำย่อและ dictionary ลดความสับสน
+                try { renderInlineSuggestions("", [], 0); } catch (e3) {}
+                try {
+                  if (DO.features && DO.features.dictionary && typeof DO.features.dictionary.renderInlineSuggestions === "function") {
+                    DO.features.dictionary.renderInlineSuggestions("", [], 0);
+                  }
+                } catch (e4) {}
+              }
+            );
+          } else {
+            DO.editor.insertText(first.fullForm);
+          }
+          try {
+            if (DO.debugLog) DO.debugLog("abbr_auto_expand_ok", { shortForm: first.shortForm, fullLen: first.fullForm.length });
+          } catch (eLog) {}
+        } catch (eIns) {}
+        return true;
+      }
+
+      // โหมด confirm หรือมีหลาย match → แสดงใน panel ให้เลือกเอง
+      try {
+        if (DO.debugLog) DO.debugLog("abbr_confirm_needed", { mode: mode, matches: matches.length });
+      } catch (eLog2) {}
+      renderInlineSuggestions(first.shortForm, matches, 0);
+    } catch (e) {}
+    return false;
+  }
+
+  DO.features.abbreviation.findCompletedAbbreviationFromParagraph = findCompletedAbbreviationFromParagraph;
+  DO.features.abbreviation.handleCompletedAbbreviation = handleCompletedAbbreviation;
 
   DO.features.abbreviation.bind = bind;
   DO.features.abbreviation.render = render;

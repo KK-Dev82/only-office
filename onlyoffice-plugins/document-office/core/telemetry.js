@@ -2,6 +2,25 @@
 (function () {
   var DO = (window.DO = window.DO || {});
   DO.state = DO.state || {};
+  // Logs are OFF by default. Enable only when explicitly requested.
+  // - localStorage: (DO.STORAGE_PREFIX || "do:v1:") + "enableLogs" === "1"
+  // - or pluginOptions.enableLogs === true
+  var ENABLE_LOGS = false;
+  try {
+    if (DO && DO.pluginOptions && DO.pluginOptions.enableLogs === true) ENABLE_LOGS = true;
+  } catch (e0) {}
+  try {
+    if (!ENABLE_LOGS) {
+      var k = String((DO && DO.STORAGE_PREFIX) || "do:v1:") + "enableLogs";
+      ENABLE_LOGS = String(localStorage.getItem(k) || "") === "1";
+    }
+  } catch (e1) {}
+  try {
+    DO.DEBUG = !!ENABLE_LOGS;
+    DO.isLogsEnabled = function () {
+      return !!ENABLE_LOGS;
+    };
+  } catch (e2) {}
 
   function _sendDirect(message) {
     try {
@@ -112,8 +131,10 @@
       }
     } catch (e) {
       try {
-        // eslint-disable-next-line no-console
-        console.error("[DocumentOfficePlugin] sendToHost_exception", e);
+        if (ENABLE_LOGS) {
+          // eslint-disable-next-line no-console
+          console.error("[DocumentOfficePlugin] sendToHost_exception", e);
+        }
       } catch (eLog) {}
     }
 
@@ -139,19 +160,23 @@
             if (typeof p.sendExternalMessage === "function") availableMethods.push("sendExternalMessage");
             if (typeof p.sendToPlugin === "function") availableMethods.push("sendToPlugin");
           }
-          // eslint-disable-next-line no-console
-          console.warn("[DocumentOfficePlugin] sendToHost_unavailable (throttled)", {
-            fails: DO.state._sendToHostFailCount,
-            sample: message && message.type ? String(message.type) : typeof message,
-            availableMethods: availableMethods,
-            hasParent: window.parent !== window,
-          });
+          if (ENABLE_LOGS) {
+            // eslint-disable-next-line no-console
+            console.warn("[DocumentOfficePlugin] sendToHost_unavailable (throttled)", {
+              fails: DO.state._sendToHostFailCount,
+              sample: message && message.type ? String(message.type) : typeof message,
+              availableMethods: availableMethods,
+              hasParent: window.parent !== window,
+            });
+          }
         } catch (eDebug) {
-          // eslint-disable-next-line no-console
-          console.warn("[DocumentOfficePlugin] sendToHost_unavailable (throttled)", {
-            fails: DO.state._sendToHostFailCount,
-            sample: message && message.type ? String(message.type) : typeof message,
-          });
+          if (ENABLE_LOGS) {
+            // eslint-disable-next-line no-console
+            console.warn("[DocumentOfficePlugin] sendToHost_unavailable (throttled)", {
+              fails: DO.state._sendToHostFailCount,
+              sample: message && message.type ? String(message.type) : typeof message,
+            });
+          }
         }
       }
     } catch (e2) {}
@@ -159,7 +184,7 @@
   };
 
   DO.debugLog = function (event, detail) {
-    if (!DO.DEBUG) return;
+    if (!ENABLE_LOGS) return;
     try {
       DO.appendOutputLine(String(event) + (detail !== undefined ? " " + DO.safeStringify(detail) : ""));
     } catch (e0) {}
@@ -179,8 +204,10 @@
     } catch (e2) {}
 
     try {
-      // eslint-disable-next-line no-console
-      console.log("[DocumentOfficePlugin]", event, detail);
+      if (ENABLE_LOGS) {
+        // eslint-disable-next-line no-console
+        console.log("[DocumentOfficePlugin]", event, detail);
+      }
     } catch (e3) {}
   };
 })();

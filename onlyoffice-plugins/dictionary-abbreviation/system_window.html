@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dictionary & Abbreviation - System</title>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+    <link rel="stylesheet" href="core/styles.css?v=0.1.71" />
+    <style>
+      /* System window: allow scrolling for large lists */
+      .doMain { overflow: auto !important; }
+      #sysWinList {
+        overflow: auto;
+        max-height: calc(100vh - 210px);
+        padding-right: 2px; /* avoid scrollbar overlap on content */
+      }
+      /* Let long text wrap in list items (dictionary desc can be long) */
+      #sysWinList .doItemText {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.35;
+      }
+    </style>
+
+    <script type="text/javascript" src="core/ns.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/system_window.js?v=0.1.71"></script>
+    <script type="text/javascript" src="system_window_bootstrap.js?v=0.1.71"></script>
+  </head>
+  <body>
+    <div class="doRoot">
+      <header class="doHeader">
+        <div class="doHeaderLeft">
+          <div class="doTitle" id="sysWinTitle">System</div>
+          <div class="doBadges">
+            <span class="doBadge" id="pluginVersion">v?</span>
+          </div>
+        </div>
+        <div class="doHeaderRight">
+          <div class="doStatus" id="status">loading…</div>
+        </div>
+      </header>
+
+      <main class="doMain">
+        <div class="doCard">
+          <div class="doRow">
+            <input id="sysWinSearch" class="doInput" placeholder="ค้นหา..." />
+            <button id="sysWinSearchBtn" type="button">ค้นหา</button>
+            <button id="sysWinReload" type="button">Reload</button>
+          </div>
+          <div class="doRow">
+            <div class="doMuted" id="sysWinMeta">-</div>
+            <div style="flex: 1"></div>
+            <button id="sysWinPrev" type="button">ก่อนหน้า</button>
+            <button id="sysWinNext" type="button">ถัดไป</button>
+            <button id="sysWinClose" type="button">Close</button>
+          </div>
+        </div>
+
+        <div class="doCard">
+          <div id="sysWinList" class="doList"></div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
+

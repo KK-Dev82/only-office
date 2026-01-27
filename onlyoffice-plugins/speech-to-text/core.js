@@ -3,6 +3,29 @@
   var STT = (window.STT = window.STT || {});
 
   STT.VERSION = "0.3.5";
+  // Logs are OFF by default. (Enable by setting STT.LOGS_ENABLED = true in runtime)
+  STT.LOGS_ENABLED = STT.LOGS_ENABLED === true;
+  STT.log = function () {
+    if (!STT.LOGS_ENABLED) return;
+    try {
+      // eslint-disable-next-line no-console
+      console.log.apply(console, arguments);
+    } catch (e0) {}
+  };
+  STT.warn = function () {
+    if (!STT.LOGS_ENABLED) return;
+    try {
+      // eslint-disable-next-line no-console
+      console.warn.apply(console, arguments);
+    } catch (e0) {}
+  };
+  STT.error = function () {
+    if (!STT.LOGS_ENABLED) return;
+    try {
+      // eslint-disable-next-line no-console
+      console.error.apply(console, arguments);
+    } catch (e0) {}
+  };
   STT.HIGHLIGHT_EVERY_WORDS = 20;
   STT.HL_COLORS = ["green", "yellow", "red"];
   STT.strikedGroups = STT.strikedGroups || new Set();
@@ -192,7 +215,7 @@
 
     try {
       if (!window.Asc || !window.Asc.plugin || typeof window.Asc.plugin.callCommand !== "function") {
-        console.warn("[STT] callCommand not available");
+        STT.warn("[STT] callCommand not available");
         return false;
       }
 
@@ -213,7 +236,7 @@
               doc.InsertContent([p]);
             }
           } catch (e) {
-            console.error("[STT] insertText error:", e);
+            STT.error("[STT] insertText error:", e);
           }
         },
         false, // isClose
@@ -221,7 +244,7 @@
       );
       return true;
     } catch (e) {
-      console.error("[STT] insertText failed:", e);
+      STT.error("[STT] insertText failed:", e);
       return false;
     }
   };
@@ -240,7 +263,7 @@
 
     try {
       if (!window.Asc || !window.Asc.plugin || typeof window.Asc.plugin.callCommand !== "function") {
-        console.warn("[STT] callCommand not available");
+        STT.warn("[STT] callCommand not available");
         return false;
       }
 
@@ -345,7 +368,7 @@
               } catch (eSel1) {}
             }
           } catch (e) {
-            console.error("[STT] appendToDocumentEnd error:", e);
+            STT.error("[STT] appendToDocumentEnd error:", e);
           }
         },
         false, // isClose
@@ -353,7 +376,7 @@
       );
       return true;
     } catch (e) {
-      console.error("[STT] appendToDocumentEnd failed:", e);
+      STT.error("[STT] appendToDocumentEnd failed:", e);
       return false;
     }
   };

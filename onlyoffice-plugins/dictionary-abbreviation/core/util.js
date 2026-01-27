@@ -1,6 +1,8 @@
 // Core DOM/util helpers
 (function () {
   var DO = (window.DO = window.DO || {});
+  // Alias DA to DO for compatibility
+  var DA = (window.DA = window.DO);
 
   DO.$ = function (id) {
     return document.getElementById(id);
@@ -22,11 +24,15 @@
     var el = DO.$(id);
     if (el) el.textContent = String(text == null ? "" : text);
   };
+  // Alias for DA compatibility
+  DA.setText = DO.setText;
 
   DO.setStatus = function (text) {
     var el = DO.$("status");
     if (el) el.textContent = String(text == null ? "" : text);
   };
+  // Alias for DA compatibility
+  DA.setStatus = DO.setStatus;
 
   DO.setOutput = function (obj) {
     var el = DO.$("output");
@@ -37,6 +43,8 @@
       el.textContent = String(obj);
     }
   };
+  // Alias for DA compatibility
+  DA.setOutput = DO.setOutput;
 
   DO.appendOutputLine = function (line) {
     var el = DO.$("output");

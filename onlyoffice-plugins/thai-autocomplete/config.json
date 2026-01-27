@@ -1,0 +1,20 @@
+{
+  "name": "Thai Autocomplete",
+  "guid": "asc.{D4B3C2A1-7E6F-4A5B-9C8D-1E2F3A4B5C6D}",
+  "version": "0.0.1",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Thai autocomplete (system input helper)",
+      "url": "index.html?v=0.0.1",
+      "icons": ["resources/icon.svg"],
+      "isViewer": false,
+      "EditorsSupport": ["word"],
+      "isVisual": false,
+      "isSystem": true,
+      "initDataType": "none",
+      "events": ["onInputHelperClear", "onInputHelperInput"]
+    }
+  ]
+}
+

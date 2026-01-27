@@ -4,70 +4,28 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dictionary & Abbreviation</title>
-    <!-- IMPORTANT:
-      - We MUST load `plugins.js` for the plugin bridge (`Asc.plugin.executeMethod`, `callCommand`, InputHelper).
-      - We intentionally do NOT load `plugins-ui.js/plugins.css` because those have caused panel UI distortion in some builds.
-    -->
+    <!-- ONLYOFFICE Plugin SDK (required for window.Asc.plugin.executeMethod/callCommand/etc.) -->
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <!-- ONLYOFFICE UI helpers + base styles -->
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+    <link rel="stylesheet" href="core/styles.css?v=0.1.71" />
+    <script type="text/javascript" src="core/ns.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/telemetry.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/bus.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/uiwatch.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/tabs.js?v=0.1.71"></script>
+    <script type="text/javascript" src="core/remote_sync.js?v=0.1.71"></script>
+    <script type="text/javascript" src="features/dictionary.js?v=0.1.71"></script>
+    <script type="text/javascript" src="features/abbreviation.js?v=0.1.71"></script>
+    <script type="text/javascript" src="inputhelper.js?v=0.1.71"></script>
 
-    <!-- own core files for independent development -->
-    <link rel="stylesheet" href="core/styles.css?v=0.1.35" />
-    <script>
-      // Early crash overlay (shows inside the plugin panel even if other JS fails)
-      (function () {
-        var buf = (window.__DA_BOOT_ERRORS__ = window.__DA_BOOT_ERRORS__ || []);
-        function push(msg) {
-          try { buf.push(String(msg || "")); } catch (e0) {}
-          try {
-            var el = document.getElementById("daFlowMarker") || document.getElementById("daBootMarker");
-            if (el) el.textContent = "DA error: " + String(msg || "").slice(0, 180);
-          } catch (e1) {}
-          try {
-            var st = document.getElementById("status");
-            if (st) st.textContent = "error";
-          } catch (e2) {}
-        }
-        window.addEventListener("error", function (e) {
-          try { push((e && (e.message || e.error)) ? (e.message || String(e.error)) : "window.error"); } catch (e0) {}
-        });
-        window.addEventListener("unhandledrejection", function (e) {
-          try { push("unhandledrejection: " + String((e && e.reason) || "")); } catch (e0) {}
-        });
-        document.addEventListener("DOMContentLoaded", function () {
-          try {
-            if (!buf.length) return;
-            var el = document.getElementById("daFlowMarker") || document.getElementById("daBootMarker");
-            if (el) el.textContent = "DA errors: " + buf.slice(0, 3).join(" | ").slice(0, 220);
-          } catch (e0) {}
-        });
-      })();
-    </script>
-    <script type="text/javascript" src="core/ns.js?v=0.1.35"></script>
-    <script type="text/javascript" src="core/util.js?v=0.1.35"></script>
-    <script type="text/javascript" src="core/telemetry.js?v=0.1.35"></script>
-    <script type="text/javascript" src="core/storage.js?v=0.1.35"></script>
-    <script type="text/javascript" src="core/editor.js?v=0.1.35"></script>
-    <script type="text/javascript" src="core/bus.js?v=0.1.35"></script>
-    <script type="text/javascript" src="core/uiwatch.js?v=0.1.35"></script>
-    <script type="text/javascript" src="core/tabs.js?v=0.1.35"></script>
-    <script type="text/javascript" src="core/debug.js?v=0.1.35"></script>
-    <script type="text/javascript" src="features/dictionary.js?v=0.1.35"></script>
-    <script type="text/javascript" src="features/abbreviation.js?v=0.1.35"></script>
-    <script type="text/javascript" src="inputhelper.js?v=0.1.35"></script>
-
-    <script type="text/javascript" src="bootstrap.js?v=0.1.35"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.1.71"></script>
   </head>
   <body>
-    <!-- Fallback marker: if you see this, HTML loaded but CSS/JS may be blocked -->
-    <div id="daBootMarker" style="position:fixed;left:6px;bottom:6px;z-index:2147483647;background:rgba(0,0,0,0.55);color:#fff;font:12px system-ui;padding:2px 6px;border-radius:6px;pointer-events:none;">
-      DA boot (0.1.35)
-    </div>
-    <!-- Flow marker: visible even if fixed positioning breaks -->
-    <div id="daFlowMarker" style="padding:6px 10px;font:12px system-ui;color:#111; background:#fff; border-bottom:1px dashed #ddd;">
-      DA flow marker (0.1.35)
-    </div>
-    <!-- Focus trap: used to capture Arrow/Tab/Enter for suggestions (panel-only mode) -->
-    <div id="doFocusTrap" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;"></div>
     <div class="doRoot">
       <header class="doHeader">
         <div class="doHeaderLeft">
@@ -78,90 +36,60 @@
         </div>
         <div class="doHeaderRight">
           <div class="doStatus" id="status">loading…</div>
-          <button class="doBtnGhost" id="toggleDebug" type="button">Debug</button>
+          <button class="doBtnGhost" id="btnSync" type="button">Sync</button>
         </div>
       </header>
 
-      <div class="doTabsScroll" role="tablist" aria-label="Language tools tabs">
-        <button class="doTabBtn doIsActive" id="tabBtn-dictionary" type="button" data-tab="dictionary">
-          📚 Dictionary
-        </button>
-        <button class="doTabBtn" id="tabBtn-abbreviation" type="button" data-tab="abbreviation">
-          📝 คำย่อ
-        </button>
-      </div>
-
       <main class="doMain">
-        <section class="doTabPanel doIsActive" id="tab-dictionary" data-tab="dictionary">
+        <div class="doMainSplit">
+          <section class="doPane" id="pane-dictionary">
           <div class="doPanelHeader">
             <div class="doPanelTitle">📚 Dictionary</div>
             <div class="doPanelActions">
-              <button id="dictToggleAdd" type="button">เพิ่มคำ</button>
+              <button id="dictOpenSystem" type="button">ดูคำศัพท์ระบบ</button>
             </div>
           </div>
 
           <div class="doRow">
-            <input id="dictQuery" class="doInput" placeholder="พิมพ์คำเพื่อค้นหา..." />
-            <button id="dictSearch" type="button">ค้นหา</button>
+            <input id="dictNewWord" class="doInput" placeholder="คำศัพท์" />
+            <input id="dictNewDesc" class="doInput" placeholder="คำอธิบาย" />
+            <button id="dictAdd" type="button">เพิ่มคำ</button>
           </div>
 
-          <div class="doCard doIsHidden" id="dictAddCard">
-            <div class="doSubtitle">เพิ่มคำใหม่ (Local)</div>
-            <div class="doRow">
-              <input id="dictNewWord" class="doInput" placeholder="คำศัพท์" />
-              <input id="dictNewDesc" class="doInput" placeholder="คำอธิบาย (ไม่บังคับ)" />
-              <button id="dictAdd" type="button">เพิ่ม</button>
-            </div>
+          <div class="doCard">
+            <div class="doSubtitle">คำศัพท์ (Local)</div>
+            <div id="dictSavedList" class="doList"></div>
           </div>
+          </section>
 
-          <div class="doSplit2">
-            <div class="doCard">
-              <div class="doSubtitle">ผลการค้นหา</div>
-              <div id="dictResults" class="doList"></div>
-            </div>
-            <div class="doCard">
-              <div class="doSubtitle">คำที่บันทึกไว้ (Local)</div>
-              <div id="dictSavedList" class="doList"></div>
-            </div>
-          </div>
-        </section>
+          <div class="doDivider" aria-hidden="true"></div>
 
-        <section class="doTabPanel" id="tab-abbreviation" data-tab="abbreviation">
+          <section class="doPane" id="pane-abbreviation">
           <div class="doPanelHeader">
             <div class="doPanelTitle">📝 คำย่อ</div>
             <div class="doPanelActions">
-              <button id="abbrExpandSelection" type="button">Expand selection</button>
+              <button id="abbrOpenSystem" type="button">ดูคำย่อระบบ</button>
             </div>
           </div>
 
           <div class="doRow">
             <input id="abbrShort" class="doInput" placeholder="คำย่อ" />
             <input id="abbrFull" class="doInput" placeholder="คำเต็ม" />
-            <button id="abbrAdd" type="button">เพิ่ม</button>
+            <button id="abbrAdd" type="button">เพิ่มคำ</button>
           </div>
 
           <div class="doCard">
-            <div class="doSubtitle">คำแนะนำ (จากการพิมพ์)</div>
+            <div class="doSubtitle">คำแนะนำ</div>
             <div id="abbrSuggest" class="doList"></div>
           </div>
 
           <div class="doCard">
-            <div class="doSubtitle">รายการคำย่อ</div>
+            <div class="doSubtitle">รายการคำย่อ (Local)</div>
             <div id="abbrList" class="doList"></div>
           </div>
-        </section>
+          </section>
+        </div>
 
-        <section class="doDebugPanel doIsHidden" id="debugPanel">
-          <div class="doPanelHeader">
-            <div class="doPanelTitle">Debug</div>
-            <div class="doPanelActions">
-              <button id="btnGetSelection" type="button">Get selection</button>
-              <button id="btnGetContext" type="button">Get context</button>
-              <button id="btnInsertDemo" type="button">Insert demo</button>
-            </div>
-          </div>
-          <pre class="doOutput" id="output"></pre>
-        </section>
       </main>
     </div>
   </body>

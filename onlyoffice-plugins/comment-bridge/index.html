@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Comment Bridge</title>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+    <link rel="stylesheet" href="styles.css?v=0.0.1" />
+    <script type="text/javascript" src="core/ns.js?v=0.0.1"></script>
+    <script type="text/javascript" src="core/util.js?v=0.0.1"></script>
+    <script type="text/javascript" src="core/telemetry.js?v=0.0.1"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.0.1"></script>
+    <script type="text/javascript" src="core/bus.js?v=0.0.1"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.0.1"></script>
+  </head>
+  <body>
+    <div class="cbRoot">
+      <div class="cbHeader">
+        <div>
+          <div class="cbTitle">Comment Bridge</div>
+          <div class="cbSub">สำหรับเชื่อม OnlyOffice comments ↔️ Web UI</div>
+        </div>
+        <div class="cbStatus" id="status">loading…</div>
+      </div>
+
+      <div class="cbActions">
+        <button class="cbBtn" id="refreshBtn" type="button">รีเฟรชรายการคอมเมนต์</button>
+        <div class="cbHint">คลิกคอมเมนต์เพื่อไปยังตำแหน่งในเอกสาร</div>
+      </div>
+
+      <div class="cbComments" id="comments"></div>
+
+      <details class="cbDebug" open>
+        <summary>Debug</summary>
+        <pre class="cbOutput" id="output"></pre>
+      </details>
+    </div>
+  </body>
+</html>
+

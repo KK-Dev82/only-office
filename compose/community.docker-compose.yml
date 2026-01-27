@@ -73,10 +73,39 @@ services:
         fi
 
         # Plugins: sync every boot (so updates apply without deleting Data volume)
+        # IMPORTANT: ลบ default plugins ทั้งหมด และใช้เฉพาะ plugins ที่เราพัฒนา
+        # ใช้ documentserver-pluginsmanager.sh (official tool) แทน find + rm
         PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
         mkdir -p "$$PLUGINS_DST"
+        
+        # ลบ default plugins ทั้งหมดด้วย official plugin manager
+        # ตรวจสอบว่าเป็น directory ที่ถูกต้องก่อนลบ (ป้องกันลบผิด)
+        if [ -d "$$PLUGINS_DST" ] && [ "$$PLUGINS_DST" = "/var/www/onlyoffice/documentserver/sdkjs-plugins" ]; then
+          echo "[KK] Removing default plugins using documentserver-pluginsmanager.sh..."
+          # ใช้ official plugin manager เพื่อลบ default plugins
+          # ลบเฉพาะ default plugins (ไม่ใช่ custom plugins ที่เราพัฒนา)
+          # Default plugins: highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus
+          if [ -x /usr/bin/documentserver-pluginsmanager.sh ]; then
+            /usr/bin/documentserver-pluginsmanager.sh \
+              --directory="$$PLUGINS_DST" \
+              --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus" \
+              2>&1 | grep -E "(Remove plugin|OK|Error)" || true
+            echo "[KK] Plugin removal completed."
+          else
+            echo "[KK] Warning: documentserver-pluginsmanager.sh not found, using fallback method..."
+            # Fallback: ใช้ find + rm (ถ้า plugin manager ไม่มี)
+            find "$$PLUGINS_DST" -mindepth 1 -maxdepth 1 -type d ! -name "document-office" ! -name "dictionary-abbreviation" ! -name "speech-to-text" -exec sh -c 'chmod -R u+w "$$1" 2>/dev/null || true; rm -rf "$$1" 2>/dev/null || true' _ {} \; || true
+            find "$$PLUGINS_DST" -maxdepth 1 -type f ! -name "*.md" -exec sh -c 'chmod u+w "$$1" 2>/dev/null || true; rm -f "$$1" 2>/dev/null || true' _ {} \; || true
+          fi
+        fi
+        
+        # Copy plugins ที่เราพัฒนา
         if [ -d "/opt/kk-plugins-src" ]; then
-          cp -R /opt/kk-plugins-src/* "$$PLUGINS_DST"/ 2>/dev/null || true
+          echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $$PLUGINS_DST..."
+          cp -R /opt/kk-plugins-src/* "$$PLUGINS_DST"/
+          # ตั้ง permission ให้ถูกต้อง
+          chown -R ds:ds "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck 2>/dev/null || true
+          chmod -R a+rX "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck 2>/dev/null || true
         fi
 
         # Example files: ensure /example/files/sample.docx exists (idempotent; safe every boot)

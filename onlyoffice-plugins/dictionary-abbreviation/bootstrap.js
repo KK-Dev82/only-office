@@ -53,17 +53,8 @@
       DA.setText("pluginVersion", "v" + DA.VERSION);
     } catch (e) {}
 
-    // tabs + debug
+    // tabs
     if (DA.ui && DA.ui.bindTabs) DA.ui.bindTabs();
-    var toggleDebug = DA.$("toggleDebug");
-    if (toggleDebug) toggleDebug.addEventListener("click", function () { DA.ui.toggleDebugPanel(); });
-    DA.ui.toggleDebugPanel(DA.state.debugOpen);
-
-    // keep watchers disabled (same reason as clipboard: avoid UI layout shifts)
-    // try {
-    //   if (DA.startUiWatch) DA.startUiWatch();
-    //   if (DA.bindCursorWatch) DA.bindCursorWatch();
-    // } catch (e) {}
   }
 
   function isDictOnlyMode() {
@@ -101,9 +92,10 @@
       applyDictOnlyUiTweaks();
 
       // Load local data immediately so UI lists are not empty
-      try {
-        if (typeof DA.initLocalData === "function") DA.initLocalData();
-      } catch (e0) {}
+      // NOTE: initLocalData is also called in window.Asc.plugin.init, so skip here to avoid double init
+      // try {
+      //   if (typeof DA.initLocalData === "function") DA.initLocalData();
+      // } catch (e0) {}
 
       // Bind + render dictionary UI from local data (safe; insert actions require bridge but render does not)
       try {
@@ -125,24 +117,53 @@
     } catch (e) {}
   }
 
-  function layoutDiag() {
+  function hasUiDom() {
     try {
+      return Boolean(document && document.querySelector && document.querySelector(".doRoot"));
+    } catch (e) { return false; }
+  }
+
+  function layoutDebugPing() {
+    try {
+      if (!DA.DEBUG) return;
+      if (!hasUiDom()) return;
+      if (DA.state.__layoutPingAttached) return;
+      DA.state.__layoutPingAttached = true;
+      var el = document.createElement("div");
+      el.id = "__da_layout_ping";
+      el.style.cssText = "position:fixed;left:6px;top:6px;z-index:2147483647;padding:2px 6px;font-size:11px;font-family:system-ui,sans-serif;background:rgba(0,0,0,0.65);color:#fff;border-radius:6px;pointer-events:none;";
+      el.textContent = "DA …";
+      document.body.appendChild(el);
+      function tick() {
+        try {
+          var r = document.querySelector(".doRoot");
+          var w = window.innerWidth || 0;
+          var h = window.innerHeight || 0;
+          var rh = r && r.getBoundingClientRect ? (r.getBoundingClientRect().height || 0) : 0;
+          el.textContent = "DA " + w + "×" + h + " rootH=" + Math.round(rh);
+        } catch (e) {}
+      }
+      tick();
+      setInterval(tick, 1200);
+    } catch (e) {}
+  }
+
+  function logUiSnapshot(tag) {
+    try {
+      if (!DA || typeof DA.debugLog !== "function") return;
       var root = document.querySelector(".doRoot");
       var r = root && root.getBoundingClientRect ? root.getBoundingClientRect() : null;
-      var w = Math.round(window.innerWidth || 0);
-      var h = Math.round(window.innerHeight || 0);
-      var rw = r ? Math.round(r.width || 0) : 0;
-      var rh = r ? Math.round(r.height || 0) : 0;
-      var msg = "DA " + (DA.VERSION || "?") + " mode=" + (isDictOnlyMode() ? "dict" : "full") + " win=" + w + "x" + h + " root=" + rw + "x" + rh;
-      try {
-        var m = document.getElementById("daFlowMarker") || document.getElementById("daBootMarker");
-        if (m) m.textContent = msg;
-      } catch (e0) {}
-      try {
-        if (DA && typeof DA.debugLog === "function") {
-          DA.debugLog("ui_diag", { sig: msg, winW: w, winH: h, rootW: rw, rootH: rh });
-        }
-      } catch (e1) {}
+      var b = document.body && document.body.getBoundingClientRect ? document.body.getBoundingClientRect() : null;
+      var csBody = window.getComputedStyle ? window.getComputedStyle(document.body) : null;
+      var csRoot = window.getComputedStyle && root ? window.getComputedStyle(root) : null;
+      DA.debugLog("ui_snapshot", {
+        tag: String(tag || ""),
+        win: { w: Math.round(window.innerWidth || 0), h: Math.round(window.innerHeight || 0) },
+        body: b ? { w: Math.round(b.width || 0), h: Math.round(b.height || 0) } : null,
+        root: r ? { w: Math.round(r.width || 0), h: Math.round(r.height || 0) } : null,
+        bodyStyle: csBody ? { display: csBody.display, visibility: csBody.visibility, opacity: csBody.opacity, overflow: csBody.overflow } : null,
+        rootStyle: csRoot ? { display: csRoot.display, visibility: csRoot.visibility, opacity: csRoot.opacity, position: csRoot.position } : null,
+      });
     } catch (e) {}
   }
 
@@ -179,11 +200,36 @@
 
       var injected = tryReadInjectedOptions();
       mergeOptions(injected);
+      // Persist options for child windows (ShowWindow can't reliably pass options in all builds)
+      try {
+        if (DA && DA.STORAGE_PREFIX) {
+          if (DA.pluginOptions && DA.pluginOptions.apiBaseUrl) {
+            localStorage.setItem(DA.STORAGE_PREFIX + "apiBaseUrl", String(DA.pluginOptions.apiBaseUrl || ""));
+          }
+          if (DA.pluginOptions && DA.pluginOptions.accessToken) {
+            localStorage.setItem(DA.STORAGE_PREFIX + "accessToken", String(DA.pluginOptions.accessToken || ""));
+          }
+        }
+      } catch (eOptStore) {}
 
-      DA.initLocalData();
+      // ผูก UI ก่อน → แสดงก่อนโหลด LocalStorage ถ้า storage ล้มเหลว UI ไม่เพี้ยน
       bindCoreUi();
       applyDictOnlyUiTweaks();
-      layoutDiag();
+      if (hasUiDom()) layoutDebugPing();
+      if (DA.DEBUG) {
+        logUiSnapshot("init_0");
+        setTimeout(function () { logUiSnapshot("init_200"); }, 200);
+        setTimeout(function () { logUiSnapshot("init_1000"); }, 1000);
+      }
+
+      try {
+        if (typeof DA.initLocalData === "function") DA.initLocalData();
+      } catch (eStorage) {
+        try { DA.debugLog("initLocalData_error", { error: String(eStorage) }); } catch (e2) {}
+      }
+      try {
+        if (DA.ui && DA.ui.setActiveTab) DA.ui.setActiveTab(DA.state.activeTab || "dictionary");
+      } catch (eTab) {}
 
       if (DA.features && DA.features.dictionary) {
         try { DA.features.dictionary.bind(); } catch (e0) {}
@@ -198,9 +244,128 @@
         }
       }
 
-      if (DA.ui && DA.ui.bindDebug) {
-        DA.ui.bindDebug();
-      }
+      // Open System modals
+      try {
+        var btnDictSys = DA.$("dictOpenSystem");
+        if (btnDictSys && !DA.state.__dictSysBtnBound) {
+          DA.state.__dictSysBtnBound = true;
+          btnDictSys.addEventListener("click", function () {
+            try {
+              // Open real ONLYOFFICE window (same approach as "เพิ่ม Macros")
+              if (!(window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function")) return;
+              var href = "";
+              try { href = String(window.location && window.location.href ? window.location.href : ""); } catch (eHref) {}
+              var base = href;
+              try {
+                base = base.split("#")[0].split("?")[0];
+                base = base.slice(0, base.lastIndexOf("/") + 1);
+              } catch (eBase) {}
+              var winUrl = (base ? base : "") + "system_window.html?mode=dictionary&v=" + encodeURIComponent(String(DA.VERSION || "0.1.71"));
+              var frameId = "iframe_asc.{8B6B9F89-7C57-4E1F-8B78-2B3D6B31E0DE}_sysDict";
+              var variation = {
+                url: winUrl,
+                description: "System Dictionary",
+                isVisual: true,
+                isModal: true,
+                EditorsSupport: ["word"],
+                size: [900, 680],
+                buttons: [{ text: "Close", primary: false }]
+              };
+              window.Asc.plugin.executeMethod("ShowWindow", [frameId, variation], function (windowID) {
+                try { localStorage.setItem(DA.STORAGE_PREFIX + "systemWindowId:dictionary", String(windowID || "")); } catch (e0) {}
+                try { DA.debugLog("sys_open_window", { mode: "dictionary", url: winUrl, windowID: windowID }); } catch (e1) {}
+              });
+            } catch (e0) {}
+          });
+        }
+        var btnAbbrSys = DA.$("abbrOpenSystem");
+        if (btnAbbrSys && !DA.state.__abbrSysBtnBound) {
+          DA.state.__abbrSysBtnBound = true;
+          btnAbbrSys.addEventListener("click", function () {
+            try {
+              if (!(window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function")) return;
+              var href = "";
+              try { href = String(window.location && window.location.href ? window.location.href : ""); } catch (eHref) {}
+              var base = href;
+              try {
+                base = base.split("#")[0].split("?")[0];
+                base = base.slice(0, base.lastIndexOf("/") + 1);
+              } catch (eBase) {}
+              var winUrl = (base ? base : "") + "system_window.html?mode=abbreviation&v=" + encodeURIComponent(String(DA.VERSION || "0.1.71"));
+              var frameId = "iframe_asc.{8B6B9F89-7C57-4E1F-8B78-2B3D6B31E0DE}_sysAbbr";
+              var variation = {
+                url: winUrl,
+                description: "System Abbreviation",
+                isVisual: true,
+                isModal: true,
+                EditorsSupport: ["word"],
+                size: [900, 680],
+                buttons: [{ text: "Close", primary: false }]
+              };
+              window.Asc.plugin.executeMethod("ShowWindow", [frameId, variation], function (windowID) {
+                try { localStorage.setItem(DA.STORAGE_PREFIX + "systemWindowId:abbreviation", String(windowID || "")); } catch (e0) {}
+                try { DA.debugLog("sys_open_window", { mode: "abbreviation", url: winUrl, windowID: windowID }); } catch (e1) {}
+              });
+            } catch (e0) {}
+          });
+        }
+      } catch (eSys) {}
+
+      // Manual Sync button (DB -> LocalStorage)
+      try {
+        var syncBtn = DA.$("btnSync");
+        if (syncBtn && !DA.state.__syncBtnBound) {
+          DA.state.__syncBtnBound = true;
+          syncBtn.addEventListener("click", function () {
+            try {
+              if (DA.state.__syncInFlight) return;
+              DA.state.__syncInFlight = true;
+              try { syncBtn.disabled = true; } catch (e0) {}
+              try { if (typeof DA.setStatus === "function") DA.setStatus("syncing…"); } catch (e1) {}
+
+              if (DA.remoteSync && typeof DA.remoteSync.syncAll === "function") {
+                DA.remoteSync
+                  .syncAll()
+                  .then(function (counts) {
+                    try { if (DA.features && DA.features.dictionary) DA.features.dictionary.renderSaved(); } catch (e0) {}
+                    try { if (DA.features && DA.features.abbreviation && !isDictOnlyMode()) DA.features.abbreviation.render(); } catch (e1) {}
+                    try {
+                      var d = Array.isArray(counts) ? Number(counts[0] || 0) : 0;
+                      var a = Array.isArray(counts) ? Number(counts[1] || 0) : 0;
+                      if (typeof DA.setStatus === "function") DA.setStatus("synced (dict " + d + ", abbr " + a + ")");
+                    } catch (e2) {}
+                  })
+                  .catch(function () {
+                    try { if (typeof DA.setStatus === "function") DA.setStatus("sync failed"); } catch (e0) {}
+                  })
+                  .finally(function () {
+                    try { DA.state.__syncInFlight = false; } catch (e0) {}
+                    try { syncBtn.disabled = false; } catch (e1) {}
+                  });
+              } else {
+                try { if (typeof DA.setStatus === "function") DA.setStatus("sync not available"); } catch (e0) {}
+                try { DA.state.__syncInFlight = false; } catch (e1) {}
+                try { syncBtn.disabled = false; } catch (e2) {}
+              }
+            } catch (eOuter) {
+              try { DA.state.__syncInFlight = false; } catch (e0) {}
+              try { syncBtn.disabled = false; } catch (e1) {}
+            }
+          });
+        }
+      } catch (eSyncBtn) {}
+
+      // Remote sync from Backend (DB -> LocalStorage) so:
+      // - thai-autocomplete can use dictionary words
+      // - abbreviation list/auto-expand can use DB abbreviations
+      try {
+        if (DA.remoteSync && typeof DA.remoteSync.syncAll === "function") {
+          DA.remoteSync.syncAll().then(function () {
+            try { if (DA.features && DA.features.dictionary) DA.features.dictionary.renderSaved(); } catch (e0) {}
+            try { if (DA.features && DA.features.abbreviation && !isDictOnlyMode()) DA.features.abbreviation.render(); } catch (e1) {}
+          });
+        }
+      } catch (eSync) {}
 
       // Enable dictionary auto-suggest (InputHelper: Tab/Enter/Esc)
       try {
@@ -209,29 +374,36 @@
         }
       } catch (e0) {}
 
-      DA.setStatus("ready");
-      DA.sendToHost({ type: "do:pluginReady", version: DA.VERSION, plugin: "dictionary-abbreviation" });
-      DA.setOutput({
+      if (typeof DA.setStatus === "function") DA.setStatus("ready");
+      if (typeof DA.sendToHost === "function") DA.sendToHost({ type: "do:pluginReady", version: DA.VERSION, plugin: "dictionary-abbreviation" });
+      if (typeof DA.setOutput === "function") DA.setOutput({
         plugin: "Dictionary & Abbreviation",
         version: DA.VERSION,
         hasAccessToken: Boolean(DA.pluginOptions.accessToken),
         apiBaseUrl: DA.pluginOptions.apiBaseUrl || "",
       });
       DA.debugLog("plugin_ready", { version: DA.VERSION });
-      try { layoutDiag(); } catch (e0) {}
     } catch (e) {
       try {
         DA.debugLog("plugin_init_failed", { error: String(e) });
       } catch (e2) {}
-      // Make sure UI markers show *something* even when init fails
-      try {
-        var m = document.getElementById("daFlowMarker") || document.getElementById("daBootMarker");
-        if (m) m.textContent = "DA init failed: " + String(e).slice(0, 160);
-      } catch (e3) {}
     }
   };
 
-  window.Asc.plugin.button = function (_id) {
+  // Handle "Close" button in config.json (id usually 0)
+  // NOTE: ONLYOFFICE calls `plugin.button(id, windowID)` for modal windows created via ShowWindow too.
+  // If we always executeCommand("close") here, it will close the whole panelRight plugin.
+  window.Asc.plugin.button = function (_id, windowID) {
+    // Window close path (close only the window)
+    if (windowID !== undefined && windowID !== null && String(windowID) !== "") {
+      try {
+        if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+          window.Asc.plugin.executeMethod("CloseWindow", [windowID]);
+          return;
+        }
+      } catch (e0) {}
+      return;
+    }
     try {
       this.executeCommand("close", "");
     } catch (e1) {}
@@ -241,14 +413,7 @@
   try {
     document.addEventListener("DOMContentLoaded", function () {
       try {
-        // IMPORTANT: do not wait for bridge to render local data/UI
         softInitForUiAndLocalData();
-        layoutDiag();
-        try {
-          window.addEventListener("resize", function () {
-            layoutDiag();
-          });
-        } catch (e0) {}
       } catch (e) {}
       try {
         var attempts = 0;

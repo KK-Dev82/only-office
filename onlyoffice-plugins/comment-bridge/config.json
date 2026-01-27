@@ -1,0 +1,19 @@
+{
+  "name": "Comment Bridge",
+  "guid": "asc.{B1B5A6F3-2D7E-4E9F-8F29-54E726D18B64}",
+  "version": "0.0.1",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Comment bridge (left panel)",
+      "url": "index.html?v=0.0.1",
+      "type": "panel",
+      "isViewer": false,
+      "isActivated": false,
+      "EditorsSupport": ["word"],
+      "icons": ["resources/icon.svg"]
+    }
+  ],
+  "events": ["onExternalPluginMessage"]
+}
+

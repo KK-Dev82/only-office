@@ -5,6 +5,39 @@
   DO.state = DO.state || {};
   var PLUGIN_GUID = "asc.{C6A86F5A-5A0F-49F8-9E72-9E8E1E2F86A1}";
 
+  function iconSvg(type) {
+    // minimal inline svg icons (currentColor)
+    if (type === "delete") {
+      return (
+        '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        '<path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2H8l1-2z"></path>' +
+        "</svg>"
+      );
+    }
+    // edit
+    return (
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+      '<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm2.92 2.83H5v-.92l9.06-9.06.92.92L5.92 20.08zM20.71 7.04a1.003 1.003 0 000-1.42l-2.34-2.34a1.003 1.003 0 00-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"></path>' +
+      "</svg>"
+    );
+  }
+
+  function makeIconButton(opts) {
+    var b = document.createElement("button");
+    b.className = "doIconBtn";
+    try {
+      if (opts && opts.ariaLabel) b.setAttribute("aria-label", String(opts.ariaLabel));
+      if (opts && opts.title) b.title = String(opts.title);
+    } catch (e0) {}
+    try {
+      b.innerHTML = String((opts && opts.svg) || "");
+    } catch (e1) {
+      b.textContent = String((opts && opts.fallbackText) || "");
+    }
+    if (opts && typeof opts.onClick === "function") b.addEventListener("click", opts.onClick);
+    return b;
+  }
+
   function normalizeBaseUrl(url) {
     url = String(url || "").trim();
     if (!url) return "";
@@ -422,8 +455,21 @@
       var insertValue = compileMacroText(m);
       if (!insertValue) continue;
 
+      // Delete/Edit only for non-API macros
+      // - API macros (source: "api") should not be edited/deleted from plugin UI
+      // - Local macros (including older ones without `source`) can be edited/deleted
+      var isApi = false;
+      try {
+        isApi = String(m.source || "").toLowerCase() === "api";
+      } catch (eLocal) {}
+      var isLocal = !isApi;
+
       var div = document.createElement("div");
       div.className = "doItem";
+      try {
+        div.style.cursor = "pointer";
+        div.title = "คลิกเพื่อแทรก (Insert)";
+      } catch (eCur) {}
       var row = document.createElement("div");
       row.className = "doItemRow";
       var textWrap = document.createElement("div");
@@ -456,44 +502,96 @@
 
       var actions = document.createElement("div");
       actions.className = "doItemActions";
-      var btnInsert = document.createElement("button");
-      btnInsert.textContent = "Insert";
-      btnInsert.addEventListener(
+      if (isLocal) {
+        actions.appendChild(
+          makeIconButton({
+            ariaLabel: "Edit",
+            title: "Edit",
+            svg: iconSvg("edit"),
+            onClick: (function (mid, curName, curText) {
+              return function () {
+                var nextName = null;
+                var nextText = null;
+                try {
+                  nextName = prompt("แก้ไขชื่อ Macro", String(curName || ""));
+                } catch (e0) {
+                  nextName = null;
+                }
+                if (nextName === null) return; // cancel
+                nextName = String(nextName || "").trim();
+                if (!nextName) nextName = String(curName || "").trim() || "Macro";
+
+                try {
+                  nextText = prompt("แก้ไขข้อความ Macro", String(curText || ""));
+                } catch (e1) {
+                  nextText = null;
+                }
+                if (nextText === null) return; // cancel
+                nextText = String(nextText || "");
+                if (!String(nextText).trim()) {
+                  try {
+                    DO.setStatus("ต้องมีข้อความ");
+                    setTimeout(function () { DO.setStatus("ready"); }, 800);
+                  } catch (e2) {}
+                  return;
+                }
+
+                DO.store.macros = (DO.store.macros || []).map(function (x) {
+                  if (!x) return x;
+                  if (String(x.id) !== String(mid)) return x;
+                  var copy = {};
+                  for (var k in x) copy[k] = x[k];
+                  copy.name = nextName;
+                  // keep text-based local macro editable; if original is step-based, still store text for insertion
+                  copy.text = nextText;
+                  copy.source = String(copy.source || "local");
+                  copy.scope = String(copy.scope || "Local");
+                  copy.isActive = copy.isActive !== false;
+                  return copy;
+                });
+                DO.persist.macros();
+                render();
+                DO.debugLog("macro_edit_local", { id: mid, nameLen: nextName.length, textLen: String(nextText || "").length });
+              };
+            })(m.id, m.name, m.text != null ? m.text : insertValue),
+          })
+        );
+
+        actions.appendChild(
+          makeIconButton({
+            ariaLabel: "Delete",
+            title: "Delete",
+            svg: iconSvg("delete"),
+            onClick: (function (mid) {
+              return function () {
+                DO.store.macros = (DO.store.macros || []).filter(function (x) {
+                  return String(x && x.id) !== String(mid);
+                });
+                DO.persist.macros();
+                render();
+                DO.debugLog("macro_delete_local", { id: mid });
+              };
+            })(m.id),
+          })
+        );
+      }
+
+      // Click item = insert (like clipboard behavior)
+      // Do not trigger when clicking buttons inside the item.
+      div.addEventListener(
         "click",
         (function (t, mid) {
-          return function () {
+          return function (ev) {
+            try {
+              var target = ev && ev.target ? ev.target : null;
+              var tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
+              if (tag === "button") return;
+            } catch (e0) {}
             DO.debugLog("macro_insert", { id: mid, len: String(t || "").length });
             DO.editor.insertText(t);
           };
         })(insertValue, m.id)
       );
-      actions.appendChild(btnInsert);
-
-      // Delete only for non-API macros
-      // - API macros (source: "api") should not be deleted from plugin UI
-      // - Local macros (including older ones without `source`) can be deleted
-      var isApi = false;
-      try {
-        isApi = String(m.source || "").toLowerCase() === "api";
-      } catch (eLocal) {}
-      if (!isApi) {
-        var btnDel = document.createElement("button");
-        btnDel.textContent = "Delete";
-        btnDel.addEventListener(
-          "click",
-          (function (mid) {
-            return function () {
-              DO.store.macros = (DO.store.macros || []).filter(function (x) {
-                return String(x && x.id) !== String(mid);
-              });
-              DO.persist.macros();
-              render();
-              DO.debugLog("macro_delete_local", { id: mid });
-            };
-          })(m.id)
-        );
-        actions.appendChild(btnDel);
-      }
 
       row.appendChild(textWrap);
       row.appendChild(actions);

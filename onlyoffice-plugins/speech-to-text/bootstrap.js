@@ -99,16 +99,16 @@
       var hasCallCommand = window.Asc && window.Asc.plugin && typeof window.Asc.plugin.callCommand === "function";
       if (!hasCallCommand) {
         STT.setStatus("⚠️ callCommand ไม่พร้อมใช้งาน (อาจเป็น Community License)");
-        console.warn("[STT] callCommand not available - text insertion may not work");
+        STT.warn("[STT] callCommand not available - text insertion may not work");
       }
 
-      console.log("[STT] Plugin initialized (PanelV2)", {
+      STT.log("[STT] Plugin initialized (PanelV2)", {
         version: (STT && STT.VERSION) || "unknown",
         hasCallCommand: hasCallCommand,
         pluginInfo: window.Asc && window.Asc.plugin && window.Asc.plugin.info
       });
     } catch (e) {
-      console.error("[STT] Init error:", e);
+      STT.error("[STT] Init error:", e);
       try { STT.setStatus("เกิดข้อผิดพลาดในการเริ่มต้น"); } catch {}
     }
   };

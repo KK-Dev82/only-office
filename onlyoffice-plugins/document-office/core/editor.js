@@ -187,11 +187,15 @@
 
     try {
       DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
-      // eslint-disable-next-line no-console
-      console.warn("[DocumentOfficePlugin] insertText failed - no supported method available", {
-        hasExecuteMethod: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) === "function",
-        hasCallCommand: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.callCommand) === "function",
-      });
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.warn("[DocumentOfficePlugin] insertText failed - no supported method available", {
+            hasExecuteMethod: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) === "function",
+            hasCallCommand: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.callCommand) === "function",
+          });
+        }
+      } catch (eLog0) {}
     } catch (e7) {}
     DO.setOutput({ ok: false, error: "Insert failed: executeMethod/callCommand unavailable" });
   };
@@ -269,8 +273,10 @@
               }
             } catch (e) {
               try {
-                // eslint-disable-next-line no-console
-                console.error("[DocumentOfficePlugin] appendToEnd error in callCommand", e);
+                if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                  // eslint-disable-next-line no-console
+                  console.error("[DocumentOfficePlugin] appendToEnd error in callCommand", e);
+                }
               } catch (eLog) {}
             }
           },
@@ -292,8 +298,12 @@
     // This is still better than nothing
     try {
       DO.debugLog("appendToEnd_fallback_to_insertText", { len: t.length });
-      // eslint-disable-next-line no-console
-      console.warn("[DocumentOfficePlugin] appendToDocumentEnd: callCommand not available, using insertText fallback");
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.warn("[DocumentOfficePlugin] appendToDocumentEnd: callCommand not available, using insertText fallback");
+        }
+      } catch (eLog1) {}
     } catch (e4) {}
     // Use insertText which has multiple fallback mechanisms
     DO.editor.insertText(t);
@@ -367,6 +377,167 @@
         cb && cb({ mode: mode, text: paraText || "" });
       } catch (e2) {}
     });
+  };
+
+  // Replace word in document (search and replace)
+  DO.editor.replaceWord = function (oldWord, newWord, replaceAll, cb) {
+    var old = String(oldWord || "");
+    var new_ = String(newWord || "");
+    var replaceAllFlag = replaceAll === true;
+    
+    if (!old) {
+      try {
+        cb && cb({ ok: false, error: "oldWord is required" });
+      } catch (e0) {}
+      return;
+    }
+
+    try {
+      if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+        // eslint-disable-next-line no-console
+        console.log("[DocumentOfficePlugin] replaceWord", { oldWord: old, newWord: new_, replaceAll: replaceAllFlag });
+      }
+    } catch (eLog0) {}
+
+    // Use ONLYOFFICE SearchAndReplace API
+    if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+      try {
+        // SearchAndReplace method signature: (searchText, replaceText, replaceAll)
+        exec("SearchAndReplace", [old, new_, replaceAllFlag], function (result) {
+          try {
+            var ok = result !== false && result !== undefined;
+            try {
+              if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                // eslint-disable-next-line no-console
+                console.log("[DocumentOfficePlugin] replaceWord_result", { ok: ok, result: result });
+              }
+            } catch (eLog1) {}
+            try {
+              cb && cb({ ok: ok, replaced: ok });
+            } catch (e1) {}
+          } catch (e2) {
+            try {
+              cb && cb({ ok: false, error: String(e2) });
+            } catch (e3) {}
+          }
+        });
+        return;
+      } catch (e4) {
+        try {
+          if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+            // eslint-disable-next-line no-console
+            console.warn("[DocumentOfficePlugin] replaceWord_executeMethod_failed", { error: String(e4) });
+          }
+        } catch (eLog2) {}
+      }
+    }
+
+    // Fallback: Use callCommand to search and replace
+    if (canCallCommand()) {
+      try {
+        window.Asc.scope = window.Asc.scope || {};
+        window.Asc.scope.__do_replace_old = old;
+        window.Asc.scope.__do_replace_new = new_;
+        window.Asc.scope.__do_replace_all = replaceAllFlag ? 1 : 0;
+        window.Asc.plugin.callCommand(
+          function () {
+            try {
+              var doc = Api.GetDocument();
+              if (!doc) return { ok: false, error: "No document" };
+              
+              var oldText = Asc.scope.__do_replace_old || "";
+              var newText = Asc.scope.__do_replace_new || "";
+              var replaceAll = Asc.scope.__do_replace_all ? true : false;
+              
+              if (!oldText) return { ok: false, error: "oldWord is required" };
+              
+              // Use Api.SearchAndReplace if available
+              if (Api && typeof Api.SearchAndReplace === "function") {
+                Api.SearchAndReplace(oldText, newText, replaceAll);
+                return { ok: true, replaced: true };
+              }
+              
+              // Fallback: Manual search and replace using paragraphs
+              var body = doc.GetBody ? doc.GetBody() : null;
+              if (!body) return { ok: false, error: "Cannot get document body" };
+              
+              var replaced = false;
+              var paraCount = body.GetElementsCount ? body.GetElementsCount() : 0;
+              
+              for (var i = 0; i < paraCount; i++) {
+                try {
+                  var para = body.GetElement ? body.GetElement(i) : null;
+                  if (!para || !para.GetRange) continue;
+                  
+                  var range = para.GetRange();
+                  if (!range || !range.GetText) continue;
+                  
+                  var paraText = range.GetText({
+                    Numbering: false,
+                    Math: false,
+                    ParaSeparator: "\n",
+                    TableRowSeparator: "\n",
+                    NewLineSeparator: "\n",
+                  }) || "";
+                  
+                  if (paraText.includes(oldText)) {
+                    var newParaText = replaceAll 
+                      ? paraText.split(oldText).join(newText)
+                      : paraText.replace(oldText, newText);
+                    
+                    if (newParaText !== paraText) {
+                      para.RemoveAllElements();
+                      para.AddText(newParaText);
+                      replaced = true;
+                      if (!replaceAll) break; // Only replace first occurrence
+                    }
+                  }
+                } catch (ePara) {
+                  // Continue with next paragraph
+                }
+              }
+              
+              return { ok: replaced, replaced: replaced };
+            } catch (e) {
+              return { ok: false, error: String(e) };
+            }
+          },
+          false,
+          true,
+          function (result) {
+            try {
+              var ok = result && result.ok === true;
+              try {
+                if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                  // eslint-disable-next-line no-console
+                  console.log("[DocumentOfficePlugin] replaceWord_callCommand_result", { ok: ok, result: result });
+                }
+              } catch (eLog3) {}
+              try {
+                cb && cb(result || { ok: false, error: "Unknown error" });
+              } catch (e5) {}
+            } catch (e6) {
+              try {
+                cb && cb({ ok: false, error: String(e6) });
+              } catch (e7) {}
+            }
+          }
+        );
+        return;
+      } catch (e8) {
+        try {
+          if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+            // eslint-disable-next-line no-console
+            console.error("[DocumentOfficePlugin] replaceWord_callCommand_failed", { error: String(e8) });
+          }
+        } catch (eLog4) {}
+      }
+    }
+
+    // Final fallback: failed
+    try {
+      cb && cb({ ok: false, error: "No supported method available for replaceWord" });
+    } catch (e9) {}
   };
 })();
 

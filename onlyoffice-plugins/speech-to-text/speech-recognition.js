@@ -264,7 +264,7 @@
     };
 
     STT.recognition.onerror = function (event) {
-      console.error("[STT] Recognition error:", event.error);
+      STT.error("[STT] Recognition error:", event.error);
       if (event.error === "no-speech") {
         STT.setStatus("ไม่พบเสียง");
       } else if (event.error === "aborted") {
@@ -319,7 +319,7 @@
         } catch (e2) {}
         return true;
       }
-      console.error("[STT] startListening error:", e);
+      STT.error("[STT] startListening error:", e);
       STT.setStatus("ไม่สามารถเริ่มฟังได้");
       return false;
     }
@@ -337,7 +337,7 @@
       STT._inflightAppend = "";
       return true;
     } catch (e) {
-      console.error("[STT] stopListening error:", e);
+      STT.error("[STT] stopListening error:", e);
       return false;
     }
   };

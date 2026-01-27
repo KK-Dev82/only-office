@@ -1,33 +1,18 @@
 // Tabs + debug panel UI
+// NOTE: dictionary-abbreviation is now a single-page split UI (no tabs).
 (function () {
   var DO = (window.DO = window.DO || {});
 
   DO.ui = DO.ui || {};
 
   DO.ui.setActiveTab = function (tab) {
-    tab = String(tab || "");
-    if (!tab) return;
-    DO.state.activeTab = tab;
+    // Keep API for backward compatibility, but do NOT hide any panels.
+    tab = String(tab || "single");
+    DO.state.activeTab = tab || "single";
 
     try {
       if (DO.canUseLocalStorage()) localStorage.setItem(DO.STORAGE_KEYS.activeTab, tab);
     } catch (e0) {}
-
-    var btns = document.querySelectorAll(".doTabBtn[data-tab]");
-    for (var i = 0; i < btns.length; i++) {
-      var b = btns[i];
-      var t = b.getAttribute("data-tab");
-      if (t === tab) b.classList.add("doIsActive");
-      else b.classList.remove("doIsActive");
-    }
-
-    var panels = document.querySelectorAll(".doTabPanel[data-tab]");
-    for (var j = 0; j < panels.length; j++) {
-      var p = panels[j];
-      var tp = p.getAttribute("data-tab");
-      if (tp === tab) p.classList.add("doIsActive");
-      else p.classList.remove("doIsActive");
-    }
 
     DO.debugLog("tab_change", { tab: tab });
   };
@@ -51,16 +36,6 @@
 
   DO.ui.bindTabs = function () {
     try {
-      var tabBtns = document.querySelectorAll(".doTabBtn[data-tab]");
-      for (var i = 0; i < tabBtns.length; i++) {
-        tabBtns[i].addEventListener("click", function (ev) {
-          try {
-            var t = ev && ev.currentTarget && ev.currentTarget.getAttribute ? ev.currentTarget.getAttribute("data-tab") : "";
-            if (t) DO.ui.setActiveTab(t);
-          } catch (e2) {}
-        });
-      }
-
       try {
         if (DO.canUseLocalStorage()) {
           var savedTab = localStorage.getItem(DO.STORAGE_KEYS.activeTab);
@@ -70,8 +45,8 @@
         }
       } catch (e3) {}
 
-      // IMPORTANT: dictionary-abbreviation tabs are not "clipboard"
-      DO.ui.setActiveTab(DO.state.activeTab || "dictionary");
+      // Single page: just set a stable value for compatibility.
+      DO.ui.setActiveTab(DO.state.activeTab || "single");
     } catch (e4) {}
   };
 })();

@@ -1,20 +1,7 @@
-/* --- Layout lock (prevent plugins.css from collapsing panel) --- */
+/* --- Minimal UI (comment-bridge style) --- */
 html, body {
   margin: 0;
   padding: 0;
-  /* Avoid forcing overflow hidden on the whole iframe.
-   * In ONLYOFFICE 9.x (especially dev builds) the plugin wrapper may rely on
-   * default overflow rules; forcing hidden can cause blank/offset rendering.
-   */
-  /* Force visibility in case host/plugins.css hides iframe body */
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  overflow: hidden !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  min-height: 100vh !important;
-  position: relative !important;
   background: #ffffff;
 }
 
@@ -25,15 +12,117 @@ html, body {
 .doRoot {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   color: #1f2937;
-  display: flex !important;
-  flex-direction: column !important;
-  background: #ffffff !important;
-  /* panelRight safe layout: fixed fill inside iframe */
-  position: fixed !important;
-  inset: 0 !important;
-  width: auto !important;
-  height: auto !important;
-  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.doSimpleRoot, .doSimpleRoot * {
+  box-sizing: border-box;
+}
+
+.doSimpleRoot {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  padding: 10px;
+  color: #1f2937;
+}
+
+.doSimpleHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.doSimpleTitle {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.doSimpleSub {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+  margin-top: 2px;
+}
+
+.doSimpleBadge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.doSimpleStatus {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 4px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.doSimpleSection {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.doSimpleSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.doSimpleSectionTitle {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.doSimpleActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.doSimpleRoot button {
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.doSimpleRoot .doRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.doSimpleRoot .doInput, .doSimpleRoot .doTextarea {
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  width: 100%;
+}
+
+.doSimpleOutput {
+  margin-top: 10px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 8px;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: calc(100vh - 160px);
 }
 
 .doHeader {
@@ -355,6 +444,34 @@ html, body {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.doIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  line-height: 1;
+}
+
+.doIconBtn:hover {
+  background: #f3f4f6;
+}
+
+.doIconBtn:active {
+  background: #e5e7eb;
+}
+
+.doIconBtn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: currentColor;
 }
 
 .doOutput {

@@ -23,7 +23,14 @@
   function hasUiDom() {
     try {
       // If this variation is background/unvisible, it won't have UI markup.
-      return Boolean(document && document.querySelector && document.querySelector(".doRoot"));
+      return Boolean(
+        document &&
+          document.querySelector &&
+          (document.querySelector(".doSimpleRoot") ||
+            document.querySelector(".doRoot") ||
+            document.getElementById("macroList") ||
+            document.getElementById("clipList"))
+      );
     } catch (e) {
       return false;
     }
@@ -37,12 +44,7 @@
     try {
       DO.setText("pluginVersion", "v" + DO.VERSION);
     } catch (e) {}
-
-    // tabs + debug
-    if (DO.ui && DO.ui.bindTabs) DO.ui.bindTabs();
-    var toggleDebug = DO.$("toggleDebug");
-    if (toggleDebug) toggleDebug.addEventListener("click", function () { DO.ui.toggleDebugPanel(); });
-    DO.ui.toggleDebugPanel(DO.state.debugOpen);
+    // NOTE: keep UI minimal (comment-bridge style) — no tabs/debug UI required.
 
     // DISABLED: UI/layout + cursor change watchers to prevent UI resizing
     // These watchers cause UI layout changes when inserting text
@@ -161,9 +163,6 @@
         //   DO.features.redundant.renderSaved();
         // }
 
-        if (DO.ui && DO.ui.bindDebug) {
-          DO.ui.bindDebug();
-        }
       }
 
       // Status/output are UI-only, but safe to call even if missing
@@ -237,7 +236,6 @@
   try {
     document.addEventListener("DOMContentLoaded", function () {
       try {
-        DO.appendOutputLine("dom_ready (script_loaded)");
         if (hasUiDom()) bindCoreUi();
       } catch (e) {}
 
@@ -247,7 +245,6 @@
         setTimeout(function () {
           try {
             if (!DO.state.inited && window.Asc && window.Asc.plugin && typeof window.Asc.plugin.init === "function") {
-              DO.appendOutputLine("init_fallback_call");
               window.Asc.plugin.init();
             }
           } catch (e2) {}

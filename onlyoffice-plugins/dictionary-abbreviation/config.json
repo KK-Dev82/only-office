@@ -1,15 +1,15 @@
 {
   "name": "Dictionary & Abbreviation",
   "guid": "asc.{8B6B9F89-7C57-4E1F-8B78-2B3D6B31E0DE}",
-  "version": "0.1.35",
+  "version": "0.1.71",
   "baseUrl": "",
   "variations": [
     {
       "description": "Dictionary + Abbreviation tools (separate from Clipboard)",
-      "url": "index.html?v=0.1.35",
+      "url": "index.html?v=0.1.71",
       "type": "panelRight",
       "isViewer": false,
-      "isActivated": false,
+      "isActivated": true,
       "EditorsSupport": ["word"],
       "icons": [
         "resources/icon.svg"

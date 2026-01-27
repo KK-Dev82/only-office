@@ -65,7 +65,12 @@
     };
 
     recognition.onerror = function (event) {
-      console.error("[DocumentOfficePlugin] STT error:", event.error);
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.error("[DocumentOfficePlugin] STT error:", event.error);
+        }
+      } catch (e0) {}
       if (event.error === "no-speech") {
         DO.setStatus("ไม่พบเสียง");
       } else if (event.error === "aborted") {
@@ -106,7 +111,12 @@
       recognition.start();
       return true;
     } catch (e) {
-      console.error("[DocumentOfficePlugin] startListening error:", e);
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.error("[DocumentOfficePlugin] startListening error:", e);
+        }
+      } catch (e0) {}
       DO.setStatus("ไม่สามารถเริ่มฟังได้");
       return false;
     }
@@ -121,7 +131,12 @@
       recognition.stop();
       return true;
     } catch (e) {
-      console.error("[DocumentOfficePlugin] stopListening error:", e);
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.error("[DocumentOfficePlugin] stopListening error:", e);
+        }
+      } catch (e0) {}
       return false;
     }
   }
@@ -174,7 +189,12 @@
               doc.InsertContent([p]);
             }
           } catch (e) {
-            console.error("[DocumentOfficePlugin] insertText error:", e);
+            try {
+              if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                // eslint-disable-next-line no-console
+                console.error("[DocumentOfficePlugin] insertText error:", e);
+              }
+            } catch (e0) {}
           }
         },
         false,
@@ -185,7 +205,12 @@
       clearText();
       DO.debugLog("stt_insert_ok", { len: text.length });
     } catch (e) {
-      console.error("[DocumentOfficePlugin] insertText failed:", e);
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.error("[DocumentOfficePlugin] insertText failed:", e);
+        }
+      } catch (e0) {}
       DO.setStatus("Insert ล้มเหลว");
       DO.debugLog("stt_insert_failed", { error: String(e) });
     }
@@ -227,7 +252,12 @@
               doc.InsertContent([Api.CreateParagraph().AddText(txt)]);
             }
           } catch (e) {
-            console.error("[DocumentOfficePlugin] appendToDocumentEnd error:", e);
+            try {
+              if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                // eslint-disable-next-line no-console
+                console.error("[DocumentOfficePlugin] appendToDocumentEnd error:", e);
+              }
+            } catch (e0) {}
           }
         },
         false,
@@ -238,7 +268,12 @@
       clearText();
       DO.debugLog("stt_append_ok", { len: text.length });
     } catch (e) {
-      console.error("[DocumentOfficePlugin] appendToDocumentEnd failed:", e);
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.error("[DocumentOfficePlugin] appendToDocumentEnd failed:", e);
+        }
+      } catch (e0) {}
       DO.setStatus("Append ล้มเหลว");
       DO.debugLog("stt_append_failed", { error: String(e) });
     }

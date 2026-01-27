@@ -15,6 +15,10 @@
     dictionary: DO.STORAGE_PREFIX + "dictionary",
     activeTab: DO.STORAGE_PREFIX + "activeTab",
     debugOpen: DO.STORAGE_PREFIX + "debugOpen",
+    // โหมดการทำงานของคำย่อ (auto/confirm)
+    abbreviationMode: DO.STORAGE_PREFIX + "abbreviationMode",
+    // เปิด InputHelper สำหรับ Dictionary (รับคีย์จาก editor เพื่อเลือกคำ)
+    dictInputHelperEnabled: DO.STORAGE_PREFIX + "dictInputHelperEnabled",
   };
 
   var OLD_KEYS = {
@@ -76,26 +80,43 @@
   };
 
   DO.initLocalData = function () {
+    if (DO.state && DO.state._localDataInitialized) return;
+    if (!DO.state) DO.state = {};
+    DO.state._localDataInitialized = true;
+
+    var useStorage = false;
     try {
-      DO.debugLog("initLocalData_begin", { canUseLocalStorage: DO.canUseLocalStorage() });
+      useStorage = DO.canUseLocalStorage();
+      DO.debugLog("initLocalData_begin", { canUseLocalStorage: useStorage });
     } catch (e0) {}
 
-    // Load from new prefix first; fallback to old prefix for migration
-    DO.store.abbreviations = DO.storageLoad(DO.STORAGE_KEYS.abbreviations, null);
-    if (DO.store.abbreviations == null) DO.store.abbreviations = DO.storageLoad(OLD_KEYS.abbreviations, []);
-    if (!Array.isArray(DO.store.abbreviations)) DO.store.abbreviations = [];
+    // ถ้า LocalStorage ใช้ไม่ได้ (iframe/cross-origin/private) ไม่แตะ localStorage เลย ใช้ค่า default ในหน่วยความจำ
+    // ลดโอกาส throw → UI เพี้ยน / init หัก
+    if (!useStorage) {
+      DO.store.abbreviations = Array.isArray(DO.store.abbreviations) ? DO.store.abbreviations : [];
+      DO.store.dictionary = Array.isArray(DO.store.dictionary) ? DO.store.dictionary : [];
+      DO.store.clipboard = [];
+      DO.store.macros = [];
+      DO.store.redundant = [];
+      try {
+        DO.debugLog("initLocalData_skip_storage", { reason: "localStorage_unavailable" });
+      } catch (e) {}
+      return;
+    }
 
-    DO.store.dictionary = DO.storageLoad(DO.STORAGE_KEYS.dictionary, null);
-    if (DO.store.dictionary == null) DO.store.dictionary = DO.storageLoad(OLD_KEYS.dictionary, []);
-    if (!Array.isArray(DO.store.dictionary)) DO.store.dictionary = [];
-
-    // These are not used by this plugin, but keep shape consistent
-    DO.store.clipboard = [];
-    DO.store.macros = [];
-    DO.store.redundant = [];
-
-    // Migrate saved UI state ONLY if it matches this plugin tabs
     try {
+      var abbr = DO.storageLoad(DO.STORAGE_KEYS.abbreviations, null);
+      if (abbr == null) abbr = DO.storageLoad(OLD_KEYS.abbreviations, []);
+      DO.store.abbreviations = Array.isArray(abbr) ? abbr : [];
+
+      var dict = DO.storageLoad(DO.STORAGE_KEYS.dictionary, null);
+      if (dict == null) dict = DO.storageLoad(OLD_KEYS.dictionary, []);
+      DO.store.dictionary = Array.isArray(dict) ? dict : [];
+
+      DO.store.clipboard = [];
+      DO.store.macros = [];
+      DO.store.redundant = [];
+
       var savedTab = DO.storageLoad(DO.STORAGE_KEYS.activeTab, null);
       if (savedTab == null) savedTab = DO.storageLoad(OLD_KEYS.activeTab, null);
       savedTab = String(savedTab || "");
@@ -109,23 +130,37 @@
         DO.state.debugOpen = true;
         DO.storageSave(DO.STORAGE_KEYS.debugOpen, "1");
       }
-    } catch (eState) {}
+      var savedMode = DO.storageLoad(DO.STORAGE_KEYS.abbreviationMode, null);
+      var mode = String(savedMode || "").toLowerCase();
+      if (mode === "auto" || mode === "confirm") {
+        DO.state.abbreviationMode = mode;
+        DO.storageSave(DO.STORAGE_KEYS.abbreviationMode, mode);
+      }
 
-    // Persist migrated data to new keys (best-effort)
-    try {
+      // Dictionary InputHelper enable (bool)
+      try {
+        var savedIh = DO.storageLoad(DO.STORAGE_KEYS.dictInputHelperEnabled, null);
+        var ihOn = savedIh === true || savedIh === 1 || savedIh === "1";
+        if (ihOn) {
+          DO.state.dictInputHelperEnabled = true;
+          DO.storageSave(DO.STORAGE_KEYS.dictInputHelperEnabled, true);
+        }
+      } catch (eIh0) {}
+
       DO.storageSave(DO.STORAGE_KEYS.abbreviations, DO.store.abbreviations || []);
       DO.storageSave(DO.STORAGE_KEYS.dictionary, DO.store.dictionary || []);
-    } catch (eMig) {}
 
-    try {
       DO.debugLog("initLocalData_loaded", {
         abbreviations: (DO.store.abbreviations || []).length,
-        clipboard: (DO.store.clipboard || []).length,
-        macros: (DO.store.macros || []).length,
-        redundant: (DO.store.redundant || []).length,
         dictionary: (DO.store.dictionary || []).length,
       });
-    } catch (e1) {}
+    } catch (e) {
+      try {
+        DO.debugLog("initLocalData_failed", { error: String(e) });
+      } catch (e2) {}
+      DO.store.abbreviations = Array.isArray(DO.store.abbreviations) ? DO.store.abbreviations : [];
+      DO.store.dictionary = Array.isArray(DO.store.dictionary) ? DO.store.dictionary : [];
+    }
   };
 
   DO.persist = {

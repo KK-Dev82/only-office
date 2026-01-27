@@ -1,0 +1,149 @@
+.cbRoot {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  padding: 10px;
+}
+
+.cbHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.cbTitle {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.cbSub {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+  margin-top: 2px;
+}
+
+.cbStatus {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 4px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.cbOutput {
+  margin-top: 8px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 8px;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 220px;
+}
+
+.cbActions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cbBtn {
+  appearance: none;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cbBtn:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+.cbBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cbHint {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.cbComments {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.cbCommentItem {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.cbCommentItem:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.cbCommentTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.cbCommentAuthor {
+  font-size: 12px;
+  font-weight: 700;
+}
+.cbCommentTime {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+}
+.cbCommentText {
+  margin-top: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cbCommentMeta {
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cbPill {
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.cbEmpty {
+  border: 1px dashed rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.cbDebug {
+  margin-top: 10px;
+}
+.cbDebug > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.7);
+}
+

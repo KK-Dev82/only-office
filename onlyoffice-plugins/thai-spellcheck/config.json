@@ -1,0 +1,20 @@
+{
+  "name": "Thai SpellChecker",
+  "guid": "asc.{0F1D56E8-35F1-4E31-BB2F-67D9A2C1B4A9}",
+  "version": "0.1.0",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Thai spell checking via external API",
+      "url": "index.html?v=0.1.0",
+      "type": "panelRight",
+      "isViewer": false,
+      "isActivated": true,
+      "EditorsSupport": ["word"],
+      "icons": ["resources/icon.svg"],
+      "buttons": [{ "text": "Close", "primary": false }]
+    }
+  ],
+  "events": ["onSelectionChanged"]
+}
+

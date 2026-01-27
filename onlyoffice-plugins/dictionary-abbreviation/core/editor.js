@@ -187,11 +187,15 @@
 
     try {
       DO.debugLog("insert_failed", { reason: "no_supported_method", len: t.length });
-      // eslint-disable-next-line no-console
-      console.warn("[DocumentOfficePlugin] insertText failed - no supported method available", {
-        hasExecuteMethod: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) === "function",
-        hasCallCommand: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.callCommand) === "function",
-      });
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.warn("[DocumentOfficePlugin] insertText failed - no supported method available", {
+            hasExecuteMethod: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) === "function",
+            hasCallCommand: typeof (window.Asc && window.Asc.plugin && window.Asc.plugin.callCommand) === "function",
+          });
+        }
+      } catch (eLog) {}
     } catch (e7) {}
     DO.setOutput({ ok: false, error: "Insert failed: executeMethod/callCommand unavailable" });
   };
@@ -269,8 +273,10 @@
               }
             } catch (e) {
               try {
-                // eslint-disable-next-line no-console
-                console.error("[DocumentOfficePlugin] appendToEnd error in callCommand", e);
+                if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+                  // eslint-disable-next-line no-console
+                  console.error("[DocumentOfficePlugin] appendToEnd error in callCommand", e);
+                }
               } catch (eLog) {}
             }
           },
@@ -292,8 +298,12 @@
     // This is still better than nothing
     try {
       DO.debugLog("appendToEnd_fallback_to_insertText", { len: t.length });
-      // eslint-disable-next-line no-console
-      console.warn("[DocumentOfficePlugin] appendToDocumentEnd: callCommand not available, using insertText fallback");
+      try {
+        if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
+          // eslint-disable-next-line no-console
+          console.warn("[DocumentOfficePlugin] appendToDocumentEnd: callCommand not available, using insertText fallback");
+        }
+      } catch (eLog2) {}
     } catch (e4) {}
     // Use insertText which has multiple fallback mechanisms
     DO.editor.insertText(t);
@@ -331,9 +341,294 @@
     });
   };
 
+  // Replace a range within the current paragraph (0-based indices in paragraph text).
+  // This enables "autocomplete-like" replacement even when caret is in the middle of paragraph.
+  DO.editor.replaceRangeInCurrentParagraph = function (start, end, replacement, cb) {
+    start = Number(start || 0) || 0;
+    end = Number(end || 0) || 0;
+    if (end < start) {
+      var tmp = start;
+      start = end;
+      end = tmp;
+    }
+    var rpl = String(replacement == null ? "" : replacement);
+    if (!rpl) {
+      try { cb && cb({ ok: false, error: "empty_replacement" }); } catch (e0) {}
+      return;
+    }
+    if (!canCallCommand()) {
+      // Can't safely replace without callCommand; fallback to inserting at cursor.
+      DO.editor.insertText(rpl);
+      try { cb && cb({ ok: false, error: "no_callCommand_fallback_insert" }); } catch (e1) {}
+      return;
+    }
+
+    DO.state = DO.state || {};
+    DO.state.lastInsertAt = Date.now();
+
+    try {
+      window.Asc.scope = window.Asc.scope || {};
+      window.Asc.scope.__do_rr_start = start;
+      window.Asc.scope.__do_rr_end = end;
+      window.Asc.scope.__do_rr_text = rpl;
+      window.Asc.plugin.callCommand(
+        function () {
+          try {
+            var s = Number(Asc.scope.__do_rr_start || 0) || 0;
+            var e = Number(Asc.scope.__do_rr_end || 0) || 0;
+            if (e < s) { var t = s; s = e; e = t; }
+            var text = String(Asc.scope.__do_rr_text || "");
+            if (!text) return { ok: false, error: "empty_replacement" };
+
+            var doc = Api.GetDocument();
+            if (!doc || !doc.GetCurrentParagraph) return { ok: false, error: "no_doc" };
+            var p = doc.GetCurrentParagraph();
+            if (!p || !p.GetRange) return { ok: false, error: "no_paragraph" };
+
+            // Delete range then insert replacement at start.
+            try {
+              var del = p.GetRange(s, e);
+              if (del && del.Delete) del.Delete();
+            } catch (eDel) {}
+            try {
+              var ins = p.GetRange(s, s);
+              if (ins && ins.AddText) ins.AddText(text, "before");
+              else if (doc && doc.InsertText) doc.InsertText(text);
+            } catch (eIns) {
+              if (doc && doc.InsertText) doc.InsertText(text);
+            }
+            return { ok: true, start: s, end: e, replLen: text.length };
+          } catch (e) {
+            return { ok: false, error: String(e) };
+          }
+        },
+        false,
+        true,
+        function (result) {
+          try {
+            DO.debugLog("replace_range_done", result || {});
+          } catch (e0) {}
+          try { cb && cb(result); } catch (e1) {}
+        }
+      );
+      try {
+        DO.debugLog("replace_range", { start: start, end: end, replLen: rpl.length });
+      } catch (e2) {}
+    } catch (e3) {
+      try {
+        DO.debugLog("replace_range_failed", { error: String(e3) });
+      } catch (e4) {}
+      DO.editor.insertText(rpl);
+      try { cb && cb({ ok: false, error: String(e3), fallback: "insertText" }); } catch (e5) {}
+    }
+  };
+
   DO.editor.replaceSelectionText = function (text) {
     // PasteText handles selection if any
     DO.editor.insertText(text);
+  };
+
+  // Replace the last token at the end of current paragraph.
+  // This is used for autocomplete-like behavior:
+  // - user types token (e.g. "สฟฟ")
+  // - plugin replaces it with full text (e.g. "สวัสดีนะ")
+  // Note: This keeps formatting mostly intact (only touches the token range),
+  // and avoids appending after the token (which causes "สฟฟสวัสดีนะ").
+  DO.editor.replaceLastTokenInParagraph = function (token, replacement, opts, cb) {
+    var t = String(token || "").trim();
+    var rpl = String(replacement || "");
+    // opts is optional; allow (token, replacement, cb)
+    if (typeof opts === "function") {
+      cb = opts;
+      opts = null;
+    }
+    opts = opts || {};
+    var fallbackInsertAtCursor = opts.fallbackInsertAtCursor !== false; // default true
+    var verify = opts.verify !== false; // default true
+    if (!t || !rpl) {
+      // fallback
+      DO.editor.insertText(rpl);
+      return;
+    }
+
+    if (!canCallCommand()) {
+      // Best-effort: can't safely delete the typed token, so at least insert something.
+      DO.editor.insertText(rpl);
+      return;
+    }
+
+    try {
+      // Suppress abbreviation auto-detect briefly after we mutate the document,
+      // otherwise onDocumentContentChanged can trigger a rapid loop.
+      try {
+        DO.state = DO.state || {};
+        DO.state._abbrSuppressUntil = Date.now() + 800;
+        DO.state._abbrSuppressToken = t;
+      } catch (eSup) {}
+
+      window.Asc.scope = window.Asc.scope || {};
+      window.Asc.scope.__do_token = t;
+      window.Asc.scope.__do_repl = rpl;
+      window.Asc.scope.__do_repl_opts = {
+        fallbackInsertAtCursor: fallbackInsertAtCursor ? 1 : 0,
+        verify: verify ? 1 : 0,
+      };
+      window.Asc.plugin.callCommand(
+        function () {
+          try {
+            var tokenNow = String(Asc.scope.__do_token || "");
+            var replNow = String(Asc.scope.__do_repl || "");
+            var o = Asc.scope.__do_repl_opts || {};
+            var allowFallback = !!(o && o.fallbackInsertAtCursor);
+            var doVerify = !!(o && o.verify);
+            if (!tokenNow || !replNow) return { ok: false, didReplace: false, verified: false, reason: "empty_args" };
+
+            var doc = Api.GetDocument();
+            if (!doc || !doc.GetCurrentParagraph) {
+              if (allowFallback && doc && doc.InsertText) doc.InsertText(replNow);
+              return { ok: false, didReplace: false, verified: false, reason: "no_doc_or_para" };
+            }
+            var p = doc.GetCurrentParagraph();
+            if (!p || !p.GetRange) {
+              if (allowFallback && doc && doc.InsertText) doc.InsertText(replNow);
+              return { ok: false, didReplace: false, verified: false, reason: "no_para_range" };
+            }
+
+            var fullRange = p.GetRange();
+            var txt = "";
+            try {
+              txt = String(
+                fullRange.GetText({
+                  Numbering: false,
+                  Math: false,
+                  ParaSeparator: "\n",
+                  TableRowSeparator: "\n",
+                  NewLineSeparator: "\n",
+                }) || ""
+              );
+            } catch (e0) {}
+
+            // Normalize: GetText for paragraph often includes a trailing "\n" (ParaSeparator),
+            // so we must trim line breaks/spaces before checking token suffix.
+            var norm = String(txt || "").replace(/\u00A0/g, " ");
+            var trimmed = norm.replace(/[\s\u00A0]+$/g, "");
+
+            // Only replace when paragraph (trimmed) ends with token (common typing case).
+            if (trimmed && trimmed.slice(-tokenNow.length) === tokenNow) {
+              var end = trimmed.length;
+              var start = Math.max(0, end - tokenNow.length);
+              var prefix = trimmed.slice(0, start);
+              var expected = prefix + replNow;
+              try {
+                var tr = p.GetRange(start, end);
+                tr.Delete();
+              } catch (e1) {}
+              try {
+                // Insert replacement at the original start position.
+                var ins = p.GetRange(start, start);
+                var ok0 = ins.AddText(replNow, "before");
+                // Do NOT fallback to doc.InsertText here; that can insert at cursor and leave token intact.
+                // We'll verify and then fallback to paragraph rewrite if needed.
+                void ok0;
+              } catch (e2) {
+                // ignore; will verify and possibly fallback below
+              }
+
+              // Verify replacement actually happened (some builds silently fail Delete/AddText)
+              if (doVerify) {
+                try {
+                  var after = "";
+                  try {
+                    after = String(
+                      p.GetRange().GetText({
+                        Numbering: false,
+                        Math: false,
+                        ParaSeparator: "\n",
+                        TableRowSeparator: "\n",
+                        NewLineSeparator: "\n",
+                      }) || ""
+                    ).replace(/\u00A0/g, " ");
+                  } catch (eV0) {
+                    after = "";
+                  }
+                  var afterTrim = String(after || "").replace(/[\s\u00A0]+$/g, "");
+                  if (afterTrim && afterTrim.slice(-replNow.length) === replNow && afterTrim.indexOf(expected) !== -1) {
+                    return { ok: true, didReplace: true, verified: true, token: tokenNow, replLen: replNow.length };
+                  }
+                } catch (eV1) {}
+              } else {
+                return { ok: true, didReplace: true, verified: true, token: tokenNow, replLen: replNow.length };
+              }
+
+              // Fallback: rewrite whole paragraph text (may lose formatting, but ensures correctness)
+              try {
+                if (p.RemoveAllElements) p.RemoveAllElements();
+              } catch (eR0) {}
+              try {
+                if (p.AddText) p.AddText(expected);
+              } catch (eR1) {
+                try {
+                  if (allowFallback && doc && doc.InsertText) doc.InsertText(replNow);
+                } catch (eR2) {}
+              }
+
+              if (doVerify) {
+                try {
+                  var after2 = "";
+                  try {
+                    after2 = String(
+                      p.GetRange().GetText({
+                        Numbering: false,
+                        Math: false,
+                        ParaSeparator: "\n",
+                        TableRowSeparator: "\n",
+                        NewLineSeparator: "\n",
+                      }) || ""
+                    ).replace(/\u00A0/g, " ");
+                  } catch (eV2) {
+                    after2 = "";
+                  }
+                  var after2Trim = String(after2 || "").replace(/[\s\u00A0]+$/g, "");
+                  if (after2Trim && after2Trim.indexOf(expected) !== -1) {
+                    return { ok: true, didReplace: true, verified: true, token: tokenNow, replLen: replNow.length, fallback: "rewrite" };
+                  }
+                } catch (eV3) {}
+              }
+
+              return { ok: false, didReplace: false, verified: false, token: tokenNow, reason: "replace_failed" };
+            }
+
+            // If not at end, fallback to inserting at cursor.
+            if (allowFallback && doc && doc.InsertText) doc.InsertText(replNow);
+            return { ok: true, didReplace: false, verified: false, token: tokenNow, reason: "token_not_at_end" };
+          } catch (e) {}
+        },
+        false,
+        true,
+        function (result) {
+          try {
+            DO.debugLog("replace_token_done", result || {});
+          } catch (e0) {}
+          try {
+            if (typeof cb === "function") cb(result || {});
+          } catch (eCb) {}
+        }
+      );
+      try {
+        DO.debugLog("replace_token", { tokenLen: t.length, replLen: rpl.length, via: "callCommand" });
+      } catch (e3) {}
+    } catch (e4) {
+      try {
+        DO.debugLog("replace_token_failed", { error: String(e4) });
+      } catch (e5) {}
+      // fallback: only insert when allowed (default true)
+      try {
+        if (fallbackInsertAtCursor) DO.editor.insertText(rpl);
+      } catch (e6) {}
+      try {
+        if (typeof cb === "function") cb({ ok: false, didReplace: false, verified: false, error: String(e4), fallback: "insertText" });
+      } catch (eCb2) {}
+    }
   };
 
   DO.editor.replaceCurrentParagraph = function (text) {
