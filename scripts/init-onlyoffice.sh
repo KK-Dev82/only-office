@@ -109,9 +109,18 @@ fi
 if [ -d "/opt/kk-plugins-src" ]; then
     echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $PLUGINS_DST..."
     cp -R /opt/kk-plugins-src/* "$PLUGINS_DST"/
-    # ตั้ง permission
+    # ตั้ง permission สำหรับ plugins ทั้งหมด (รวม translations)
     chown -R ds:ds "$PLUGINS_DST"/document-office "$PLUGINS_DST"/dictionary-abbreviation "$PLUGINS_DST"/speech-to-text "$PLUGINS_DST"/thai-spellcheck "$PLUGINS_DST"/thai-autocomplete "$PLUGINS_DST"/comment-bridge 2>/dev/null || true
     chmod -R a+rX "$PLUGINS_DST"/document-office "$PLUGINS_DST"/dictionary-abbreviation "$PLUGINS_DST"/speech-to-text "$PLUGINS_DST"/thai-spellcheck "$PLUGINS_DST"/thai-autocomplete "$PLUGINS_DST"/comment-bridge 2>/dev/null || true
+    # ตรวจสอบว่า translations directory ถูก copy แล้ว
+    echo "[KK] checking translations directories..."
+    for plugin in document-office dictionary-abbreviation speech-to-text thai-autocomplete; do
+        if [ -d "$PLUGINS_DST/$plugin/translations" ]; then
+            echo "[KK]   ✅ $plugin/translations found"
+        else
+            echo "[KK]   ⚠️  $plugin/translations not found"
+        fi
+    done
 fi
 
 # ============================================
