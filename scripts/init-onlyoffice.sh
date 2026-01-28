@@ -62,6 +62,10 @@ else
     else
         printf '{ "codes": [1054] }\n' > "$DICS_DST/th_TH.json" 2>/dev/null && echo "[KK] Created th_TH.json" || echo "[KK] Failed to create th_TH.json"
     fi
+    # Hyphenation dictionary (พจนานุกรมแยกคำ) - optional, same locale as main dict
+    if [ -f "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" ]; then
+        cp "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" "$DICS_DST/hyph_th_TH.dic" 2>/dev/null && echo "[KK] Copied hyph_th_TH.dic" || echo "[KK] Failed to copy hyph_th_TH.dic"
+    fi
 fi
 
 # แก้ไข permission

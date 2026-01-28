@@ -3,8 +3,9 @@
  *   - POST {baseUrl}/spellcheck  body: { text }
  *   - POST {baseUrl}/add-words  body: { words: [word] }
  * - Replace helpers:
- *   - executeMethod("SearchNext") + executeMethod("ReplaceCurrentWord")  -> replace next occurrence
- *   - executeMethod("SearchAndReplace")                                  -> replace all occurrences
+ *   - executeMethod("SearchNext") แล้ว callCommand: doc.SearchAndReplace() -> แทนที่ครั้งเดียว (pick / Replace next)
+ *   - callCommand: loop doc.SearchAndReplace() หรือ executeMethod("SearchAndReplace") -> แทนที่ทั้งหมด
+ *   ใช้ ApiDocument.SearchAndReplace ตาม https://api.onlyoffice.com/docs/office-api/usage-api/text-document-api/ApiDocument/Methods/SearchAndReplace/
  */
 (function (window) {
   var STORAGE_KEY_API = "tsc:v1:apiBaseUrl";
@@ -356,11 +357,12 @@
         
         console.log('[ThaiSpellcheck] 📤 Calling ReplaceCurrentWord', { replacement: s, mode: 'entirely' });
         
-        // Try callCommand as fallback if executeMethod doesn't work
+        // ใช้ callCommand + doc.SearchAndReplace (ไม่พึ่ง GetSelection / ReplaceCurrentWord)
         if (canCallCommand()) {
           try {
             window.Asc.scope = window.Asc.scope || {};
             window.Asc.scope.__tsc_replace_word = s;
+            window.Asc.scope.__tsc_replace_word_search = w;
             
             window.Asc.plugin.callCommand(
               function () {
@@ -368,22 +370,20 @@
                   var doc = Api.GetDocument();
                   if (!doc) return { ok: false };
                   
-                  var selection = Api.GetSelection();
-                  if (!selection) {
-                    console.warn('[ThaiSpellcheck] ⚠️ ReplaceCurrentWord: No selection available');
-                    return { ok: false, error: "No selection" };
-                  }
-                  
+                  var searchStr = String(Asc.scope.__tsc_replace_word_search || "");
                   var newText = String(Asc.scope.__tsc_replace_word || "");
-                  if (!newText) return { ok: false, error: "No replacement text" };
+                  if (!searchStr || !newText) return { ok: false, error: "Missing search or replacement" };
                   
-                  console.log('[ThaiSpellcheck] 🔄 ReplaceCurrentWord: Deleting selection and inserting', { newText: newText });
-                  
-                  // Delete selected text and insert new text
-                  selection.Delete();
-                  doc.InsertText(newText);
-                  
-                  return { ok: true, replaced: true };
+                  // ใช้ ApiDocument.SearchAndReplace (ไม่ใช้ Api.GetSelection ซึ่งไม่มีใน plugin context)
+                  if (doc.SearchAndReplace) {
+                    var ok = doc.SearchAndReplace({
+                      searchString: searchStr,
+                      replaceString: newText,
+                      matchCase: true,
+                    });
+                    return { ok: ok === true, replaced: ok === true };
+                  }
+                  return { ok: false, error: "SearchAndReplace not available" };
                 } catch (e) {
                   console.error('[ThaiSpellcheck] ❌ ReplaceCurrentWord callCommand error', { error: e });
                   return { ok: false, error: String(e) };
@@ -455,10 +455,14 @@
               
               if (!oldText) return { ok: false, error: "oldWord is required" };
               
-              // Use Api.SearchAndReplace if available
-              if (Api && typeof Api.SearchAndReplace === "function") {
-                Api.SearchAndReplace(oldText, newText, true); // true = replace all
-                return { ok: true, replaced: true };
+              // ใช้ ApiDocument.SearchAndReplace (หนึ่งครั้งแทนที่หนึ่งแห่ง; loop สำหรับ replace all)
+              if (doc && typeof doc.SearchAndReplace === "function") {
+                var count = 0;
+                var opts = { searchString: oldText, replaceString: newText, matchCase: true };
+                while (doc.SearchAndReplace(opts) === true) {
+                  count++;
+                }
+                return { ok: count > 0, replaced: count > 0, count: count };
               }
               
               // Fallback: Manual search and replace using paragraphs
@@ -573,22 +577,214 @@
   function doReplaceCurrentWord(word, suggestion) {
     var w = String(word || "").trim();
     var s = String(suggestion || "").trim();
-    if (!w || !s) return;
+    
+    console.log('[ThaiSpellcheck] 🔍 doReplaceCurrentWord called', {
+      word: w,
+      suggestion: s,
+      hasWord: !!w,
+      hasSuggestion: !!s,
+    });
+    
+    if (!w || !s) {
+      console.warn('[ThaiSpellcheck] ⚠️ doReplaceCurrentWord: missing word or suggestion', {
+        word: w,
+        suggestion: s,
+      });
+      return;
+    }
     
     setStatus('กำลังแทนที่ "' + w + '" → "' + s + '"...');
-    execMethod("ReplaceCurrentWord", [s, "entirely"], function () {
-      setStatus('แทนที่ "' + w + '" → "' + s + '" แล้ว');
+    
+    // Use callCommand as primary method (more reliable for text replacement)
+    if (canCallCommand()) {
+      try {
+        console.log('[ThaiSpellcheck] 📤 Calling ReplaceCurrentWord via callCommand (primary)', {
+          word: w,
+          suggestion: s,
+        });
+        
+        window.Asc.scope = window.Asc.scope || {};
+        window.Asc.scope.__tsc_replace_old = w;
+        window.Asc.scope.__tsc_replace_new = s;
+        
+        // First, get current selection text to verify
+        execMethod("GetSelectedText", [], function (selectedTextBefore) {
+          var textBefore = String(selectedTextBefore || "").trim();
+          console.log('[ThaiSpellcheck] 📝 Selected text before replace', {
+            textBefore: textBefore,
+            expectedWord: w,
+            matches: textBefore === w || textBefore.includes(w),
+          });
+          
+          window.Asc.plugin.callCommand(
+            function () {
+              try {
+                var doc = Api.GetDocument();
+                if (!doc) {
+                  console.warn('[ThaiSpellcheck] ⚠️ ReplaceCurrentWord: No document available');
+                  return { ok: false, error: "No document" };
+                }
+                
+                var oldText = String(Asc.scope.__tsc_replace_old || "");
+                var newText = String(Asc.scope.__tsc_replace_new || "");
+                
+                if (!oldText || !newText) {
+                  console.warn('[ThaiSpellcheck] ⚠️ ReplaceCurrentWord: Missing word or replacement');
+                  return { ok: false, error: "Missing search or replacement" };
+                }
+                
+                // ใช้ ApiDocument.SearchAndReplace (https://api.onlyoffice.com/.../SearchAndReplace/)
+                // ไม่ใช้ Api.GetSelection เพราะไม่มีใน plugin context
+                if (typeof doc.SearchAndReplace !== "function") {
+                  return { ok: false, error: "SearchAndReplace not available" };
+                }
+                
+                var ok = doc.SearchAndReplace({
+                  searchString: oldText,
+                  replaceString: newText,
+                  matchCase: true,
+                });
+                
+                console.log('[ThaiSpellcheck] 🔄 ReplaceCurrentWord: doc.SearchAndReplace result', {
+                  ok: ok,
+                  searchString: oldText,
+                  replaceString: newText,
+                });
+                return { ok: ok === true, replaced: ok === true, method: "SearchAndReplace" };
+              } catch (e) {
+                console.error('[ThaiSpellcheck] ❌ ReplaceCurrentWord callCommand error', {
+                  error: e,
+                  errorMessage: e ? String(e.message || e) : '',
+                });
+                return { ok: false, error: String(e) };
+              }
+            },
+            false,
+            true,
+            function (result) {
+              console.log('[ThaiSpellcheck] 📥 ReplaceCurrentWord callCommand result', {
+                result: result,
+                ok: result && result.ok,
+                replaced: result && result.replaced,
+                error: result && result.error,
+                method: result && result.method,
+              });
+              
+              // Verify replacement by reading selected text back
+              setTimeout(function () {
+                execMethod("GetSelectedText", [], function (selectedTextAfter) {
+                  var textAfter = String(selectedTextAfter || "").trim();
+                  console.log('[ThaiSpellcheck] 📝 Selected text after replace', {
+                    textAfter: textAfter,
+                    expectedNew: s,
+                    matches: textAfter === s || textAfter.includes(s),
+                  });
+                  
+                  var actuallyReplaced = result && result.ok && (textAfter === s || textAfter.includes(s));
+                  
+                  if (actuallyReplaced) {
+                    setStatus('แทนที่ "' + w + '" → "' + s + '" แล้ว');
+                    
+                    // Mark word as replaced
+                    state.replacedWords[w] = true;
+                    console.log('[ThaiSpellcheck] ✅ Word marked as replaced (verified)', {
+                      word: w,
+                      replacedWords: Object.keys(state.replacedWords),
+                    });
+                    
+                    // Update UI
+                    renderIssues(state.lastIssues);
+                    
+                    setTimeout(function () {
+                      highlightWordInDocument(s);
+                    }, 100);
+                  } else {
+                    // Try executeMethod as fallback
+                    console.log('[ThaiSpellcheck] ⚠️ callCommand did not replace correctly, trying executeMethod fallback');
+                    tryExecuteMethodReplace(w, s);
+                  }
+                });
+              }, 200);
+            }
+          );
+        });
+        return;
+      } catch (eCall) {
+        console.error('[ThaiSpellcheck] ❌ ReplaceCurrentWord callCommand failed', {
+          error: eCall,
+          errorMessage: eCall ? String(eCall.message || eCall) : '',
+        });
+        // Fall through to executeMethod
+      }
+    }
+    
+    // Fallback: Use executeMethod
+    tryExecuteMethodReplace(w, s);
+  }
+  
+  function tryExecuteMethodReplace(word, suggestion) {
+    var w = String(word || "").trim();
+    var s = String(suggestion || "").trim();
+    
+    console.log('[ThaiSpellcheck] 📤 Calling SearchAndReplace via executeMethod (fallback)', {
+      word: w,
+      suggestion: s,
+    });
+    
+    // ใช้ executeMethod("SearchAndReplace") แทน ReplaceCurrentWord (ซึ่งไม่ทำงานใน plugin)
+    execMethod("SearchAndReplace", [
+      {
+        searchString: w,
+        replaceString: s,
+        matchCase: true,
+      },
+    ], function (result) {
+      console.log('[ThaiSpellcheck] 📥 SearchAndReplace executeMethod result', {
+        result: result,
+        resultType: typeof result,
+        word: w,
+        suggestion: s,
+      });
       
-      // Mark word as replaced (will be hidden from list on next render)
-      state.replacedWords[w] = true;
-      
-      // Update UI: re-render issues to hide replaced word
-      renderIssues(state.lastIssues);
-      
-      // Highlight คำใหม่ที่ replace แล้ว (optional)
+      // Verify replacement by reading selected text back
       setTimeout(function () {
-        highlightWordInDocument(s);
-      }, 100);
+        execMethod("GetSelectedText", [], function (selectedTextAfter) {
+          var textAfter = String(selectedTextAfter || "").trim();
+          console.log('[ThaiSpellcheck] 📝 Selected text after executeMethod replace', {
+            textAfter: textAfter,
+            expectedNew: s,
+            matches: textAfter === s || textAfter.includes(s),
+          });
+          
+          var actuallyReplaced = textAfter === s || textAfter.includes(s);
+          
+          if (actuallyReplaced) {
+            setStatus('แทนที่ "' + w + '" → "' + s + '" แล้ว');
+            
+            // Mark word as replaced
+            state.replacedWords[w] = true;
+            console.log('[ThaiSpellcheck] ✅ Word marked as replaced (executeMethod verified)', {
+              word: w,
+              replacedWords: Object.keys(state.replacedWords),
+            });
+            
+            // Update UI
+            renderIssues(state.lastIssues);
+            
+            setTimeout(function () {
+              highlightWordInDocument(s);
+            }, 100);
+          } else {
+            setStatus('แทนที่ "' + w + '" → "' + s + '" ไม่สำเร็จ (ลองใช้ปุ่ม Replace next แทน)');
+            console.error('[ThaiSpellcheck] ❌ Replace failed (both methods)', {
+              word: w,
+              suggestion: s,
+              executeMethodResult: result,
+              textAfter: textAfter,
+            });
+          }
+        });
+      }, 200);
     });
   }
 
@@ -784,25 +980,86 @@
     if (results) {
       results.addEventListener("click", function (ev) {
         var target = ev && ev.target ? ev.target : null;
-        if (!target) return;
+        if (!target) {
+          console.log('[ThaiSpellcheck] 🔘 Click event: no target');
+          return;
+        }
 
         var act = target.getAttribute ? target.getAttribute("data-act") : "";
-        if (!act) return;
+        if (!act) {
+          console.log('[ThaiSpellcheck] 🔘 Click event: no data-act attribute', {
+            target: target ? {
+              tagName: target.tagName,
+              className: target.className,
+              textContent: target.textContent ? target.textContent.substring(0, 50) : '',
+            } : null,
+          });
+          return;
+        }
 
         var issueEl = target.closest ? target.closest(".tscIssue") : null;
-        if (!issueEl) return;
+        if (!issueEl) {
+          console.log('[ThaiSpellcheck] 🔘 Click event: no .tscIssue parent found', {
+            action: act,
+            target: target ? {
+              tagName: target.tagName,
+              className: target.className,
+            } : null,
+          });
+          return;
+        }
 
         var word = String(issueEl.getAttribute("data-word") || "");
-        if (!word) return;
+        if (!word) {
+          console.log('[ThaiSpellcheck] 🔘 Click event: no data-word attribute on issue element', {
+            action: act,
+            issueEl: issueEl ? {
+              className: issueEl.className,
+              innerHTML: issueEl.innerHTML ? issueEl.innerHTML.substring(0, 100) : '',
+            } : null,
+          });
+          return;
+        }
+        
+        console.log('[ThaiSpellcheck] 🔘 Click event detected', {
+          action: act,
+          word: word,
+          target: target ? {
+            tagName: target.tagName,
+            className: target.className,
+            textContent: target.textContent ? target.textContent.substring(0, 50) : '',
+          } : null,
+        });
 
         if (act === "pick") {
           var sug = String(target.getAttribute("data-sug") || "");
+          console.log('[ThaiSpellcheck] 🔘 Suggestion clicked (pick)', {
+            word: word,
+            suggestion: sug,
+            hasSuggestion: !!sug,
+            targetElement: target ? {
+              tagName: target.tagName,
+              className: target.className,
+              textContent: target.textContent ? target.textContent.substring(0, 50) : '',
+            } : null,
+          });
+          
           if (sug) {
             state.selectedSuggestionByWord[word] = sug;
+            console.log('[ThaiSpellcheck] ✅ Suggestion selected and saved', {
+              word: word,
+              suggestion: sug,
+              allSelectedSuggestions: Object.keys(state.selectedSuggestionByWord).length,
+            });
+            
             renderIssues(state.lastIssues);
             
             // Auto-replace: เมื่อเลือก suggestion → jump ไปหาคำและ replace ทันที
             setStatus('กำลังไปหาคำ "' + word + '" เพื่อแทนที่...');
+            console.log('[ThaiSpellcheck] 🔍 Starting search for word to replace', {
+              word: word,
+              suggestion: sug,
+            });
             
             // ขั้นตอนที่ 1: Jump ไปหาคำในเอกสาร
             execMethod(
@@ -815,7 +1072,15 @@
                 true,
               ],
               function (found) {
+                console.log('[ThaiSpellcheck] 📥 SearchNext result (for pick suggestion)', {
+                  word: word,
+                  found: found,
+                  foundType: typeof found,
+                });
+                
                 if (found === false) {
+                  console.log('[ThaiSpellcheck] ⚠️ Word not found from current position, trying from beginning', { word: word });
+                  
                   // ไม่เจอจากตำแหน่งปัจจุบัน → ลองหาจากต้นเอกสาร
                   try {
                     if (canCallCommand()) {
@@ -833,16 +1098,21 @@
                                 Api.SetSelection(oRange);
                               }
                             }
-                          } catch (e) {}
+                          } catch (e) {
+                            console.error('[ThaiSpellcheck] ❌ Error resetting to beginning', { error: e });
+                          }
                         },
                         false,
                         true
                       );
                     }
-                  } catch (e) {}
+                  } catch (e) {
+                    console.error('[ThaiSpellcheck] ❌ Error in callCommand for reset', { error: e });
+                  }
                   
                   // Search จากต้นเอกสาร
                   setTimeout(function () {
+                    console.log('[ThaiSpellcheck] 🔍 Searching from beginning after timeout', { word: word });
                     execMethod(
                       "SearchNext",
                       [
@@ -853,21 +1123,52 @@
                         true,
                       ],
                       function (found2) {
+                        console.log('[ThaiSpellcheck] 📥 SearchNext result (from beginning)', {
+                          word: word,
+                          found: found2,
+                          foundType: typeof found2,
+                        });
+                        
                         if (found2 === false) {
                           setStatus('ไม่พบ "' + word + '" ในเอกสาร');
+                          console.warn('[ThaiSpellcheck] ⚠️ Word not found in document', { word: word });
                           return;
                         }
-                        // พบแล้ว → แทนที่
-                        doReplaceCurrentWord(word, sug);
+                        // พบแล้ว → แทนที่ (เพิ่ม delay เพื่อให้ selection พร้อม)
+                        console.log('[ThaiSpellcheck] ✅ Word found, calling doReplaceCurrentWord after delay', {
+                          word: word,
+                          suggestion: sug,
+                        });
+                        setTimeout(function () {
+                          doReplaceCurrentWord(word, sug);
+                        }, 50);
                       }
                     );
                   }, 100);
                   return;
                 }
-                // พบแล้ว → แทนที่ทันที
-                doReplaceCurrentWord(word, sug);
+                // พบแล้ว → แทนที่ (เพิ่ม delay เพื่อให้ selection พร้อม)
+                console.log('[ThaiSpellcheck] ✅ Word found from current position, calling doReplaceCurrentWord after delay', {
+                  word: word,
+                  suggestion: sug,
+                });
+                setTimeout(function () {
+                  doReplaceCurrentWord(word, sug);
+                }, 50);
               }
             );
+          } else {
+            console.warn('[ThaiSpellcheck] ⚠️ Suggestion clicked but no suggestion value', {
+              word: word,
+              target: target ? {
+                tagName: target.tagName,
+                className: target.className,
+                attributes: target.getAttribute ? {
+                  'data-act': target.getAttribute('data-act'),
+                  'data-sug': target.getAttribute('data-sug'),
+                } : null,
+              } : null,
+            });
           }
           return;
         }

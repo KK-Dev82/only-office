@@ -204,7 +204,7 @@ echo ""
 echo "🔤 Setting up Fonts (TH Sarabun)..."
 echo "----------------------------------------"
 
-FONTS_SRC="$ONLYOFFICE_PATH/THSarabunITBold"
+FONTS_SRC="$ONLYOFFICE_PATH/THSarabunNew"
 FONTS_DST="/usr/share/fonts/truetype/th-sarabun"
 
 # ตรวจสอบว่า source มีอยู่
@@ -216,7 +216,7 @@ else
     echo "   Destination: $FONTS_DST"
     
     # ตรวจสอบว่า fonts ถูก mount แล้วหรือไม่
-    FONT_FILES=("THSarabunIT.ttf" "THSarabunITBold.ttf" "THSarabunITBoldItalic.ttf" "THSarabunITItalic.ttf")
+    FONT_FILES=("THSarabunNew.ttf" "THSarabunNewBold.ttf" "THSarabunNewBoldItalic.ttf" "THSarabunNewItalic.ttf")
     FONTS_MOUNTED=true
     
     for font in "${FONT_FILES[@]}"; do
@@ -267,7 +267,7 @@ else
             echo "   ⚠️  Fonts directory เป็น read-only (mounted volume)"
             echo "   💡 แนะนำให้ mount fonts ผ่าน docker-compose volume:"
             echo "      ใน docker-compose.staging.yml เพิ่ม:"
-            echo "      - ./only-office/THSarabunITBold:/usr/share/fonts/truetype/th-sarabun:ro"
+            echo "      - ./only-office/THSarabunNew:/usr/share/fonts/truetype/th-sarabun:ro"
             echo ""
             echo "   💡 หรือ copy ไปที่ location อื่นที่เขียนได้:"
             ALT_FONTS_DST="/var/www/onlyoffice/Data/fonts/th-sarabun"

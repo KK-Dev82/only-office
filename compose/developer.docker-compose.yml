@@ -17,8 +17,8 @@ services:
       - onlyoffice_data:/var/www/onlyoffice/Data
       - onlyoffice_logs:/var/log/onlyoffice
 
-      # --- Custom Fonts (TH Sarabun) ---
-      - ../THSarabunITBold:/usr/share/fonts/truetype/th-sarabun:ro
+      # --- Custom Fonts (TH Sarabun New) ---
+      - ../THSarabunNew:/usr/share/fonts/truetype/th-sarabun:ro
 
       # --- Plugin sources (we will copy into sdkjs-plugins on start) ---
       - ../onlyoffice-plugins:/opt/kk-plugins-src:ro
@@ -56,6 +56,10 @@ services:
               (cp "/opt/kk-dict-src/th_TH/th_TH.json" "$$DICS_DST/th_TH.json" 2>/dev/null || true)
             else
               (printf '{ "codes": [1054] }\n' > "$$DICS_DST/th_TH.json") 2>/dev/null || true
+            fi
+            # Hyphenation (พจนานุกรมแยกคำ)
+            if [ -f "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" ]; then
+              (cp "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" "$$DICS_DST/hyph_th_TH.dic" 2>/dev/null || true)
             fi
           fi
 
