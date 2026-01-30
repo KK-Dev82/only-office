@@ -107,6 +107,25 @@ body {
   align-items: center;
 }
 
+.tscRowCheck {
+  margin-bottom: 6px;
+}
+
+.tscCheckLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--tsc-fg);
+}
+
+.tscCheck {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--tsc-primary);
+}
+
 .tscInput {
   flex: 1;
   min-width: 0;

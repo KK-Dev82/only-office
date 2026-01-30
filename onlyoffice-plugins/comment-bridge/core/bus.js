@@ -95,6 +95,46 @@
             return;
           }
 
+          if (cmd === "getAllComments") {
+            if (typeof CB.editor.getAllComments !== "function") {
+              replyOk(id, { comments: [] });
+              return;
+            }
+            CB.editor.getAllComments(function (list) {
+              try {
+                replyOk(id, { comments: Array.isArray(list) ? list : [] });
+              } catch (e0) {
+                replyOk(id, { comments: [] });
+              }
+            });
+            return;
+          }
+
+          if (cmd === "setFilter") {
+            var author = payload && payload.author != null ? String(payload.author).trim() : "";
+            var nameFromPayload = (payload && payload.name != null) ? String(payload.name).trim() : "";
+            // อัปเดต filter เฉพาะเมื่อ payload มี author/name ไม่ว่าง — กัน payload ว่างเขียนทับค่าที่ได้จาก user-info
+            if (author || nameFromPayload) {
+              CB.filterByAuthor = author || nameFromPayload;
+            }
+            CB.currentUserDisplayName = (payload && payload.userDisplayName != null) ? String(payload.userDisplayName).trim() : (author || nameFromPayload || null);
+            CB.currentUserId = (payload && payload.userId != null) ? String(payload.userId).trim() : null;
+            CB.currentUserRole = (payload && payload.userRole != null) ? String(payload.userRole).trim() : null;
+            try {
+              if (typeof CB.appendOutputLine === "function") {
+                CB.appendOutputLine("--- setFilter จาก host ---");
+                CB.appendOutputLine("1. ตอนนี้ User: \"" + (CB.currentUserDisplayName || "(ไม่ระบุ)") + "\"");
+                CB.appendOutputLine("2. User Role: \"" + (CB.currentUserRole || "(ไม่ระบุ)") + "\"");
+                CB.appendOutputLine("3. จะโหลด Comment เฉพาะของผู้ใช้งานนี้");
+              }
+            } catch (e0) {}
+            try {
+              if (typeof CB.refreshComments === "function") CB.refreshComments("setFilter");
+            } catch (e1) {}
+            replyOk(id, { ok: true });
+            return;
+          }
+
           replyErr(id, "Unknown command: " + cmd);
           return;
         } catch (e) {

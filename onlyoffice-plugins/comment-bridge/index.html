@@ -7,13 +7,13 @@
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
-    <link rel="stylesheet" href="styles.css?v=0.0.1" />
-    <script type="text/javascript" src="core/ns.js?v=0.0.1"></script>
-    <script type="text/javascript" src="core/util.js?v=0.0.1"></script>
-    <script type="text/javascript" src="core/telemetry.js?v=0.0.1"></script>
-    <script type="text/javascript" src="core/editor.js?v=0.0.1"></script>
-    <script type="text/javascript" src="core/bus.js?v=0.0.1"></script>
-    <script type="text/javascript" src="bootstrap.js?v=0.0.1"></script>
+    <link rel="stylesheet" href="styles.css?v=0.0.2" />
+    <script type="text/javascript" src="core/ns.js?v=0.0.2"></script>
+    <script type="text/javascript" src="core/util.js?v=0.0.2"></script>
+    <script type="text/javascript" src="core/telemetry.js?v=0.0.2"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.0.2"></script>
+    <script type="text/javascript" src="core/bus.js?v=0.0.2"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.0.2"></script>
   </head>
   <body>
     <div class="cbRoot">
@@ -21,6 +21,10 @@
         <div>
           <div class="cbTitle">Comment Bridge</div>
           <div class="cbSub">สำหรับเชื่อม OnlyOffice comments ↔️ Web UI</div>
+          <div class="cbUserBar" id="userBar" style="display:none; margin-top:6px; font-size:12px; color:rgba(0,0,0,0.7);">
+            <span id="userBarLabel">ผู้ใช้:</span> <strong id="userBarName">—</strong>
+            <span id="userBarRoleLabel" style="margin-left:8px;">Role:</span> <span id="userBarRole">—</span>
+          </div>
         </div>
         <div class="cbStatus" id="status">loading…</div>
       </div>

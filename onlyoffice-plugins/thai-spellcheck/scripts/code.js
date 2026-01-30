@@ -9,7 +9,9 @@
  */
 (function (window) {
   var STORAGE_KEY_API = "tsc:v1:apiBaseUrl";
+  var STORAGE_KEY_AUTOCHECK = "tsc:v1:autoCheck";
   var VERSION = "0.1.0";
+  var AUTOCHECK_DEBOUNCE_MS = 600;
 
   var state = {
     apiBaseUrl: "",
@@ -17,7 +19,9 @@
     selectedSuggestionByWord: Object.create(null),
     replacedWords: Object.create(null), // Track replaced words
     inited: false,
+    autoCheckEnabled: false,
   };
+  var autoCheckDebounceTimer = null;
 
   function $(id) {
     try {
@@ -75,6 +79,19 @@
     } catch (e) {
       state.apiBaseUrl = getDefaultApiUrl();
     }
+    try {
+      var autoCheckRaw = localStorage.getItem(STORAGE_KEY_AUTOCHECK) || "";
+      state.autoCheckEnabled = autoCheckRaw === "1" || String(autoCheckRaw).toLowerCase() === "true";
+    } catch (e0) {
+      state.autoCheckEnabled = false;
+    }
+  }
+
+  function saveAutoCheckEnabled(enabled) {
+    try {
+      state.autoCheckEnabled = !!enabled;
+      localStorage.setItem(STORAGE_KEY_AUTOCHECK, state.autoCheckEnabled ? "1" : "0");
+    } catch (e) {}
   }
 
   function saveSettings(url) {
@@ -318,6 +335,47 @@
     return false;
   }
 
+  function runAutoCheck() {
+    autoCheckDebounceTimer = null;
+    if (!state.autoCheckEnabled) return;
+    if (!ensureApiConfigured()) return;
+    var modeEl = $("tscMode");
+    var mode = modeEl ? String(modeEl.value || "paragraph") : "paragraph";
+    getTextByMode(mode, function (text) {
+      var t = String(text || "").trim();
+      if (!t) {
+        renderIssues([]);
+        return;
+      }
+      setStatus("กำลังตรวจคำ (อัตโนมัติ)...");
+      apiPostJson("/spellcheck", { text: t })
+        .then(function (data) {
+          var issues = (data && data.issues) || [];
+          state.lastIssues = Array.isArray(issues) ? issues : [];
+          for (var i = 0; i < state.lastIssues.length; i++) {
+            var it = state.lastIssues[i] || {};
+            var w = String(it.word || "").trim();
+            if (!w) continue;
+            var sugs = Array.isArray(it.suggestions) ? it.suggestions : [];
+            if (!state.selectedSuggestionByWord[w] && sugs.length) {
+              state.selectedSuggestionByWord[w] = String(sugs[0] || "");
+            }
+          }
+          renderIssues(state.lastIssues);
+          setStatus("อัตโนมัติ: " + String(state.lastIssues.length) + " รายการ");
+        })
+        .catch(function (e) {
+          renderIssues([]);
+          setStatus("อัตโนมัติ: เรียก API ไม่สำเร็จ");
+        });
+    });
+  }
+
+  function scheduleAutoCheck() {
+    if (autoCheckDebounceTimer) clearTimeout(autoCheckDebounceTimer);
+    autoCheckDebounceTimer = setTimeout(runAutoCheck, AUTOCHECK_DEBOUNCE_MS);
+  }
+
   function replaceNext(word, suggestion) {
     var w = String(word || "").trim();
     var s = String(suggestion || "").trim();
@@ -558,7 +616,7 @@
     }
   }
 
-  function addWord(word) {
+  function addWord(word, onSuccess) {
     var w = String(word || "").trim();
     if (!w) return;
     if (!ensureApiConfigured()) return;
@@ -567,6 +625,7 @@
     apiPostJson("/add-words", { words: [w] })
       .then(function () {
         setStatus('เพิ่มคำ "' + w + '" แล้ว');
+        if (typeof onSuccess === "function") onSuccess(w);
       })
       .catch(function (e) {
         setStatus("เพิ่มคำไม่สำเร็จ: " + String(e && e.message ? e.message : e));
@@ -692,12 +751,11 @@
                       replacedWords: Object.keys(state.replacedWords),
                     });
                     
+                    // ยกเลิก highlight ที่ตำแหน่งที่แทนที่ (คำที่ถูกแล้ว)
+                    setTimeout(function () { clearHighlightWord(s); }, 100);
+                    
                     // Update UI
                     renderIssues(state.lastIssues);
-                    
-                    setTimeout(function () {
-                      highlightWordInDocument(s);
-                    }, 100);
                   } else {
                     // Try executeMethod as fallback
                     console.log('[ThaiSpellcheck] ⚠️ callCommand did not replace correctly, trying executeMethod fallback');
@@ -768,12 +826,11 @@
               replacedWords: Object.keys(state.replacedWords),
             });
             
+            // ยกเลิก highlight ที่ตำแหน่งที่แทนที่
+            setTimeout(function () { clearHighlightWord(s); }, 100);
+            
             // Update UI
             renderIssues(state.lastIssues);
-            
-            setTimeout(function () {
-              highlightWordInDocument(s);
-            }, 100);
           } else {
             setStatus('แทนที่ "' + w + '" → "' + s + '" ไม่สำเร็จ (ลองใช้ปุ่ม Replace next แทน)');
             console.error('[ThaiSpellcheck] ❌ Replace failed (both methods)', {
@@ -867,7 +924,8 @@
     );
   }
 
-  // Highlight word with background color (yellow/red tint for errors)
+  // Highlight word in document (แบบ Text Highlighter ของ ONLYOFFICE)
+  // อ้างอิง: onlyoffice.github.io/sdkjs-plugins/content/texthighlighter → ใช้ GetRangeBySelect + SetTextPr(TextPr.SetHighlight)
   function highlightWordInDocument(word) {
     var w = String(word || "").trim();
     if (!w) return;
@@ -884,33 +942,68 @@
             var oDocument = Api.GetDocument();
             if (!oDocument) return;
             
-            var searchWord = String(Asc.scope.__tsc_highlight_word || "");
-            if (!searchWord) return;
+            var oRange = oDocument.GetRangeBySelect ? oDocument.GetRangeBySelect() : null;
+            if (!oRange || (oRange.GetText && oRange.GetText() === "")) return;
             
-            // Get current selection (should be the word we just found)
-            var oSelection = Api.GetSelection();
-            if (!oSelection) return;
-            
-            // Apply background color (light red/yellow for error indication)
-            // Color: RGB(255, 235, 235) - light red tint
-            var oFill = Api.CreateColorFill();
-            oFill.SetColor(255, 235, 235); // Light red background
-            oSelection.SetFill(oFill);
-            
-            // Optional: Also add underline
-            // var oPr = Api.CreateParagraphPr();
-            // oPr.SetUnderline(true);
-            // oSelection.SetParagraphPr(oPr);
-          } catch (e) {
-            // Silently fail if highlighting not supported
-          }
+            // ใช้ ApiTextPr + SetHighlight เหมือน plugin Text Highlighter (red = คำผิด)
+            var textPr = Api.CreateTextPr();
+            if (textPr && textPr.SetHighlight) {
+              textPr.SetHighlight("red");
+              oRange.SetTextPr(textPr);
+            } else if (oRange.SetFill) {
+              var oFill = Api.CreateColorFill();
+              oFill.SetColor(255, 235, 235);
+              oRange.SetFill(oFill);
+            }
+          } catch (e) {}
         },
         false,
         true
       );
-    } catch (e) {
-      // Silently fail
-    }
+    } catch (e) {}
+  }
+
+  // ลบ highlight จากคำที่กำหนด (SetHighlight("none") ตาม API ONLYOFFICE)
+  function clearHighlightWord(word) {
+    var w = String(word || "").trim();
+    if (!w) return;
+    
+    try {
+      if (!canCallCommand()) return;
+      
+      execMethod(
+        "SearchNext",
+        [
+          { searchString: w, matchCase: false },
+          true,
+        ],
+        function (found) {
+          if (found === false) return;
+          
+          window.Asc.plugin.callCommand(
+            function () {
+              try {
+                var oDocument = Api.GetDocument();
+                if (!oDocument) return;
+                
+                var oRange = oDocument.GetRangeBySelect ? oDocument.GetRangeBySelect() : null;
+                if (!oRange) return;
+                
+                var textPr = Api.CreateTextPr();
+                if (textPr && textPr.SetHighlight) {
+                  textPr.SetHighlight("none");
+                  oRange.SetTextPr(textPr);
+                } else if (oRange.SetFill) {
+                  oRange.SetFill(null);
+                }
+              } catch (e) {}
+            },
+            false,
+            true
+          );
+        }
+      );
+    } catch (e) {}
   }
 
   function wireEvents() {
@@ -918,6 +1011,14 @@
     var btnCheck = $("tscBtnCheck");
     var apiInput = $("tscApiUrl");
     var btnClose = $("tscBtnClose");
+    var autoCheckEl = $("tscAutoCheck");
+
+    if (autoCheckEl) {
+      autoCheckEl.addEventListener("change", function () {
+        saveAutoCheckEnabled(autoCheckEl.checked);
+        if (state.autoCheckEnabled) scheduleAutoCheck();
+      });
+    }
 
     if (btnClose) {
       btnClose.addEventListener("click", function () {
@@ -1181,7 +1282,13 @@
 
         var chosen = String(state.selectedSuggestionByWord[word] || "");
         if (act === "add") {
-          addWord(word);
+          addWord(word, function (ignoredWord) {
+            clearHighlightWord(ignoredWord);
+            state.lastIssues = (state.lastIssues || []).filter(function (it) {
+              return String(it.word || "").trim() !== ignoredWord;
+            });
+            renderIssues(state.lastIssues);
+          });
           return;
         }
         if (act === "next") {
@@ -1223,6 +1330,11 @@
       if (apiInput) apiInput.value = state.apiBaseUrl || "";
     } catch (e1) {}
 
+    try {
+      var autoCheckEl = $("tscAutoCheck");
+      if (autoCheckEl) autoCheckEl.checked = !!state.autoCheckEnabled;
+    } catch (e2) {}
+
     wireEvents();
     setStatus("พร้อม");
   };
@@ -1235,9 +1347,9 @@
     } catch (e) {}
   };
 
-  // Optional: keep UX tidy when selection changes (no auto-check)
+  // ตรวจคำอัตโนมัติเมื่อเคอร์เซอร์/selection เปลี่ยน (debounce ย่อหน้าปัจจุบัน)
   window.Asc.plugin.event_onSelectionChanged = function () {
-    // noop (reserved for future "auto preview current word")
+    if (state.autoCheckEnabled) scheduleAutoCheck();
   };
 })(window);
 
