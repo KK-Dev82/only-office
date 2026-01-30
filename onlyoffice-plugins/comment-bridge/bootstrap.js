@@ -168,6 +168,14 @@
             currentUser: CB.currentUserDisplayName != null ? CB.currentUserDisplayName : "(รอจาก host)",
             userRole: CB.currentUserRole != null ? CB.currentUserRole : "(รอจาก host)",
           });
+          // บันทึก comment ของผู้ใช้ไปยัง Backend (Plugin → API บันทึก comment)
+          if (typeof CB.saveCommentToBackend === "function") {
+            for (var i = 0; i < arr.length; i++) {
+              var c = arr[i] || {};
+              var id = String(c.id || "").trim();
+              if (id) CB.saveCommentToBackend(id, c.text || "", c.quote || "");
+            }
+          }
         } catch (e1) {
           try {
             CB.setStatus("error");
@@ -180,6 +188,37 @@
         CB.setStatus("error");
         CB.appendOutputLine("refreshComments exception: " + String(e3));
       } catch (e4) {}
+    }
+  };
+
+  // บันทึก comment ไปยัง Backend (Plugin → API บันทึก comment, Frontend ดึงจาก Backend)
+  CB.saveCommentToBackend = function (commentId, text, quoteText) {
+    var documentId = (typeof window.__CB_DOCUMENT_ID__ !== "undefined" && window.__CB_DOCUMENT_ID__ != null)
+      ? String(window.__CB_DOCUMENT_ID__).trim() : "";
+    var token = (typeof window.__CB_TOKEN__ !== "undefined" && window.__CB_TOKEN__ != null)
+      ? String(window.__CB_TOKEN__).trim() : "";
+    var apiBase = (typeof window.__CB_API_BASE__ !== "undefined" && window.__CB_API_BASE__ != null)
+      ? String(window.__CB_API_BASE__).trim().replace(/\/+$/, "") + "/" : "";
+    if (!documentId || !token || !commentId) return;
+    var url = apiBase + "api/onlyoffice/comment-bridge/save-comment?token=" + encodeURIComponent(token);
+    var body = JSON.stringify({
+      documentId: documentId,
+      commentId: commentId,
+      text: text || "",
+      quoteText: quoteText || "",
+    });
+    try {
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body,
+      }).then(function (res) {
+        if (!res.ok) CB.appendOutputLine("save-comment API error: " + res.status);
+      }).catch(function (err) {
+        CB.appendOutputLine("save-comment fetch error: " + String(err));
+      });
+    } catch (e) {
+      CB.appendOutputLine("save-comment exception: " + String(e));
     }
   };
 

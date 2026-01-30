@@ -137,7 +137,9 @@
   background: rgba(0, 0, 0, 0.02);
 }
 
+/* Debug ปิด — ไม่แสดง panel (เปิดได้โดยเปลี่ยน display: none เป็น display: block) */
 .cbDebug {
+  display: none;
   margin-top: 10px;
 }
 .cbDebug > summary {

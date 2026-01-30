@@ -924,43 +924,11 @@
     );
   }
 
-  // Highlight word in document (แบบ Text Highlighter ของ ONLYOFFICE)
-  // อ้างอิง: onlyoffice.github.io/sdkjs-plugins/content/texthighlighter → ใช้ GetRangeBySelect + SetTextPr(TextPr.SetHighlight)
+  // Jump to word in document — เลือก/ไปที่คำ (ไม่ใส่ highlight แดงแล้ว)
   function highlightWordInDocument(word) {
     var w = String(word || "").trim();
     if (!w) return;
-    
-    try {
-      if (!canCallCommand()) return;
-      
-      window.Asc.scope = window.Asc.scope || {};
-      window.Asc.scope.__tsc_highlight_word = w;
-      
-      window.Asc.plugin.callCommand(
-        function () {
-          try {
-            var oDocument = Api.GetDocument();
-            if (!oDocument) return;
-            
-            var oRange = oDocument.GetRangeBySelect ? oDocument.GetRangeBySelect() : null;
-            if (!oRange || (oRange.GetText && oRange.GetText() === "")) return;
-            
-            // ใช้ ApiTextPr + SetHighlight เหมือน plugin Text Highlighter (red = คำผิด)
-            var textPr = Api.CreateTextPr();
-            if (textPr && textPr.SetHighlight) {
-              textPr.SetHighlight("red");
-              oRange.SetTextPr(textPr);
-            } else if (oRange.SetFill) {
-              var oFill = Api.CreateColorFill();
-              oFill.SetColor(255, 235, 235);
-              oRange.SetFill(oFill);
-            }
-          } catch (e) {}
-        },
-        false,
-        true
-      );
-    } catch (e) {}
+    // SearchNext ทำให้เลือกคำอยู่แล้ว — ไม่ใส่ highlight แดงในเอกสาร
   }
 
   // ลบ highlight จากคำที่กำหนด (SetHighlight("none") ตาม API ONLYOFFICE)

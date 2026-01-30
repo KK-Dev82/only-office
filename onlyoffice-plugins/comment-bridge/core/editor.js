@@ -146,6 +146,9 @@
 
     execWithTimeout("AddComment", [commentData], 1200, function (commentId) {
       try {
+        if (commentId && window.CB && typeof window.CB.saveCommentToBackend === "function") {
+          window.CB.saveCommentToBackend(commentId, text, quoteText || "");
+        }
         cb && cb(commentId || null);
       } catch (e) {}
     });
@@ -179,6 +182,9 @@
     try {
       exec("ChangeComment", [id, commentData], function () {
         try {
+          if (window.CB && typeof window.CB.saveCommentToBackend === "function") {
+            window.CB.saveCommentToBackend(id, text, quoteText || "");
+          }
           cb && cb(true);
         } catch (e1) {}
       });
