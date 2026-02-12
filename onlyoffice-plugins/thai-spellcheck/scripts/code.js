@@ -9,19 +9,17 @@
  */
 (function (window) {
   var STORAGE_KEY_API = "tsc:v1:apiBaseUrl";
-  var STORAGE_KEY_AUTOCHECK = "tsc:v1:autoCheck";
+  var STORAGE_KEY_IGNORED = "tsc:v1:ignoredWords";
   var VERSION = "0.1.0";
-  var AUTOCHECK_DEBOUNCE_MS = 600;
 
   var state = {
     apiBaseUrl: "",
     lastIssues: [],
     selectedSuggestionByWord: Object.create(null),
     replacedWords: Object.create(null), // Track replaced words
+    ignoredWords: Object.create(null), // คำที่กด Ignore (เก็บใน sessionStorage = ล้างเมื่อปิด browser)
     inited: false,
-    autoCheckEnabled: false,
   };
-  var autoCheckDebounceTimer = null;
 
   function $(id) {
     try {
@@ -79,19 +77,43 @@
     } catch (e) {
       state.apiBaseUrl = getDefaultApiUrl();
     }
+    loadIgnoredWords();
+  }
+
+  function loadIgnoredWords() {
     try {
-      var autoCheckRaw = localStorage.getItem(STORAGE_KEY_AUTOCHECK) || "";
-      state.autoCheckEnabled = autoCheckRaw === "1" || String(autoCheckRaw).toLowerCase() === "true";
-    } catch (e0) {
-      state.autoCheckEnabled = false;
+      var storage = typeof sessionStorage !== "undefined" ? sessionStorage : (typeof localStorage !== "undefined" ? localStorage : null);
+      var raw = storage ? storage.getItem(STORAGE_KEY_IGNORED) || "[]" : "[]";
+      var arr = [];
+      try {
+        arr = JSON.parse(raw);
+      } catch (e0) {}
+      state.ignoredWords = Object.create(null);
+      if (Array.isArray(arr)) {
+        for (var i = 0; i < arr.length; i++) {
+          var w = String(arr[i] || "").trim();
+          if (w) state.ignoredWords[w] = true;
+        }
+      }
+    } catch (e) {
+      state.ignoredWords = Object.create(null);
     }
   }
 
-  function saveAutoCheckEnabled(enabled) {
+  function saveIgnoredWords() {
     try {
-      state.autoCheckEnabled = !!enabled;
-      localStorage.setItem(STORAGE_KEY_AUTOCHECK, state.autoCheckEnabled ? "1" : "0");
+      var storage = typeof sessionStorage !== "undefined" ? sessionStorage : (typeof localStorage !== "undefined" ? localStorage : null);
+      if (!storage) return;
+      var arr = Object.keys(state.ignoredWords || {}).filter(Boolean);
+      storage.setItem(STORAGE_KEY_IGNORED, JSON.stringify(arr));
     } catch (e) {}
+  }
+
+  function addToIgnoredWords(word) {
+    var w = String(word || "").trim();
+    if (!w) return;
+    state.ignoredWords[w] = true;
+    saveIgnoredWords();
   }
 
   function saveSettings(url) {
@@ -286,7 +308,9 @@
       
       // Skip words that have been replaced
       if (state.replacedWords[word]) continue;
-      
+      // Skip words that user chose to ignore (localStorage)
+      if (state.ignoredWords[word]) continue;
+
       var sugs = Array.isArray(it.suggestions) ? it.suggestions : [];
       var chosen = state.selectedSuggestionByWord[word];
       if (!chosen && sugs.length) chosen = String(sugs[0] || "");
@@ -296,6 +320,7 @@
       html += '  <div class="tscIssueTop">';
       html += '    <div class="tscWord" data-act="jump" title="คลิกเพื่อไปที่คำนี้ในเอกสาร">' + escapeHtml(word) + "</div>";
       html += '    <div class="tscActions">';
+      html += '      <button class="tscSmallBtn" data-act="ignore" title="ข้ามคำนี้ (จำใน session จนปิด browser)">Ignore</button>';
       html += '      <button class="tscSmallBtn" data-act="add">Add word</button>';
       html += '      <button class="tscSmallBtn" data-act="next">Replace next</button>';
       html += '      <button class="tscSmallBtn" data-act="all">Replace all</button>';
@@ -333,47 +358,6 @@
     if (base) return true;
     setStatus("กรุณาตั้งค่า Spellcheck API URL ก่อน");
     return false;
-  }
-
-  function runAutoCheck() {
-    autoCheckDebounceTimer = null;
-    if (!state.autoCheckEnabled) return;
-    if (!ensureApiConfigured()) return;
-    var modeEl = $("tscMode");
-    var mode = modeEl ? String(modeEl.value || "paragraph") : "paragraph";
-    getTextByMode(mode, function (text) {
-      var t = String(text || "").trim();
-      if (!t) {
-        renderIssues([]);
-        return;
-      }
-      setStatus("กำลังตรวจคำ (อัตโนมัติ)...");
-      apiPostJson("/spellcheck", { text: t })
-        .then(function (data) {
-          var issues = (data && data.issues) || [];
-          state.lastIssues = Array.isArray(issues) ? issues : [];
-          for (var i = 0; i < state.lastIssues.length; i++) {
-            var it = state.lastIssues[i] || {};
-            var w = String(it.word || "").trim();
-            if (!w) continue;
-            var sugs = Array.isArray(it.suggestions) ? it.suggestions : [];
-            if (!state.selectedSuggestionByWord[w] && sugs.length) {
-              state.selectedSuggestionByWord[w] = String(sugs[0] || "");
-            }
-          }
-          renderIssues(state.lastIssues);
-          setStatus("อัตโนมัติ: " + String(state.lastIssues.length) + " รายการ");
-        })
-        .catch(function (e) {
-          renderIssues([]);
-          setStatus("อัตโนมัติ: เรียก API ไม่สำเร็จ");
-        });
-    });
-  }
-
-  function scheduleAutoCheck() {
-    if (autoCheckDebounceTimer) clearTimeout(autoCheckDebounceTimer);
-    autoCheckDebounceTimer = setTimeout(runAutoCheck, AUTOCHECK_DEBOUNCE_MS);
   }
 
   function replaceNext(word, suggestion) {
@@ -979,14 +963,6 @@
     var btnCheck = $("tscBtnCheck");
     var apiInput = $("tscApiUrl");
     var btnClose = $("tscBtnClose");
-    var autoCheckEl = $("tscAutoCheck");
-
-    if (autoCheckEl) {
-      autoCheckEl.addEventListener("change", function () {
-        saveAutoCheckEnabled(autoCheckEl.checked);
-        if (state.autoCheckEnabled) scheduleAutoCheck();
-      });
-    }
 
     if (btnClose) {
       btnClose.addEventListener("click", function () {
@@ -1006,14 +982,18 @@
     if (btnCheck) {
       btnCheck.addEventListener("click", function () {
         if (!ensureApiConfigured()) return;
+        // เคลียร์คำผิดเก่าและผลการตรวจก่อน (กดตรวจทาน = เริ่มรอบใหม่)
+        state.lastIssues = [];
+        state.replacedWords = Object.create(null);
+        state.selectedSuggestionByWord = Object.create(null);
+        renderIssues([]);
+        setStatus("กำลังอ่านข้อความ...");
         var modeEl = $("tscMode");
         var mode = modeEl ? String(modeEl.value || "selection") : "selection";
-        setStatus("กำลังอ่านข้อความ...");
         getTextByMode(mode, function (text) {
           var t = String(text || "").trim();
           if (!t) {
             setStatus("ไม่มีข้อความให้ตรวจ (ลองเลือกข้อความก่อน)");
-            renderIssues([]);
             return;
           }
           setStatus("กำลังตรวจคำ...");
@@ -1021,7 +1001,6 @@
             .then(function (data) {
               var issues = (data && data.issues) || [];
               state.lastIssues = Array.isArray(issues) ? issues : [];
-              // Preselect suggestion for each word
               for (var i = 0; i < state.lastIssues.length; i++) {
                 var it = state.lastIssues[i] || {};
                 var w = String(it.word || "").trim();
@@ -1031,8 +1010,6 @@
                   state.selectedSuggestionByWord[w] = String(sugs[0] || "");
                 }
               }
-              // Reset replaced words when starting new check
-              state.replacedWords = Object.create(null);
               renderIssues(state.lastIssues);
               setStatus("เสร็จแล้ว (" + String(state.lastIssues.length) + " รายการ)");
             })
@@ -1249,6 +1226,12 @@
         }
 
         var chosen = String(state.selectedSuggestionByWord[word] || "");
+        if (act === "ignore") {
+          addToIgnoredWords(word);
+          setStatus('ข้ามคำ "' + word + '" แล้ว (จำจนปิดแท็บ/เบราว์เซอร์)');
+          renderIssues(state.lastIssues);
+          return;
+        }
         if (act === "add") {
           addWord(word, function (ignoredWord) {
             clearHighlightWord(ignoredWord);
@@ -1298,11 +1281,6 @@
       if (apiInput) apiInput.value = state.apiBaseUrl || "";
     } catch (e1) {}
 
-    try {
-      var autoCheckEl = $("tscAutoCheck");
-      if (autoCheckEl) autoCheckEl.checked = !!state.autoCheckEnabled;
-    } catch (e2) {}
-
     wireEvents();
     setStatus("พร้อม");
   };
@@ -1315,9 +1293,5 @@
     } catch (e) {}
   };
 
-  // ตรวจคำอัตโนมัติเมื่อเคอร์เซอร์/selection เปลี่ยน (debounce ย่อหน้าปัจจุบัน)
-  window.Asc.plugin.event_onSelectionChanged = function () {
-    if (state.autoCheckEnabled) scheduleAutoCheck();
-  };
 })(window);
 
