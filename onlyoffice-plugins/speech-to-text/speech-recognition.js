@@ -211,10 +211,10 @@
             // ถ้าเราไม่ resync จะทำให้ prefix mismatch ต่อเนื่องและเหมือนหยุด insert จนกว่าจะได้ final
             // ทางแก้: resync stream state (ไม่ append ในรอบนี้) แล้วให้รอบถัดไป append ต่อได้ทันที
             STT._prevStreamText = interimFmt;
-          } else if (!interimFmt) {
-            // reset between phrases
-            STT._prevStreamText = "";
           }
+          // อย่า reset _prevStreamText เมื่อ interim ว่าง: event ตอนหยุดพูดมักมีแค่ final (interim = "")
+          // ถ้า reset ตรงนี้ บล็อก final จะเห็น already2 = "" แล้วไป append ทั้งก้อน final ซ้ำกับที่ interim append ไปแล้ว
+          // การ reset ทำในบล็อก final หลังใช้ _prevStreamText คำนวณ remain แล้วเท่านั้น
         }
       } catch (eLive) {}
 

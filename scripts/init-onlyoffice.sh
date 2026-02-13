@@ -137,7 +137,31 @@ if [ -d "/opt/kk-example-src/files" ]; then
 fi
 
 # ============================================
-# 5. Start DocumentServer (ถ้ารันจาก init)
+# 5. Locale: sync en.json / th.json → documenteditor/main/locale (แก้ 404 ภาษาไทย)
+# ============================================
+if [ -d "/opt/kk-locale-src" ]; then
+    echo "[KK] syncing locale (documenteditor/main/locale)..."
+    sync_locale_to() {
+        local d="$1"
+        [ -n "$d" ] || return 0
+        mkdir -p "$d"
+        for f in /opt/kk-locale-src/*.json; do
+            [ -f "$f" ] && cp "$f" "$d/" 2>/dev/null || true
+        done
+    }
+    for LOCALE_DST in $(find /var/www/onlyoffice/documentserver -type d -path "*/documenteditor/main/locale" 2>/dev/null); do
+        sync_locale_to "$LOCALE_DST"
+    done
+    for vdir in /var/www/onlyoffice/documentserver/[0-9]*; do
+        [ -d "$vdir" ] || continue
+        sync_locale_to "$vdir/web-apps/apps/documenteditor/main/locale"
+    done
+    sync_locale_to "/var/www/onlyoffice/documentserver/web-apps/apps/documenteditor/main/locale"
+    echo "[KK] Locale (documenteditor/main/locale) synced."
+fi
+
+# ============================================
+# 6. Start DocumentServer (ถ้ารันจาก init)
 # ============================================
 if [ "$IN_CONTAINER" = true ] && [ "${1:-}" != "sync-only" ]; then
     echo "[KK] Starting DocumentServer..."
