@@ -2,6 +2,12 @@
 (function () {
   var DO = (window.DO = window.DO || {});
 
+  // รวมบรรทัดเป็นข้อความต่อเนื่อง (ภาษาไทย: ไม่ขึ้นบรรทัดใหม่ทุก \n) ให้ไหลจนชิดขอบขวาก่อนขึ้นบรรทัด
+  function normalizeTextForInsert(str) {
+    if (str == null || typeof str !== "string") return "";
+    return str.replace(/\r\n|\r|\n/g, " ").replace(/\s+/g, " ").trim();
+  }
+
   function mergeOptions(payload) {
     if (!payload || typeof payload !== "object") return;
     DO.pluginOptions = DO.pluginOptions || {};
@@ -79,7 +85,7 @@
           }
 
           if (cmd === "insertText") {
-            DO.editor.insertText((payload && payload.text) || "");
+            DO.editor.insertText(normalizeTextForInsert((payload && payload.text) || ""));
             replyOk(id, true);
             return;
           }
@@ -93,7 +99,7 @@
               }
             } catch (e0) {}
             try {
-              DO.editor.appendToDocumentEnd((payload && payload.text) || "", { forceNewParagraph: true });
+              DO.editor.appendToDocumentEnd(normalizeTextForInsert((payload && payload.text) || ""), { forceNewParagraph: true });
               // Try to reply immediately (Community License may not support SendExternalMessage)
               // If reply fails, the text was still inserted (best-effort)
               try {
@@ -214,7 +220,7 @@
       }
 
       if (type === "insertText") {
-        DO.editor.insertText(msg.text || "");
+        DO.editor.insertText(normalizeTextForInsert(msg.text || ""));
         return;
       }
 
@@ -226,7 +232,7 @@
           }
         } catch (e0) {}
         try {
-          DO.editor.appendToDocumentEnd(msg.text || "", { forceNewParagraph: true });
+          DO.editor.appendToDocumentEnd(normalizeTextForInsert(msg.text || ""), { forceNewParagraph: true });
           try {
             if (DO && DO.isLogsEnabled && DO.isLogsEnabled()) {
               // eslint-disable-next-line no-console

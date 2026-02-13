@@ -23,22 +23,11 @@
       </header>
 
       <section class="tscSection">
-        <div class="tscLabel">Spellcheck API URL</div>
-        <div class="tscRow">
-          <input id="tscApiUrl" class="tscInput" placeholder="เช่น http://localhost:8000 (dev) หรือ origin (prod)" />
-          <button id="tscBtnSave" class="tscBtn" type="button">Save</button>
-        </div>
-        <div class="tscHint">
-          Endpoint ที่ใช้คือ <code>/spellcheck</code> และ <code>/add-words</code>
-        </div>
-      </section>
-
-      <section class="tscSection">
         <div class="tscRow">
           <select id="tscMode" class="tscSelect" title="โหมดตรวจ">
             <option value="selection">ตรวจเฉพาะข้อความที่เลือก</option>
             <option value="sentence">ตรวจประโยคปัจจุบัน</option>
-            <option value="paragraph">ตรวจกำลังย่อหน้าปัจจุบัน</option>
+            <option value="paragraph">ตรวจย่อหน้าปัจจุบัน</option>
           </select>
           <button id="tscBtnCheck" class="tscBtnPrimary" type="button">ตรวจคำ</button>
         </div>

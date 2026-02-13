@@ -16,10 +16,18 @@
     apiBaseUrl: "",
     lastIssues: [],
     selectedSuggestionByWord: Object.create(null),
-    replacedWords: Object.create(null), // Track replaced words
-    ignoredWords: Object.create(null), // คำที่กด Ignore (เก็บใน sessionStorage = ล้างเมื่อปิด browser)
+    replacedWords: Object.create(null),
+    ignoredWords: Object.create(null),
+    dictionaryWords: [],
+    dictionaryByLength: null, // { length: [words] } สำหรับ Fuzzy Match ให้เร็วขึ้น
     inited: false,
   };
+
+  // Dictionary API: อ้างอิง dictionary-abbreviation (remote_sync) — เฉพาะ Dictionary ไม่รวมคำย่อ
+  var DICTIONARY_API_PATH = "api/word-management/dictionary?language=thai&limit=2000&includeGlobal=true";
+  var FUZZY_MAX_DISTANCE = 2;
+  var FUZZY_MAX_SUGGESTIONS = 5;
+  var FUZZY_MAX_LENGTH_DIFF = 2;
 
   function $(id) {
     try {
@@ -247,6 +255,116 @@
     getCurrentParagraphText(function (t) {
       cb && cb(String(t || ""));
     });
+  }
+
+  function getDictionaryUrl() {
+    try {
+      var origin = window.location.origin || "";
+      var path = DICTIONARY_API_PATH.replace(/^\/+/, "");
+      return origin ? origin + "/" + path : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function fetchDictionaryWords() {
+    var url = getDictionaryUrl();
+    if (!url) return Promise.resolve([]);
+    return fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } })
+      .then(function (r) {
+        if (!r || !r.ok) return [];
+        return r.json();
+      })
+      .then(function (payload) {
+        var list = (payload && payload.data) || (payload && payload.Data) || payload;
+        if (!Array.isArray(list)) return [];
+        var words = [];
+        var byLength = Object.create(null);
+        var seen = Object.create(null);
+        for (var i = 0; i < list.length; i++) {
+          var w = String((list[i] && (list[i].word || list[i].Word)) || "").trim();
+          if (!w) continue;
+          var k = w.toLowerCase();
+          if (seen[k]) continue;
+          seen[k] = true;
+          words.push(w);
+          var len = w.length;
+          if (!byLength[len]) byLength[len] = [];
+          byLength[len].push(w);
+        }
+        return { words: words, byLength: byLength };
+      })
+      .catch(function () {
+        return { words: [], byLength: {} };
+      });
+  }
+
+  function levenshtein(a, b) {
+    a = String(a || "");
+    b = String(b || "");
+    var an = a.length;
+    var bn = b.length;
+    if (an === 0) return bn;
+    if (bn === 0) return an;
+    var row0 = [];
+    var row1 = [];
+    var i, j;
+    for (j = 0; j <= an; j++) row0[j] = j;
+    for (i = 1; i <= bn; i++) {
+      row1[0] = i;
+      for (j = 1; j <= an; j++) {
+        var cost = b.charAt(i - 1) === a.charAt(j - 1) ? 0 : 1;
+        row1[j] = Math.min(
+          row1[j - 1] + 1,
+          row0[j] + 1,
+          row0[j - 1] + cost
+        );
+      }
+      var tmp = row0;
+      row0 = row1;
+      row1 = tmp;
+    }
+    return row0[an];
+  }
+
+  function fuzzyMatchDictionary(word, dictWords, existingSet, byLength) {
+    var w = String(word || "").trim();
+    if (!w) return [];
+    var existing = existingSet || Object.create(null);
+    var candidates = [];
+    var wLen = w.length;
+    var listToCheck = [];
+    if (byLength && typeof byLength === "object") {
+      for (var len = wLen - FUZZY_MAX_LENGTH_DIFF; len <= wLen + FUZZY_MAX_LENGTH_DIFF; len++) {
+        if (len < 1) continue;
+        var bucket = byLength[len];
+        if (Array.isArray(bucket)) {
+          for (var b = 0; b < bucket.length; b++) listToCheck.push(bucket[b]);
+        }
+      }
+    } else if (Array.isArray(dictWords) && dictWords.length) {
+      for (var i = 0; i < dictWords.length; i++) {
+        var d = String(dictWords[i] || "").trim();
+        if (!d) continue;
+        if (Math.abs(d.length - wLen) <= FUZZY_MAX_LENGTH_DIFF) listToCheck.push(d);
+      }
+    }
+    for (var i = 0; i < listToCheck.length; i++) {
+      var d = String(listToCheck[i] || "").trim();
+      if (!d || d === w) continue;
+      if (existing[d]) continue;
+      var dist = levenshtein(w, d);
+      if (dist > FUZZY_MAX_DISTANCE) continue;
+      candidates.push({ word: d, distance: dist });
+    }
+    candidates.sort(function (x, y) {
+      return x.distance - y.distance || x.word.length - y.word.length;
+    });
+    var out = [];
+    for (var j = 0; j < candidates.length && out.length < FUZZY_MAX_SUGGESTIONS; j++) {
+      out.push(candidates[j].word);
+    }
+    return out;
   }
 
   function apiPostJson(path, body) {
@@ -997,8 +1115,22 @@
             return;
           }
           setStatus("กำลังตรวจคำ...");
-          apiPostJson("/spellcheck", { text: t })
-            .then(function (data) {
+          var t0 = Date.now();
+          Promise.all([
+            apiPostJson("/spellcheck", { text: t }),
+            fetchDictionaryWords(),
+          ])
+            .then(function (results) {
+              var data = results[0];
+              var dictResult = results[1] || {};
+              var dictWords = dictResult.words || [];
+              var byLength = dictResult.byLength || null;
+              if (!Array.isArray(dictWords) && typeof dictResult === "object" && !dictResult.words) {
+                dictWords = [];
+                byLength = null;
+              }
+              state.dictionaryWords = dictWords;
+              state.dictionaryByLength = byLength;
               var issues = (data && data.issues) || [];
               state.lastIssues = Array.isArray(issues) ? issues : [];
               for (var i = 0; i < state.lastIssues.length; i++) {
@@ -1006,12 +1138,25 @@
                 var w = String(it.word || "").trim();
                 if (!w) continue;
                 var sugs = Array.isArray(it.suggestions) ? it.suggestions : [];
+                var existingSet = Object.create(null);
+                for (var k = 0; k < sugs.length; k++) {
+                  var s = String(sugs[k] || "").trim();
+                  if (s) existingSet[s] = true;
+                }
+                var fuzzy = fuzzyMatchDictionary(w, dictWords, existingSet, byLength);
+                for (var f = 0; f < fuzzy.length; f++) {
+                  sugs.push(fuzzy[f]);
+                }
+                it.suggestions = sugs;
                 if (!state.selectedSuggestionByWord[w] && sugs.length) {
                   state.selectedSuggestionByWord[w] = String(sugs[0] || "");
                 }
               }
               renderIssues(state.lastIssues);
               setStatus("เสร็จแล้ว (" + String(state.lastIssues.length) + " รายการ)");
+              try {
+                console.log("[ThaiSpellcheck] ตรวจคำใช้เวลา " + (Date.now() - t0) + " ms");
+              } catch (e) {}
             })
             .catch(function (e) {
               renderIssues([]);

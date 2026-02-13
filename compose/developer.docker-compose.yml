@@ -33,6 +33,9 @@ services:
       # --- Example files (sample.docx for /example/files/...) ---
       - ../example:/opt/kk-example-src:ro
 
+      # --- Document Editor locale (แก้ 404 web-apps/apps/documenteditor/main/locale/th.json, en.json) ---
+      - ./locale:/opt/kk-locale-src:ro
+
     command:
       - /bin/bash
       - -lc
@@ -116,6 +119,32 @@ services:
         mkdir -p "$$EXAMPLE_DST"
         if [ -d "/opt/kk-example-src/files" ]; then
           cp -R /opt/kk-example-src/files/* "$$EXAMPLE_DST"/ 2>/dev/null || true
+        fi
+
+        # Locale: copy en.json / th.json เพื่อแก้ 404 web-apps/apps/documenteditor/main/locale/* (ภาษาไทย)
+        # URL ที่ขอเป็นแบบ /9.2.1-<hash>/web-apps/apps/documenteditor/main/locale/th.json
+        if [ -d "/opt/kk-locale-src" ]; then
+          sync_locale_to() {
+            local d="$$1"
+            [ -n "$$d" ] || return 0
+            mkdir -p "$$d"
+            for f in /opt/kk-locale-src/*.json; do
+              [ -f "$$f" ] && cp "$$f" "$$d/" 2>/dev/null || true
+            done
+          }
+          # 1) find ทุกโฟลเดอร์ documenteditor/main/locale
+          for LOCALE_DST in $(find /var/www/onlyoffice/documentserver -type d -path "*/documenteditor/main/locale" 2>/dev/null); do
+            sync_locale_to "$$LOCALE_DST"
+          done
+          # 2) รองรับ path แบบมีเวอร์ชัน: documentserver/9.2.1-xxx/web-apps/apps/documenteditor/main/locale
+          for vdir in /var/www/onlyoffice/documentserver/[0-9]*; do
+            [ -d "$$vdir" ] || continue
+            LOCALE_DST="$$vdir/web-apps/apps/documenteditor/main/locale"
+            sync_locale_to "$$LOCALE_DST"
+          done
+          # 3) fallback: path ไม่มีเวอร์ชัน
+          sync_locale_to "/var/www/onlyoffice/documentserver/web-apps/apps/documenteditor/main/locale"
+          echo "[KK] Locale (documenteditor/main/locale) synced."
         fi
 
         if [ -x /app/run-document-server.sh ]; then
