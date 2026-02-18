@@ -29,6 +29,9 @@ services:
       # --- Example files (sample.docx for /example/files/...) ---
       - ../example:/opt/kk-example-src:ro
 
+      # --- Document Editor locale (แก้ 404 web-apps/apps/documenteditor/main/locale - ภาษาไทย) ---
+      - ./locale:/opt/kk-locale-src:ro
+
     # Run init (fonts/plugins/dicts) then start DocumentServer.
     # We keep it idempotent using a marker file in /var/www/onlyoffice/Data
     command:
@@ -98,7 +101,7 @@ services:
           else
             echo "[KK] Warning: documentserver-pluginsmanager.sh not found, using fallback method..."
             # Fallback: ใช้ find + rm (ถ้า plugin manager ไม่มี)
-            find "$$PLUGINS_DST" -mindepth 1 -maxdepth 1 -type d ! -name "document-office" ! -name "dictionary-abbreviation" ! -name "speech-to-text" -exec sh -c 'chmod -R u+w "$$1" 2>/dev/null || true; rm -rf "$$1" 2>/dev/null || true' _ {} \; || true
+            find "$$PLUGINS_DST" -mindepth 1 -maxdepth 1 -type d ! -name "document-office" ! -name "dictionary-abbreviation" ! -name "speech-to-text" ! -name "thai-spellcheck" ! -name "thai-autocomplete" ! -name "comment-bridge" -exec sh -c 'chmod -R u+w "$$1" 2>/dev/null || true; rm -rf "$$1" 2>/dev/null || true' _ {} \; || true
             find "$$PLUGINS_DST" -maxdepth 1 -type f ! -name "*.md" -exec sh -c 'chmod u+w "$$1" 2>/dev/null || true; rm -f "$$1" 2>/dev/null || true' _ {} \; || true
           fi
         fi
@@ -108,8 +111,8 @@ services:
           echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $$PLUGINS_DST..."
           cp -R /opt/kk-plugins-src/* "$$PLUGINS_DST"/
           # ตั้ง permission ให้ถูกต้อง
-          chown -R ds:ds "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck 2>/dev/null || true
-          chmod -R a+rX "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck 2>/dev/null || true
+          chown -R ds:ds "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/comment-bridge 2>/dev/null || true
+          chmod -R a+rX "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/comment-bridge 2>/dev/null || true
         fi
 
         # Example files: ensure /example/files/sample.docx exists (idempotent; safe every boot)
@@ -117,6 +120,27 @@ services:
         mkdir -p "$$EXAMPLE_DST"
         if [ -d "/opt/kk-example-src/files" ]; then
           cp -R /opt/kk-example-src/files/* "$$EXAMPLE_DST"/ 2>/dev/null || true
+        fi
+
+        # Locale: copy en.json / th.json → documenteditor/main/locale (ภาษาไทย)
+        if [ -d "/opt/kk-locale-src" ]; then
+          sync_locale_to() {
+            local d="$$1"
+            [ -n "$$d" ] || return 0
+            mkdir -p "$$d"
+            for f in /opt/kk-locale-src/*.json; do
+              [ -f "$$f" ] && cp "$$f" "$$d/" 2>/dev/null || true
+            done
+          }
+          for LOCALE_DST in $(find /var/www/onlyoffice/documentserver -type d -path "*/documenteditor/main/locale" 2>/dev/null); do
+            sync_locale_to "$$LOCALE_DST"
+          done
+          for vdir in /var/www/onlyoffice/documentserver/[0-9]*; do
+            [ -d "$$vdir" ] || continue
+            sync_locale_to "$$vdir/web-apps/apps/documenteditor/main/locale"
+          done
+          sync_locale_to "/var/www/onlyoffice/documentserver/web-apps/apps/documenteditor/main/locale"
+          echo "[KK] Locale (documenteditor/main/locale) synced."
         fi
 
         # Start DocumentServer (path differs across images; try common locations)

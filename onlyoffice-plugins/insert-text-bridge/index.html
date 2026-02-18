@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Insert Text Bridge</title>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="editor.js"></script>
+    <script type="text/javascript" src="bus.js"></script>
+    <script type="text/javascript">
+      (function () {
+        var ITB = (window.ITB = window.ITB || {});
+        ITB.VERSION = "0.1.0";
+        function sendToHost(msg) {
+          try {
+            if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.sendToHost === "function") {
+              return window.Asc.plugin.sendToHost(msg);
+            }
+          } catch (e) {}
+          return false;
+        }
+        ITB.sendToHost = sendToHost;
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

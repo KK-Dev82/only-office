@@ -5,7 +5,7 @@
   "baseUrl": "",
   "variations": [
     {
-      "description": "Dictionary + Abbreviation tools (separate from Clipboard)",
+      "description": "Dictionary + Abbreviation (v0.1.71)",
       "url": "index.html?v=0.1.71",
       "type": "panelRight",
       "isViewer": false,

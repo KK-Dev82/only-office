@@ -5,7 +5,7 @@
   "baseUrl": "",
   "variations": [
     {
-      "description": "Thai autocomplete (system input helper)",
+      "description": "Thai autocomplete (v0.0.1)",
       "url": "index.html?v=0.0.1",
       "icons": ["resources/icon.svg"],
       "isViewer": false,

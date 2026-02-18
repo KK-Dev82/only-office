@@ -100,7 +100,7 @@ services:
           else
             echo "[KK] Warning: documentserver-pluginsmanager.sh not found, using fallback method..."
             # Fallback: ใช้ find + rm (ถ้า plugin manager ไม่มี)
-            find "$$PLUGINS_DST" -mindepth 1 -maxdepth 1 -type d ! -name "document-office" ! -name "dictionary-abbreviation" ! -name "speech-to-text" -exec sh -c 'chmod -R u+w "$$1" 2>/dev/null || true; rm -rf "$$1" 2>/dev/null || true' _ {} \; || true
+            find "$$PLUGINS_DST" -mindepth 1 -maxdepth 1 -type d ! -name "document-office" ! -name "dictionary-abbreviation" ! -name "speech-to-text" ! -name "thai-spellcheck" ! -name "thai-autocomplete" ! -name "comment-bridge" -exec sh -c 'chmod -R u+w "$$1" 2>/dev/null || true; rm -rf "$$1" 2>/dev/null || true' _ {} \; || true
             find "$$PLUGINS_DST" -maxdepth 1 -type f ! -name "*.md" -exec sh -c 'chmod u+w "$$1" 2>/dev/null || true; rm -f "$$1" 2>/dev/null || true' _ {} \; || true
           fi
         fi
@@ -110,8 +110,8 @@ services:
           echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $$PLUGINS_DST..."
           cp -R /opt/kk-plugins-src/* "$$PLUGINS_DST"/
           # ตั้ง permission ให้ถูกต้อง
-          chown -R ds:ds "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck 2>/dev/null || true
-          chmod -R a+rX "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck 2>/dev/null || true
+          chown -R ds:ds "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/comment-bridge 2>/dev/null || true
+          chmod -R a+rX "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/comment-bridge 2>/dev/null || true
         fi
 
         # Example files: ensure /example/files/sample.docx exists (idempotent; safe every boot)

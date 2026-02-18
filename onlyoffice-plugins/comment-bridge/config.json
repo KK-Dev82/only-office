@@ -5,7 +5,7 @@
   "baseUrl": "",
   "variations": [
     {
-      "description": "Comment bridge (left panel)",
+      "description": "Comment bridge (left panel) (v0.0.2)",
       "url": "index.html?v=0.0.2",
       "type": "panel",
       "isViewer": false,
