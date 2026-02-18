@@ -99,32 +99,56 @@ echo "[KK] syncing plugins..."
 PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
 mkdir -p "$PLUGINS_DST"
 
-# ลบ default plugins (ถ้ามี plugin manager)
+# บังคับให้ PLUGINS_DST เขียนได้ (documentserver-de image อาจมี permission แบบ read-only)
+chmod -R u+w "$PLUGINS_DST" 2>/dev/null || true
+
+# ลบ default plugins + GUID-named folders (plugin manager อาจไม่ลบโฟลเดอร์ที่ชื่อเป็น GUID)
 if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserver/sdkjs-plugins" ]; then
     if [ -x /usr/bin/documentserver-pluginsmanager.sh ]; then
+        echo "[KK] Removing default plugins using documentserver-pluginsmanager.sh..."
         /usr/bin/documentserver-pluginsmanager.sh \
             --directory="$PLUGINS_DST" \
             --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus" \
             2>&1 | grep -E "(Remove plugin|OK|Error)" || true
     fi
+    # Fallback: ลบโฟลเดอร์ที่ไม่ใช่ plugins ของเรา (รวม GUID-named {xxx-xxx} ที่ plugin manager ไม่ลบ)
+    echo "[KK] Cleaning non-custom plugin folders (GUID folders, etc.)..."
+    for item in "$PLUGINS_DST"/*; do
+        [ -e "$item" ] || continue
+        case "$(basename "$item")" in
+            document-office|dictionary-abbreviation|speech-to-text|thai-spellcheck|thai-autocomplete|comment-bridge|insert-text-bridge)
+                ;;
+            pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz|marketplace|v1)
+                ;;
+            *)
+                [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; }
+                [ -f "$item" ] && { chmod u+w "$item" 2>/dev/null || true; rm -f "$item" 2>/dev/null || true; }
+                ;;
+        esac
+    done
 fi
 
 # Copy plugins ที่เราพัฒนา
 if [ -d "/opt/kk-plugins-src" ]; then
+    echo "[KK] contents of /opt/kk-plugins-src: $(ls -la /opt/kk-plugins-src 2>/dev/null | head -20)"
     echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $PLUGINS_DST..."
-    cp -R /opt/kk-plugins-src/* "$PLUGINS_DST"/
-    # ตั้ง permission สำหรับ plugins ทั้งหมด (รวม translations)
-    chown -R ds:ds "$PLUGINS_DST"/document-office "$PLUGINS_DST"/dictionary-abbreviation "$PLUGINS_DST"/speech-to-text "$PLUGINS_DST"/thai-spellcheck "$PLUGINS_DST"/thai-autocomplete "$PLUGINS_DST"/comment-bridge 2>/dev/null || true
-    chmod -R a+rX "$PLUGINS_DST"/document-office "$PLUGINS_DST"/dictionary-abbreviation "$PLUGINS_DST"/speech-to-text "$PLUGINS_DST"/thai-spellcheck "$PLUGINS_DST"/thai-autocomplete "$PLUGINS_DST"/comment-bridge 2>/dev/null || true
-    # ตรวจสอบว่า translations directory ถูก copy แล้ว
-    echo "[KK] checking translations directories..."
-    for plugin in document-office dictionary-abbreviation speech-to-text thai-autocomplete; do
-        if [ -d "$PLUGINS_DST/$plugin/translations" ]; then
-            echo "[KK]   ✅ $plugin/translations found"
+    cp -R /opt/kk-plugins-src/* "$PLUGINS_DST"/ || { echo "[KK] ERROR: cp failed, check /opt/kk-plugins-src mount" >&2; exit 1; }
+    # ตั้ง permission สำหรับ plugins ทั้งหมด (รวม insert-text-bridge)
+    for p in document-office dictionary-abbreviation speech-to-text thai-spellcheck thai-autocomplete comment-bridge insert-text-bridge; do
+        [ -d "$PLUGINS_DST/$p" ] && chown -R ds:ds "$PLUGINS_DST/$p" 2>/dev/null || true
+        [ -d "$PLUGINS_DST/$p" ] && chmod -R a+rX "$PLUGINS_DST/$p" 2>/dev/null || true
+    done
+    # ตรวจสอบว่า plugins ถูก copy แล้ว
+    echo "[KK] checking plugins..."
+    for plugin in document-office dictionary-abbreviation speech-to-text thai-autocomplete insert-text-bridge thai-spellcheck comment-bridge; do
+        if [ -d "$PLUGINS_DST/$plugin" ] && [ -f "$PLUGINS_DST/$plugin/config.json" ]; then
+            echo "[KK]   ✅ $plugin"
         else
-            echo "[KK]   ⚠️  $plugin/translations not found"
+            echo "[KK]   ⚠️  $plugin not found or missing config.json"
         fi
     done
+else
+    echo "[KK] ERROR: /opt/kk-plugins-src not found - check volume mount ./only-office/onlyoffice-plugins" >&2
 fi
 
 # ============================================
