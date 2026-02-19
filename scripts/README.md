@@ -19,6 +19,11 @@ cd /path/to/only-office/onlyoffice-plugins/scripts
 
 # หรือระบุ only-office path
 ./setup-onlyoffice-server.sh onlyoffice-documentserver /path/to/only-office
+
+# หรือใช้งานโดยตรงที่ Docker รัน sync ด้วยตัวเอง 
+docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only
+# เช็คว่า init script ถูก mount ไหม
+docker exec onlyoffice-documentserver ls -la /opt/kk-init/
 ```
 
 **สิ่งที่ทำ:**

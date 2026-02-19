@@ -20,6 +20,15 @@
   STT.autoAppendEnabled = STT.autoAppendEnabled !== false;
   STT._lastAutoAppendSig = STT._lastAutoAppendSig || "";
   STT._lastAutoAppendAt = STT._lastAutoAppendAt || 0;
+  // Silence detection: ใส่ NBSP นำหน้าเมื่อไม่มีผลลัพธ์มาเกิน SILENCE_MS
+  STT._lastResultAt = STT._lastResultAt || 0;
+  STT.SILENCE_MS = 800;
+
+  var NBSP = "\u00a0";
+
+  function toNbsp(text) {
+    return String(text || "").replace(/ /g, NBSP);
+  }
 
   function getSelectedLang() {
     try {
@@ -103,10 +112,14 @@
     return t.trim();
   }
 
-  function enqueueAppend(text) {
+  function enqueueAppend(text, opts) {
+    opts = opts || {};
     var s = String(text || "");
     if (!s) return;
-    STT._queuedAppend = String(STT._queuedAppend || "") + s;
+    if (opts.prependSilenceNbsp) {
+      s = NBSP + s;
+    }
+    STT._queuedAppend = String(STT._queuedAppend || "") + toNbsp(s);
   }
 
   function scheduleFlush() {
@@ -182,8 +195,14 @@
     };
 
     STT.recognition.onresult = function (event) {
+      var now = Date.now();
+      var afterSilence =
+        STT._lastResultAt > 0 && now - STT._lastResultAt > (STT.SILENCE_MS || 800);
+      STT._lastResultAt = now;
+
       var interimTranscript = "";
       var finalTranscript = "";
+      var hadInterimAppend = false;
 
       for (var i = event.resultIndex; i < event.results.length; i++) {
         var transcript = event.results[i][0].transcript;
@@ -202,7 +221,8 @@
           if (interimFmt && interimFmt.indexOf(prev) === 0) {
             var suffix = interimFmt.slice(prev.length);
             if (suffix) {
-              enqueueAppend(suffix);
+              enqueueAppend(suffix, { prependSilenceNbsp: afterSilence });
+              hadInterimAppend = true;
               scheduleFlush();
             }
             STT._prevStreamText = interimFmt;
@@ -238,15 +258,16 @@
 
             // Append only remaining suffix (avoid duplication with interim stream)
             var already2 = String(STT._prevStreamText || "");
+            var prependSilence = afterSilence && !hadInterimAppend;
             if (already2 && formatted.indexOf(already2) === 0) {
               var remain = formatted.slice(already2.length);
               if (remain) {
-                enqueueAppend(remain);
+                enqueueAppend(remain, { prependSilenceNbsp: prependSilence });
                 flushQueue();
               }
             } else {
               // fallback: append full final
-              enqueueAppend(formatted);
+              enqueueAppend(formatted, { prependSilenceNbsp: prependSilence });
               flushQueue();
             }
           }
@@ -335,6 +356,7 @@
       STT._prevStreamText = "";
       STT._queuedAppend = "";
       STT._inflightAppend = "";
+      STT._lastResultAt = 0;
       return true;
     } catch (e) {
       STT.error("[STT] stopListening error:", e);
@@ -349,6 +371,7 @@
     STT._prevStreamText = "";
     STT._queuedAppend = "";
     STT._inflightAppend = "";
+    STT._lastResultAt = 0;
     STT.renderTranscript("");
     var btnInsert = STT.$("btnInsert");
     var btnAppend = STT.$("btnAppend");
