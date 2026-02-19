@@ -256,9 +256,11 @@
       return "";
     }
 
-    // ensure input helper exists (บาง build ต้อง create ก่อนถึงจะยิง event)
+    // ปิด createInputHelper/createWindow เพื่อกัน panel ถูกย่อเป็น 80×40 (เหมือน dictionary-abbreviation)
+    // บาง build ของ OnlyOffice จะ "ย่อ panel iframe" ตาม ShowInputHelper/createWindow → หน้าขาว
+    // event handlers (onInputHelperInput ฯลฯ) ยังทำงานได้แม้ไม่ create
     try {
-      if (!window.__do_inputHelperInited && window.Asc.plugin.createInputHelper) {
+      if (!(DO.state && DO.state.__disableInputHelper) && !window.__do_inputHelperInited && window.Asc.plugin.createInputHelper) {
         window.__do_inputHelperInited = true;
         window.Asc.plugin.createInputHelper();
         if (window.Asc.plugin.getInputHelper) {

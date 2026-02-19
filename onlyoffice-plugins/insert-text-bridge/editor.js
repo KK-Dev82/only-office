@@ -246,6 +246,48 @@
     ITB.editor.insertText(t);
   };
 
+  /**
+   * แทนที่ Space ด้วย nbsp (U+00A0) เมื่อ user กด Space
+   * ลำดับการลอง: (1) GetCurrentWord + ReplaceCurrentWord ถ้า current word = " "
+   *              (2) Undo + PasteText = override (ลบ space ที่เพิ่งกด แล้วใส่ nbsp)
+   *              (3) InputText เป็น fallback
+   */
+  ITB.editor.replaceTrailingSpaceWithNbsp = function (cb) {
+    function done(replaced) {
+      try { cb && cb(!!replaced); } catch (e) {}
+    }
+    if (!window.Asc || !window.Asc.plugin || typeof window.Asc.plugin.executeMethod !== "function") {
+      done(false);
+      return;
+    }
+    function tryInputText() {
+      try {
+        exec("InputText", ["\u00A0", " "], function () { done(true); });
+        return true;
+      } catch (e) { return false; }
+    }
+    function tryUndoThenPaste() {
+      try {
+        exec("Undo", [], function () {
+          exec("PasteText", ["\u00A0"], function () { done(true); });
+        });
+        return true;
+      } catch (e) { return false; }
+    }
+    exec("GetCurrentWord", ["entirely"], function (word) {
+      var w = String(word || "");
+      if (w === " ") {
+        exec("ReplaceCurrentWord", ["\u00A0", "entirely"], function () { done(true); });
+        return;
+      }
+      if (w === "" || (w.length <= 1 && /\s/.test(w))) {
+        tryUndoThenPaste();
+        return;
+      }
+      tryInputText();
+    });
+  };
+
   // ค่าเริ่มต้นสำหรับ paste: คงย่อหน้า (เหมาะกับ มาตรา/เลขข้อ), เปิด ZWSP สำหรับไทย
   var pasteOpts = { preserveParagraphs: true, useThaiWordBreaks: true };
 

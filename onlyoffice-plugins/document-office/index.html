@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DocumentOffice Assistant</title>
     <!-- ONLYOFFICE Plugin SDK (required for window.Asc.plugin.executeMethod/callCommand/etc.) -->
+    <script type="text/javascript">
+      window._doScriptErrors = [];
+      window.onerror = function(msg, url, line, col, err) {
+        window._doScriptErrors.push({ msg: msg, url: url, line: line });
+        return false;
+      };
+    </script>
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
     <!-- ONLYOFFICE UI helpers + base styles -->
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
@@ -24,6 +31,8 @@
     <script type="text/javascript" src="features/macros.js?v=0.1.17"></script>
     <!-- InputHelper typing/token detection (runs in background) -->
     <script type="text/javascript" src="features/inputhelper.js?v=0.1.17"></script>
+    <!-- Space → nbsp: แทนที่ Space ด้วย non-breaking space เพื่อลดการขึ้นบรรทัดใหม่โดยไม่ตั้งใจ -->
+    <script type="text/javascript" src="features/spaceToNbsp.js?v=0.1.17"></script>
     <script type="text/javascript" src="bootstrap.js?v=0.1.17"></script>
   </head>
   <body>

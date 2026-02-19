@@ -10,7 +10,7 @@
     <script type="text/javascript">
       (function () {
         var ITB = (window.ITB = window.ITB || {});
-        ITB.VERSION = "0.1.0";
+        ITB.VERSION = "0.1.5";
         function sendToHost(msg) {
           try {
             if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.sendToHost === "function") {
@@ -20,6 +20,15 @@
           return false;
         }
         ITB.sendToHost = sendToHost;
+
+        var _origInit = window.Asc && window.Asc.plugin && window.Asc.plugin.init;
+        window.Asc = window.Asc || {};
+        window.Asc.plugin = window.Asc.plugin || {};
+        window.Asc.plugin.init = function () {
+          try {
+            if (_origInit && typeof _origInit === "function") _origInit.apply(this, arguments);
+          } catch (e) {}
+        };
       })();
     </script>
   </head>

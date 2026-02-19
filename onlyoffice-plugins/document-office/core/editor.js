@@ -379,6 +379,60 @@
     });
   };
 
+  // Replace trailing regular space with non-breaking space (U+00A0) in current paragraph.
+  // Used to prevent unintended line breaks when user types Space.
+  // Callback: cb(true) if replaced, cb(false) if not needed.
+  DO.editor.replaceTrailingSpaceWithNbsp = function (cb) {
+    if (!canCallCommand()) {
+      try {
+        cb && cb(false);
+      } catch (e) {}
+      return;
+    }
+    try {
+      window.Asc.plugin.callCommand(
+        function () {
+          try {
+            var doc = Api.GetDocument();
+            if (!doc || !doc.GetCurrentParagraph) return false;
+            var para = doc.GetCurrentParagraph();
+            if (!para || !para.GetRange) return false;
+            var range = para.GetRange();
+            if (!range || !range.GetText) return false;
+            var text = range.GetText({
+              Numbering: false,
+              Math: false,
+              ParaSeparator: "\n",
+              TableRowSeparator: "\n",
+              NewLineSeparator: "\n",
+            }) || "";
+            // Replace trailing regular space(s) (U+0020) with single nbsp (U+00A0); skip if already nbsp
+            if (/ +$/.test(text)) {
+              var newText = text.replace(/ +$/, "\u00A0");
+              para.RemoveAllElements();
+              para.AddText(newText);
+              return true;
+            }
+            return false;
+          } catch (e) {
+            return false;
+          }
+        },
+        false,
+        true,
+        function (replaced) {
+          try {
+            cb && cb(replaced === true);
+          } catch (e1) {}
+        }
+      );
+    } catch (e) {
+      try {
+        cb && cb(false);
+      } catch (e2) {}
+    }
+  };
+
   // Replace word in document (search and replace)
   DO.editor.replaceWord = function (oldWord, newWord, replaceAll, cb) {
     var old = String(oldWord || "");

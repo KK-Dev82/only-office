@@ -215,6 +215,12 @@
       var type = msg.type;
       if (type === "setOptions" && msg.data) {
         mergeOptions(msg.data);
+        try {
+          if (DO.features && DO.features.macros && typeof DO.features.macros.reload === "function") {
+            var baseLegacy = String((DO.pluginOptions && DO.pluginOptions.apiBaseUrl) || "").trim();
+            if (baseLegacy) setTimeout(function () { DO.features.macros.reload(); }, 50);
+          }
+        } catch (eLeg) {}
         DO.setOutput({ ok: true, type: "setOptions", hasAccessToken: Boolean(DO.pluginOptions && DO.pluginOptions.accessToken) });
         return;
       }

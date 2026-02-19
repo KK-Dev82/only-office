@@ -270,7 +270,8 @@
   function fetchDictionaryWords() {
     var url = getDictionaryUrl();
     if (!url) return Promise.resolve([]);
-    return fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } })
+    // credentials: "include" — ส่ง cookies ไปกับ request เพื่อให้ Backend authenticate ได้ (แก้ 401)
+    return fetch(url, { method: "GET", headers: { "Content-Type": "application/json" }, credentials: "include" })
       .then(function (r) {
         if (!r || !r.ok) return [];
         return r.json();
@@ -397,10 +398,12 @@
       url = base + path;
     }
     
+    // credentials: "include" — ส่ง cookies ไปกับ request (เช่น add-words ที่อาจต้อง auth)
     return fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body || {}),
+      credentials: "include",
     }).then(function (r) {
       if (!r.ok) return r.text().then(function (t) {
         throw new Error("http_" + r.status + ":" + String(t || ""));

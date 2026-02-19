@@ -6,8 +6,8 @@
   // Sync version with config/index + host cache-busting
   window.DO.VERSION = "0.1.17";
 
-  // Toggle verbose logs
-  window.DO.DEBUG = false;
+  // Toggle verbose logs (set true temporarily to diagnose white screen)
+  window.DO.DEBUG = true;
 
   window.DO.state = window.DO.state || {
     uiBound: false,
@@ -15,6 +15,8 @@
     debugOpen: false,
     targetTimer: 0,
     lastToken: "",
+    // ปิด createInputHelper/createWindow เพื่อกัน panel ถูกย่อเป็น 80×40 → หน้าขาว (เหมือน dictionary-abbreviation)
+    __disableInputHelper: true,
   };
 
   window.DO.pluginOptions = window.DO.pluginOptions || {

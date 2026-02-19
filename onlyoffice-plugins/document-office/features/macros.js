@@ -364,8 +364,13 @@
     if (!base) return null;
 
     var params = { includeGlobal: true };
-    // optionally include userId if provided (same idea as textMacroService.fetchMacros)
-    if (DO.pluginOptions && DO.pluginOptions.userId != null) params.ownerUserId = DO.pluginOptions.userId;
+    // Backend ใช้ int? ownerUserId — ถ้า userId เป็น GUID จะ bind ไม่ได้ → 400
+    // ส่ง ownerUserId เฉพาะเมื่อเป็นตัวเลขเท่านั้น มิฉะนั้นให้ backend ใช้ userId จาก JWT claim
+    var uid = DO.pluginOptions && DO.pluginOptions.userId;
+    if (uid != null) {
+      var s = String(uid).trim();
+      if (/^\d+$/.test(s)) params.ownerUserId = s;
+    }
 
     var url = apiUrl("api/word-management/macros", params);
     var headers = { "Content-Type": "application/json" };

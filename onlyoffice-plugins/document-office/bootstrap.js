@@ -37,6 +37,21 @@
   }
 
   function bindCoreUi() {
+    // IMPORTANT: init อาจถูกเรียกก่อน <body> แยกเสร็จ (เหมือน dictionary-abbreviation)
+    try {
+      var hasRoot = Boolean(document && document.querySelector && (document.querySelector(".doSimpleRoot") || document.querySelector(".doRoot")));
+      var hasList = Boolean(document && (document.getElementById("macroList") || document.getElementById("clipList")));
+      if (!hasRoot && !hasList) {
+        if (!DO.state._uiRetryTimer) {
+          DO.state._uiRetryTimer = setTimeout(function () {
+            DO.state._uiRetryTimer = 0;
+            try { bindCoreUi(); } catch (e) {}
+          }, 80);
+        }
+        return;
+      }
+    } catch (e0) {}
+
     if (DO.state.uiBound) return;
     DO.state.uiBound = true;
 
@@ -97,11 +112,39 @@
     } catch (e) {}
   }
 
+  function isHostReadyForInit() {
+    try {
+      var p = window.Asc && window.Asc.plugin;
+      if (!p) return false;
+      if (p.info) return true;
+      if (typeof p.executeMethod === "function") return true;
+      if (typeof p.callCommand === "function") return true;
+    } catch (e) {}
+    return false;
+  }
+
+  function softInitForUiAndLocalData() {
+    try {
+      bindCoreUi();
+      DO.initLocalData();
+      if (DO.features && DO.features.clipboard) {
+        try { DO.features.clipboard.bind(); } catch (e1) {}
+        try { DO.features.clipboard.render(); } catch (e2) {}
+      }
+      if (DO.features && DO.features.macros) {
+        try { DO.features.macros.bind(); } catch (e3) {}
+        try { DO.features.macros.render(); } catch (e4) {}
+      }
+    } catch (e) {}
+  }
+
   // Basic init
   window.Asc = window.Asc || {};
   window.Asc.plugin = window.Asc.plugin || {};
 
   window.Asc.plugin.init = function () {
+    // IMPORTANT: อย่า lock ถ้า host ยังไม่พร้อม (เหมือน dictionary-abbreviation)
+    if (!isHostReadyForInit()) return;
     if (DO.state.inited) return;
     DO.state.inited = true;
     try {
@@ -125,6 +168,11 @@
           DO.features.inputhelper.attachEvents();
         }
       } catch (e0) {}
+      try {
+        if (DO.features && DO.features.spaceToNbsp && typeof DO.features.spaceToNbsp.attachEvents === "function") {
+          DO.features.spaceToNbsp.attachEvents();
+        }
+      } catch (e1) {}
 
       // UI features
       if (hasUiDom()) {
@@ -232,23 +280,27 @@
     } catch (e0) {}
   };
 
-  // Defensive: if init isn't called, still bind minimal UI so user sees something
+  // Defensive: เหมือน dictionary-abbreviation - แสดง UI ทันทีที่ DOM ready แล้ว retry init
   try {
     document.addEventListener("DOMContentLoaded", function () {
       try {
-        if (hasUiDom()) bindCoreUi();
+        softInitForUiAndLocalData();
       } catch (e) {}
 
-      // If SDK missed calling init (common when plugin scripts are deferred),
-      // run init ourselves shortly after DOM is ready.
+      // Retry init ทุก 100ms เมื่อ host พร้อม (up to ~20s) เหมือน dictionary-abbreviation
       try {
-        setTimeout(function () {
+        var attempts = 0;
+        (function tryInitLater() {
           try {
-            if (!DO.state.inited && window.Asc && window.Asc.plugin && typeof window.Asc.plugin.init === "function") {
+            if (DO.state.inited) return;
+            if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.init === "function" && isHostReadyForInit()) {
               window.Asc.plugin.init();
+              return;
             }
           } catch (e2) {}
-        }, 80);
+          attempts++;
+          if (attempts < 200) setTimeout(tryInitLater, 100);
+        })();
       } catch (e3) {}
     });
   } catch (e) {}
