@@ -1,7 +1,7 @@
 {
   "name": "Insert Text Bridge",
   "guid": "asc.{E8F2A1B3-4C5D-6E7F-8901-23456789ABCD}",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "baseUrl": "",
   "events": ["onExternalPluginMessage","onDocumentContentChanged","onTargetPositionChanged","onSelectionChanged","onChangeSelection"],
   "variations": [

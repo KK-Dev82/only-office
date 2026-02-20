@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Insert Text Bridge</title>
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <!-- ต้อง define Asc.plugin.init ก่อน editor.js/bus.js — OnlyOffice เรียก init ทันทีที่ iframe โหลด -->
+    <script type="text/javascript">
+      (function () {
+        window.Asc = window.Asc || {};
+        window.Asc.plugin = window.Asc.plugin || {};
+        window.Asc.plugin.init = function () { try {} catch (e) {} };
+      })();
+    </script>
     <script type="text/javascript" src="editor.js"></script>
     <script type="text/javascript" src="bus.js"></script>
     <script type="text/javascript">
@@ -20,15 +28,6 @@
           return false;
         }
         ITB.sendToHost = sendToHost;
-
-        var _origInit = window.Asc && window.Asc.plugin && window.Asc.plugin.init;
-        window.Asc = window.Asc || {};
-        window.Asc.plugin = window.Asc.plugin || {};
-        window.Asc.plugin.init = function () {
-          try {
-            if (_origInit && typeof _origInit === "function") _origInit.apply(this, arguments);
-          } catch (e) {}
-        };
       })();
     </script>
   </head>
