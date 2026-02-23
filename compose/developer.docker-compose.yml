@@ -17,6 +17,10 @@ services:
       - onlyoffice_data:/var/www/onlyoffice/Data
       - onlyoffice_logs:/var/log/onlyoffice
 
+      # --- License (Developer Edition): ต้องมี license.lic ใน Data เพื่อ activate ---
+      # ดู only-office/example และ helpcenter.onlyoffice.com/docs-developer-activation
+      - ../license/license.lic:/var/www/onlyoffice/Data/license.lic:ro
+
       # --- Custom Fonts (TH Sarabun New) ---
       - ../THSarabunNew:/usr/share/fonts/truetype/th-sarabun:ro
 
