@@ -17,6 +17,15 @@ echo "[KK] Only Office Init Script"
 echo "[KK] Running in container: $IN_CONTAINER"
 echo ""
 
+# สคริปต์นี้ออกแบบมาสำหรับรันใน container เท่านั้น
+# ถ้ารันบน host โดยตรง ให้ใช้: docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh
+if [ "$IN_CONTAINER" != true ]; then
+    echo "[KK] ERROR: สคริปต์นี้ต้องรันภายใน container"
+    echo "[KK] Usage: docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh"
+    echo "[KK] หรือ: docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only"
+    exit 1
+fi
+
 INIT_MARK="/var/www/onlyoffice/Data/.kk_init_done"
 
 # ============================================
@@ -25,7 +34,7 @@ INIT_MARK="/var/www/onlyoffice/Data/.kk_init_done"
 if [ ! -f "$INIT_MARK" ]; then
     echo "[KK] init: installing fonts/plugins/dicts (first time)..."
 
-    # Fonts: rebuild font cache + generate allfonts
+    # Fonts: rebuild font cache + generate allfonts (รันใน container เท่านั้น)
     (fc-cache -fv || true)
     (/usr/bin/documentserver-generate-allfonts.sh || true)
 

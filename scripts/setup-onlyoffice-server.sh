@@ -69,41 +69,59 @@ fi
 echo "   Source: $DICT_SRC"
 echo "   Destination: $DICT_DST"
 
-# Copy dictionary files เข้า container
-echo "   Copying dictionary files..."
-docker exec "$CONTAINER_NAME" mkdir -p "$DICT_DST" 2>/dev/null || true
-
-# Copy files
-if [ -f "$DICT_SRC/th_TH.dic" ]; then
-    docker cp "$DICT_SRC/th_TH.dic" "$CONTAINER_NAME:$DICT_DST/th_TH.dic"
-    echo "   ✅ Copied th_TH.dic ($(du -h "$DICT_SRC/th_TH.dic" | cut -f1))"
+# ตรวจสอบว่า dictionary path เป็น bind mount read-only หรือไม่ (docker-compose mount :ro)
+# ถ้าเป็น bind mount ไฟล์จาก host จะมีอยู่แล้ว ไม่ต้อง docker cp (จะ error: mounted volume is marked read-only)
+DICT_IS_READONLY=false
+if docker exec "$CONTAINER_NAME" sh -c "touch $DICT_DST/.write_test 2>/dev/null && rm -f $DICT_DST/.write_test" 2>/dev/null; then
+    DICT_IS_READONLY=false
 else
-    echo "   ❌ th_TH.dic not found in source"
+    DICT_IS_READONLY=true
 fi
 
-if [ -f "$DICT_SRC/th_TH.aff" ]; then
-    docker cp "$DICT_SRC/th_TH.aff" "$CONTAINER_NAME:$DICT_DST/th_TH.aff"
-    echo "   ✅ Copied th_TH.aff"
+if [ "$DICT_IS_READONLY" = true ]; then
+    echo "   ℹ️  Dictionary path เป็น bind mount (read-only) - ไฟล์จาก host มีอยู่แล้ว"
+    echo "   ตรวจสอบว่าไฟล์มีอยู่บน host: $DICT_SRC"
+    for f in th_TH.dic th_TH.aff th_TH.json; do
+        if [ -f "$DICT_SRC/$f" ]; then
+            echo "   ✅ $f (จาก host bind mount)"
+        else
+            echo "   ⚠️  $f ไม่พบใน source"
+        fi
+    done
 else
-    echo "   ❌ th_TH.aff not found in source"
+    # Copy dictionary files เข้า container (path เขียนได้)
+    echo "   Copying dictionary files..."
+    docker exec "$CONTAINER_NAME" mkdir -p "$DICT_DST" 2>/dev/null || true
+
+    if [ -f "$DICT_SRC/th_TH.dic" ]; then
+        docker cp "$DICT_SRC/th_TH.dic" "$CONTAINER_NAME:$DICT_DST/th_TH.dic"
+        echo "   ✅ Copied th_TH.dic ($(du -h "$DICT_SRC/th_TH.dic" | cut -f1))"
+    else
+        echo "   ❌ th_TH.dic not found in source"
+    fi
+
+    if [ -f "$DICT_SRC/th_TH.aff" ]; then
+        docker cp "$DICT_SRC/th_TH.aff" "$CONTAINER_NAME:$DICT_DST/th_TH.aff"
+        echo "   ✅ Copied th_TH.aff"
+    else
+        echo "   ❌ th_TH.aff not found in source"
+    fi
+
+    if [ -f "$DICT_SRC/th_TH.json" ]; then
+        docker cp "$DICT_SRC/th_TH.json" "$CONTAINER_NAME:$DICT_DST/th_TH.json"
+        echo "   ✅ Copied th_TH.json"
+    else
+        echo '{ "codes": [1054] }' | docker exec -i "$CONTAINER_NAME" sh -c "cat > $DICT_DST/th_TH.json"
+        echo "   ✅ Created th_TH.json"
+    fi
+
+    echo "   Setting permissions..."
+    docker exec "$CONTAINER_NAME" chown -R ds:ds "$DICT_DST" 2>/dev/null || \
+    docker exec -u root "$CONTAINER_NAME" chown -R ds:ds "$DICT_DST" 2>/dev/null || \
+    docker exec "$CONTAINER_NAME" chown -R root:root "$DICT_DST" 2>/dev/null || true
+
+    docker exec "$CONTAINER_NAME" chmod -R a+r "$DICT_DST"/* 2>/dev/null || true
 fi
-
-if [ -f "$DICT_SRC/th_TH.json" ]; then
-    docker cp "$DICT_SRC/th_TH.json" "$CONTAINER_NAME:$DICT_DST/th_TH.json"
-    echo "   ✅ Copied th_TH.json"
-else
-    # สร้าง th_TH.json
-    echo '{ "codes": [1054] }' | docker exec -i "$CONTAINER_NAME" sh -c "cat > $DICT_DST/th_TH.json"
-    echo "   ✅ Created th_TH.json"
-fi
-
-# ตั้ง permission
-echo "   Setting permissions..."
-docker exec "$CONTAINER_NAME" chown -R ds:ds "$DICT_DST" 2>/dev/null || \
-docker exec -u root "$CONTAINER_NAME" chown -R ds:ds "$DICT_DST" 2>/dev/null || \
-docker exec "$CONTAINER_NAME" chown -R root:root "$DICT_DST" 2>/dev/null || true
-
-docker exec "$CONTAINER_NAME" chmod -R a+r "$DICT_DST"/* 2>/dev/null || true
 
 echo "   ✅ Dictionary setup completed"
 echo ""
@@ -165,8 +183,11 @@ else
 fi
 
 # Copy custom plugins
+# NOTE: sdkjs-plugins ต้องเป็น writable (docker-compose ใช้ onlyoffice_plugins volume)
+#       ถ้า error "mounted volume is marked read-only" ให้ recreate container ด้วย docker-compose ล่าสุด
 echo "   Copying custom plugins..."
 COPIED_COUNT=0
+PLUGINS_WRITABLE=true
 for plugin_dir in "$PLUGINS_SRC"/*; do
     if [ -d "$plugin_dir" ]; then
         plugin_name=$(basename "$plugin_dir")
@@ -176,24 +197,35 @@ for plugin_dir in "$PLUGINS_SRC"/*; do
         TEMP_TAR=$(mktemp)
         tar -czf "$TEMP_TAR" -C "$PLUGINS_SRC" "$plugin_name" 2>/dev/null
         
-        # Extract ใน container
+        # Extract ใน container (ใช้ docker cp แทน tar ถ้า tar ล้มเหลวจาก read-only)
         if docker exec -i "$CONTAINER_NAME" sh -c "cd $PLUGINS_DST && tar -xzf -" < "$TEMP_TAR" 2>/dev/null; then
-            # ตั้ง permission
             docker exec "$CONTAINER_NAME" chown -R ds:ds "$PLUGINS_DST/$plugin_name" 2>/dev/null || \
             docker exec -u root "$CONTAINER_NAME" chown -R ds:ds "$PLUGINS_DST/$plugin_name" 2>/dev/null || true
-            
             docker exec "$CONTAINER_NAME" chmod -R a+rX "$PLUGINS_DST/$plugin_name" 2>/dev/null || true
-            
             echo "     ✅ $plugin_name copied"
             COPIED_COUNT=$((COPIED_COUNT + 1))
+        elif docker cp "$plugin_dir" "$CONTAINER_NAME:$PLUGINS_DST/$plugin_name" 2>/dev/null; then
+            # Fallback: docker cp (อาจทำงานได้ถ้า path เขียนได้)
+            docker exec "$CONTAINER_NAME" chown -R ds:ds "$PLUGINS_DST/$plugin_name" 2>/dev/null || \
+            docker exec -u root "$CONTAINER_NAME" chown -R ds:ds "$PLUGINS_DST/$plugin_name" 2>/dev/null || true
+            docker exec "$CONTAINER_NAME" chmod -R a+rX "$PLUGINS_DST/$plugin_name" 2>/dev/null || true
+            echo "     ✅ $plugin_name copied (via docker cp)"
+            COPIED_COUNT=$((COPIED_COUNT + 1))
         else
-            echo "     ❌ Failed to copy $plugin_name"
+            echo "     ❌ Failed to copy $plugin_name (sdkjs-plugins อาจเป็น read-only)"
+            PLUGINS_WRITABLE=false
         fi
         
-        # ลบ temp file
         rm -f "$TEMP_TAR"
     fi
 done
+
+if [ "$PLUGINS_WRITABLE" = false ]; then
+    echo ""
+    echo "   ⚠️  sdkjs-plugins เป็น read-only - ให้ recreate container:"
+    echo "      docker compose -f docker-compose.staging.yml up -d --force-recreate onlyoffice-documentserver"
+    echo ""
+fi
 
 echo "   ✅ Copied $COPIED_COUNT plugin(s)"
 echo ""

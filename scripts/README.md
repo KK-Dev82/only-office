@@ -83,6 +83,30 @@ cd /path/to/only-office/onlyoffice-plugins/scripts
 
 ## 🔧 Troubleshooting
 
+### ปัญหา: init-onlyoffice.sh รันบน host แล้ว error (fc-cache: command not found)
+
+**สาเหตุ:** สคริปต์ `init-onlyoffice.sh` ออกแบบมาสำหรับรันภายใน container เท่านั้น
+
+**แก้ไข:** ใช้คำสั่งนี้แทน
+```bash
+docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh
+# หรือ sync เฉพาะ (ไม่ start DocumentServer):
+docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only
+```
+
+### ปัญหา: setup-onlyoffice-server.sh error "mounted volume is marked read-only"
+
+**สาเหตุ:** Dictionary path และ/หรือ sdkjs-plugins เป็น read-only (bind mount :ro หรือ image read-only)
+
+**แก้ไข:** ใช้ `docker-compose.staging.yml` ล่าสุดที่มี:
+- `onlyoffice_plugins` volume สำหรับ sdkjs-plugins (writable)
+- `onlyoffice-init-plugins` init container เพื่อ populate volume
+
+จากนั้น recreate container:
+```bash
+docker compose -f docker-compose.staging.yml up -d --force-recreate onlyoffice-documentserver
+```
+
 ### ปัญหา: Script หา only-office path ไม่เจอ
 
 **แก้ไข:**
