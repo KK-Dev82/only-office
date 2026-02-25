@@ -1,0 +1,19 @@
+{
+  "name": "SpellCheck TH+EN",
+  "guid": "asc.{E2F3A4B5-C6D7-4E8F-9A0B-1C2D3E4F5A6B}",
+  "version": "0.1.0",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "SpellCheck TH+EN (v0.1.0)",
+      "url": "index.html?v=0.1.2",
+      "type": "panelRight",
+      "isViewer": false,
+      "isActivated": true,
+      "EditorsSupport": ["word"],
+      "icons": ["resources/icon.svg"],
+      "buttons": [{"text": "Close", "primary": false}]
+    }
+  ],
+  "events": []
+}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SpellCheck TH+EN</title>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+    <link rel="stylesheet" href="styles.css?v=0.1.0" />
+    <script type="text/javascript" src="scripts/code.js?v=0.1.2"></script>
+  </head>
+  <body>
+    <div class="tscRoot">
+      <header class="tscHeader">
+        <div class="tscTitle">
+          SpellCheck TH+EN <span class="tscBadge" id="tscVersion">v0.1.0</span>
+        </div>
+        <div class="tscHeaderRight">
+          <button id="tscBtnClose" class="tscBtnGhost" type="button" title="ปิด">×</button>
+        </div>
+      </header>
+
+      <section class="tscSection">
+        <div class="tscHint" style="margin-bottom:8px;">
+          ใช้ Custom Dict (Dictionary API) + Intl.Segmenter — ไม่ใช้ PyThai
+        </div>
+        <div class="tscRow">
+          <select id="tscMode" class="tscSelect" title="โหมดตรวจ">
+            <option value="selection">ตรวจเฉพาะข้อความที่เลือก</option>
+            <option value="sentence">ตรวจประโยคปัจจุบัน</option>
+            <option value="paragraph">ตรวจย่อหน้าปัจจุบัน</option>
+            <option value="document">ตรวจทั้งเอกสาร</option>
+          </select>
+          <button id="tscBtnCheck" class="tscBtnPrimary" type="button">ตรวจคำ</button>
+        </div>
+        <div id="tscStatus" class="tscStatus">พร้อม</div>
+      </section>
+
+      <section class="tscSection">
+        <div class="tscLabel">ผลการตรวจ <span style="font-weight: 400; font-size: 11px; color: var(--tsc-muted);">(คลิกที่คำเพื่อไปที่ตำแหน่งในเอกสาร)</span></div>
+        <div id="tscResults" class="tscResults"></div>
+      </section>
+    </div>
+  </body>
+</html>

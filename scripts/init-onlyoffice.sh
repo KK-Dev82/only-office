@@ -116,7 +116,7 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
     for item in "$PLUGINS_DST"/*; do
         [ -e "$item" ] || continue
         case "$(basename "$item")" in
-            document-office|dictionary-abbreviation|speech-to-text|thai-spellcheck|thai-autocomplete|comment-bridge|insert-text-bridge)
+            document-office|dictionary-abbreviation|speech-to-text|spellcheck-then|thai-spellcheck|thai-autocomplete|comment-bridge|insert-text-bridge)
                 ;;
             pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz|marketplace|v1)
                 ;;
@@ -134,13 +134,13 @@ if [ -d "/opt/kk-plugins-src" ]; then
     echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $PLUGINS_DST..."
     cp -R /opt/kk-plugins-src/* "$PLUGINS_DST"/ || { echo "[KK] ERROR: cp failed, check /opt/kk-plugins-src mount" >&2; exit 1; }
     # ตั้ง permission สำหรับ plugins ทั้งหมด (รวม insert-text-bridge)
-    for p in document-office dictionary-abbreviation speech-to-text thai-spellcheck thai-autocomplete comment-bridge insert-text-bridge; do
+    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-spellcheck thai-autocomplete comment-bridge insert-text-bridge; do
         [ -d "$PLUGINS_DST/$p" ] && chown -R ds:ds "$PLUGINS_DST/$p" 2>/dev/null || true
         [ -d "$PLUGINS_DST/$p" ] && chmod -R a+rX "$PLUGINS_DST/$p" 2>/dev/null || true
     done
     # ตรวจสอบว่า plugins ถูก copy แล้ว
     echo "[KK] checking plugins..."
-    for plugin in document-office dictionary-abbreviation speech-to-text thai-autocomplete insert-text-bridge thai-spellcheck comment-bridge; do
+    for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete insert-text-bridge comment-bridge; do
         if [ -d "$PLUGINS_DST/$plugin" ] && [ -f "$PLUGINS_DST/$plugin/config.json" ]; then
             echo "[KK]   ✅ $plugin"
         else
