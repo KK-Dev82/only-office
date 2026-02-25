@@ -12,6 +12,10 @@
   var STORAGE_KEY_IGNORED = "tsc:v1:ignoredWords";
   var VERSION = "0.1.0";
 
+  // ใช้ Backend API (same-origin) แทน PythaiNLP โดยตรง เพื่อหลีกเลี่ยง CORS
+  var BACKEND_SPELLCHECK_PATH = "api/word-management/spellcheck";
+  var BACKEND_ADD_WORDS_PATH = "api/word-management/spellcheck/add-words";
+
   var state = {
     apiBaseUrl: "",
     lastIssues: [],
@@ -369,40 +373,15 @@
   }
 
   function apiPostJson(path, body) {
-    var base = normalizeBaseUrl(state.apiBaseUrl);
-    if (!base) return Promise.reject(new Error("missing_api_base_url"));
-    
-    // ถ้า baseUrl เป็น origin เดียวกับหน้าเว็บ → ใช้ nginx proxy path
-    // (production/staging: /api/words-suggestion/spellcheck)
-    // ถ้าเป็น localhost:8000 → เรียกตรง (development)
-    var useProxy = false;
-    try {
-      var currentOrigin = window.location.origin || "";
-      var baseOrigin = "";
-      try {
-        var baseUrlObj = new URL(base);
-        baseOrigin = baseUrlObj.origin || "";
-      } catch (e0) {}
-      // ถ้า baseUrl เป็น origin เดียวกับหน้าเว็บ → ใช้ proxy
-      if (baseOrigin && baseOrigin === currentOrigin) {
-        useProxy = true;
-      }
-    } catch (e) {}
-    
-    var url;
-    if (useProxy) {
-      // Production/staging: ใช้ nginx proxy path
-      url = "/api/words-suggestion" + path;
-    } else {
-      // Development: เรียกตรงไปที่ localhost:8000
-      url = base + path;
-    }
-    
-    // credentials: "include" — ส่ง cookies ไปกับ request (เช่น add-words ที่อาจต้อง auth)
+    var origin = window.location.origin || "";
+    if (!origin) return Promise.reject(new Error("missing_origin"));
+    var backendPath = path === "/spellcheck" ? BACKEND_SPELLCHECK_PATH : path === "/add-words" ? BACKEND_ADD_WORDS_PATH : path.replace(/^\//, "");
+    var url = origin + "/" + backendPath;
+    var reqBody = body || {};
     return fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
+      body: JSON.stringify(reqBody),
       credentials: "include",
     }).then(function (r) {
       if (!r.ok) return r.text().then(function (t) {
@@ -475,10 +454,7 @@
   }
 
   function ensureApiConfigured() {
-    var base = normalizeBaseUrl(state.apiBaseUrl);
-    if (base) return true;
-    setStatus("กรุณาตั้งค่า Spellcheck API URL ก่อน");
-    return false;
+    return true;
   }
 
   function replaceNext(word, suggestion) {
