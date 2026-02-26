@@ -151,6 +151,9 @@ echo ""
 # ============================================
 # 2. Setup Plugins
 # ============================================
+# Plugins ที่ปิดการโหลด (มีใน source แต่ไม่ copy เข้า container)
+PLUGINS_DISABLED="comment-bridge thai-spellcheck"
+
 echo "📦 Setting up Plugins..."
 echo "----------------------------------------"
 
@@ -165,10 +168,11 @@ fi
 
 echo "   Source: $PLUGINS_SRC"
 echo "   Destination: $PLUGINS_DST"
+echo "   Disabled (ไม่ copy): $PLUGINS_DISABLED"
 
 # นับจำนวน plugins
 PLUGIN_COUNT=$(find "$PLUGINS_SRC" -maxdepth 1 -type d ! -name "onlyoffice-plugins" | wc -l)
-echo "   Found $PLUGIN_COUNT plugin(s)"
+echo "   Found $PLUGIN_COUNT plugin(s) in source"
 
 # ลบ default plugins (ถ้ามี plugin manager)
 echo "   Removing default plugins..."
@@ -182,6 +186,14 @@ else
     echo "   ⚠️  Plugin manager not found, skipping default plugin removal"
 fi
 
+# ลบ disabled plugins จาก container (ถ้ามีจาก setup ครั้งก่อน)
+for d in $PLUGINS_DISABLED; do
+    if docker exec "$CONTAINER_NAME" test -d "$PLUGINS_DST/$d" 2>/dev/null; then
+        docker exec "$CONTAINER_NAME" rm -rf "$PLUGINS_DST/$d" 2>/dev/null || true
+        echo "   Removed disabled plugin: $d"
+    fi
+done
+
 # Copy custom plugins
 # NOTE: sdkjs-plugins ต้องเป็น writable (docker-compose ใช้ onlyoffice_plugins volume)
 #       ถ้า error "mounted volume is marked read-only" ให้ recreate container ด้วย docker-compose ล่าสุด
@@ -191,6 +203,9 @@ PLUGINS_WRITABLE=true
 for plugin_dir in "$PLUGINS_SRC"/*; do
     if [ -d "$plugin_dir" ]; then
         plugin_name=$(basename "$plugin_dir")
+        case " $PLUGINS_DISABLED " in
+            *" $plugin_name "*) echo "     ⊘ Skipping disabled: $plugin_name"; continue ;;
+        esac
         echo "     Copying $plugin_name..."
         
         # สร้าง temp tar file

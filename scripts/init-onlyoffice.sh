@@ -104,7 +104,11 @@ fi
 # ============================================
 # 3. Sync Plugins (ทุกครั้งที่ start)
 # ============================================
+# Plugins ที่ปิดการโหลด (มีใน source แต่ไม่ copy เข้า container)
+PLUGINS_DISABLED="comment-bridge thai-spellcheck"
+
 echo "[KK] syncing plugins..."
+echo "[KK] Disabled plugins (ไม่ copy): $PLUGINS_DISABLED"
 PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
 mkdir -p "$PLUGINS_DST"
 
@@ -112,6 +116,7 @@ mkdir -p "$PLUGINS_DST"
 chmod -R u+w "$PLUGINS_DST" 2>/dev/null || true
 
 # ลบ default plugins + GUID-named folders (plugin manager อาจไม่ลบโฟลเดอร์ที่ชื่อเป็น GUID)
+# รวมถึงลบ plugins ที่ disabled (comment-bridge, thai-spellcheck)
 if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserver/sdkjs-plugins" ]; then
     if [ -x /usr/bin/documentserver-pluginsmanager.sh ]; then
         echo "[KK] Removing default plugins using documentserver-pluginsmanager.sh..."
@@ -121,13 +126,19 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
             2>&1 | grep -E "(Remove plugin|OK|Error)" || true
     fi
     # Fallback: ลบโฟลเดอร์ที่ไม่ใช่ plugins ของเรา (รวม GUID-named {xxx-xxx} ที่ plugin manager ไม่ลบ)
-    echo "[KK] Cleaning non-custom plugin folders (GUID folders, etc.)..."
+    # และลบ disabled plugins (comment-bridge, thai-spellcheck)
+    echo "[KK] Cleaning non-custom plugin folders + disabled plugins..."
     for item in "$PLUGINS_DST"/*; do
         [ -e "$item" ] || continue
         case "$(basename "$item")" in
-            document-office|dictionary-abbreviation|speech-to-text|spellcheck-then|thai-spellcheck|thai-autocomplete|comment-bridge|insert-text-bridge)
+            document-office|dictionary-abbreviation|speech-to-text|spellcheck-then|thai-autocomplete|insert-text-bridge)
+                # เก็บเฉพาะ plugins ที่เปิดใช้งาน
                 ;;
             pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz|marketplace|v1)
+                ;;
+            comment-bridge|thai-spellcheck)
+                # ลบ disabled plugins
+                [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; echo "[KK] Removed disabled: $(basename "$item")"; }
                 ;;
             *)
                 [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; }
@@ -137,24 +148,35 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
     done
 fi
 
-# Copy plugins ที่เราพัฒนา
+# Copy plugins ที่เราพัฒนา (ยกเว้น disabled)
 if [ -d "/opt/kk-plugins-src" ]; then
     echo "[KK] contents of /opt/kk-plugins-src: $(ls -la /opt/kk-plugins-src 2>/dev/null | head -20)"
-    echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $PLUGINS_DST..."
-    cp -R /opt/kk-plugins-src/* "$PLUGINS_DST"/ || { echo "[KK] ERROR: cp failed, check /opt/kk-plugins-src mount" >&2; exit 1; }
-    # ตั้ง permission สำหรับ plugins ทั้งหมด (รวม insert-text-bridge)
-    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-spellcheck thai-autocomplete comment-bridge insert-text-bridge; do
+    echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $PLUGINS_DST (excluding disabled)..."
+    for p in /opt/kk-plugins-src/*; do
+        [ -d "$p" ] || continue
+        name=$(basename "$p")
+        case " $PLUGINS_DISABLED " in
+            *" $name "*) echo "[KK] Skipping disabled: $name"; continue ;;
+        esac
+        cp -R "$p" "$PLUGINS_DST/" || { echo "[KK] ERROR: cp $name failed" >&2; exit 1; }
+        echo "[KK] Copied $name"
+    done
+    # ตั้ง permission สำหรับ plugins ที่ copy
+    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete insert-text-bridge; do
         [ -d "$PLUGINS_DST/$p" ] && chown -R ds:ds "$PLUGINS_DST/$p" 2>/dev/null || true
         [ -d "$PLUGINS_DST/$p" ] && chmod -R a+rX "$PLUGINS_DST/$p" 2>/dev/null || true
     done
     # ตรวจสอบว่า plugins ถูก copy แล้ว
     echo "[KK] checking plugins..."
-    for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete insert-text-bridge comment-bridge; do
+    for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete insert-text-bridge; do
         if [ -d "$PLUGINS_DST/$plugin" ] && [ -f "$PLUGINS_DST/$plugin/config.json" ]; then
             echo "[KK]   ✅ $plugin"
         else
             echo "[KK]   ⚠️  $plugin not found or missing config.json"
         fi
+    done
+    for d in $PLUGINS_DISABLED; do
+        echo "[KK]   ⊘ $d (disabled)"
     done
 else
     echo "[KK] ERROR: /opt/kk-plugins-src not found - check volume mount ./only-office/onlyoffice-plugins" >&2

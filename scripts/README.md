@@ -76,6 +76,8 @@ cd /path/to/only-office/onlyoffice-plugins/scripts
 
 ## 📝 หมายเหตุ
 
+- **Disabled plugins:** `comment-bridge` และ `thai-spellcheck` ถูกปิดการโหลด (ไม่ copy เข้า container)
+  - แก้ไขได้ที่ตัวแปร `PLUGINS_DISABLED` ใน `init-onlyoffice.sh` และ `setup-onlyoffice-server.sh`
 - Scripts จะหา only-office root directory อัตโนมัติจากตำแหน่ง script
 - ถ้า only-office directory อยู่ที่อื่น ให้ระบุ path เป็น parameter ที่ 2
 - Scripts ใช้ `docker cp` และ `docker exec` เพื่อ copy files และตั้ง permission
