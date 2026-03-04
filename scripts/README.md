@@ -2,9 +2,19 @@
 
 Scripts สำหรับจัดการ Only Office DocumentServer (Plugins, Dictionary, Fonts)
 
+## ⚠️ developer.docker-compose vs Scripts
+
+| ใช้ | Scripts จำเป็นไหม |
+|-----|-------------------|
+| **`compose/developer.docker-compose.yml`** | **ไม่ต้อง** — มี init ในตัว (inline) ตอน container start แล้ว |
+| **docker-compose.staging.yml / production** | ใช้ได้ — สำหรับ setup ที่ไม่มี inline init |
+
+**Container name:** ใช้ `onlyoffice-documentserver` ทั้ง local และ server — scripts รองรับทั้งสองแบบ
+- ถ้าไม่ระบุ container name: รัน auto-detect (onlyoffice-documentserver หรือ onlyoffice-docs-developer)
+
 ## 📁 ตำแหน่ง Scripts
 
-Scripts อยู่ที่: `onlyoffice-plugins/scripts/`
+Scripts อยู่ที่: `only-office/scripts/` (ไม่ใช่ onlyoffice-plugins/scripts)
 
 ## 📋 Scripts ที่มี
 
@@ -14,16 +24,17 @@ Script สำหรับ setup Only Office Plugins, Dictionary และ Fonts 
 **Usage:**
 ```bash
 # รันจาก scripts directory (แนะนำ)
-cd /path/to/only-office/onlyoffice-plugins/scripts
+cd /path/to/only-office/scripts
+
+# ใช้ได้ทั้ง local และ server — auto-detect container ถ้าไม่ระบุ
+./setup-onlyoffice-server.sh
 ./setup-onlyoffice-server.sh onlyoffice-documentserver
 
 # หรือระบุ only-office path
 ./setup-onlyoffice-server.sh onlyoffice-documentserver /path/to/only-office
 
-# หรือใช้งานโดยตรงที่ Docker รัน sync ด้วยตัวเอง 
+# init-onlyoffice.sh: ใช้ได้เมื่อ script ถูก mount ที่ /opt/kk-init/ (developer.docker-compose ไม่ mount)
 docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only
-# เช็คว่า init script ถูก mount ไหม
-docker exec onlyoffice-documentserver ls -la /opt/kk-init/
 ```
 
 **สิ่งที่ทำ:**
@@ -39,7 +50,8 @@ Script สำหรับตรวจสอบสถานะ Only Office Plugin
 
 **Usage:**
 ```bash
-cd /path/to/only-office/onlyoffice-plugins/scripts
+cd /path/to/only-office/scripts
+./check-onlyoffice-status.sh                    # auto-detect container
 ./check-onlyoffice-status.sh onlyoffice-documentserver
 ```
 
@@ -51,13 +63,13 @@ cd /path/to/only-office/onlyoffice-plugins/scripts
 
 ## 🚀 Quick Start
 
-### Setup Only Office (ครั้งแรก)
+### Setup Only Office (ครั้งแรก) — สำหรับ docker-compose ที่ไม่มี inline init
 
 ```bash
 # 1. ไปที่ scripts directory
-cd /path/to/only-office/onlyoffice-plugins/scripts
+cd /path/to/only-office/scripts
 
-# 2. Setup Only Office
+# 2. Setup Only Office (ใช้ container name ตาม docker-compose ของคุณ)
 ./setup-onlyoffice-server.sh onlyoffice-documentserver
 
 # 3. Restart container เพื่อให้ plugins โหลด
@@ -67,11 +79,11 @@ docker-compose restart onlyoffice-documentserver
 ./check-onlyoffice-status.sh onlyoffice-documentserver
 ```
 
-### ตรวจสอบสถานะ
+### ตรวจสอบสถานะ (ใช้ได้ทั้ง local และ server)
 
 ```bash
-cd /path/to/only-office/onlyoffice-plugins/scripts
-./check-onlyoffice-status.sh onlyoffice-documentserver
+cd /path/to/only-office/scripts
+./check-onlyoffice-status.sh   # auto-detect container
 ```
 
 ## 📝 หมายเหตุ
@@ -84,6 +96,13 @@ cd /path/to/only-office/onlyoffice-plugins/scripts
 - Fonts จะถูก copy ถ้าไม่ได้ mount ผ่าน volume
 
 ## 🔧 Troubleshooting
+
+### ปัญหา: ใช้ developer.docker-compose แล้ว scripts ไม่ทำงาน / ไม่ต้องรัน
+
+**สาเหตุ:** `compose/developer.docker-compose.yml` มี init logic ในตัว (inline ใน command) ตอน container start — ไม่ต้องใช้ scripts
+
+**แก้ไข:** ไม่ต้องรัน setup scripts — แค่ `docker compose -f compose/developer.docker-compose.yml up` ก็พอ  
+ถ้าต้องการตรวจสอบสถานะ: `./check-onlyoffice-status.sh` (auto-detect)
 
 ### ปัญหา: init-onlyoffice.sh รันบน host แล้ว error (fc-cache: command not found)
 
@@ -121,8 +140,20 @@ docker compose -f docker-compose.staging.yml up -d --force-recreate onlyoffice-d
 
 **แก้ไข:**
 ```bash
-# เริ่ม container ก่อน
-docker-compose up -d onlyoffice-documentserver
+# Local (developer.docker-compose)
+cd /path/to/only-office
+docker compose -f compose/developer.docker-compose.yml up -d
+
+# Server (staging/production)
+docker compose up -d onlyoffice-documentserver
+```
+
+### หมายเหตุ: เปลี่ยน container name จาก onlyoffice-docs-developer
+
+ตั้งแต่ใช้ container name เดียวกัน (`onlyoffice-documentserver`) ทั้ง local และ server — ถ้ามี container เก่า (`onlyoffice-docs-developer`) ให้ recreate:
+```bash
+docker compose -f compose/developer.docker-compose.yml down
+docker compose -f compose/developer.docker-compose.yml up -d
 ```
 
 ### ปัญหา: Fonts ไม่แสดง

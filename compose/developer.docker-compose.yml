@@ -1,7 +1,11 @@
+# Developer OnlyOffice DocumentServer
+# - มี init ในตัว (fonts, plugins, dicts, example, locale) — ไม่ต้องใช้ scripts/
+# - Container name: onlyoffice-documentserver (เดียวกับ server) — scripts ใช้ได้ทั้ง local และ server
+# - ดู scripts/README.md สำหรับความแตกต่างกับ staging/production
 services:
   onlyoffice-documentserver:
     image: onlyoffice/documentserver-de:latest
-    container_name: onlyoffice-docs-developer
+    container_name: onlyoffice-documentserver
     restart: unless-stopped
     platform: ${DOCKER_PLATFORM:-linux/arm64}
     extra_hosts:
@@ -22,7 +26,8 @@ services:
       - ../license/license.lic:/var/www/onlyoffice/Data/license.lic:ro
 
       # --- Custom Fonts (TH Sarabun New) ---
-      - ../THSarabunNew:/usr/share/fonts/truetype/th-sarabun:ro
+      # - ../THSarabunNew:/usr/share/fonts/truetype/th-sarabun:ro
+      - ../THSarabunPSK:/usr/share/fonts/truetype/th-sarabun:ro
 
       # --- Plugin sources (we will copy into sdkjs-plugins on start) ---
       - ../onlyoffice-plugins:/opt/kk-plugins-src:ro

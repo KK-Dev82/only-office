@@ -1,7 +1,8 @@
 #!/bin/bash
 # Wrapper script สำหรับ setup-onlyoffice-server.sh
-# Script นี้อยู่ที่ scripts/ directory
-# มันจะเรียก script จริงจาก scripts/ directory เดียวกัน
+# รองรับทั้ง local (developer.docker-compose) และ server
+# Usage: ./setup-onlyoffice.sh [container-name] [only-office-path]
+# ถ้าไม่ระบุ container: auto-detect (onlyoffice-documentserver หรือ onlyoffice-docs-developer)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REAL_SCRIPT="$SCRIPT_DIR/setup-onlyoffice-server.sh"
@@ -12,5 +13,4 @@ if [ ! -f "$REAL_SCRIPT" ]; then
     exit 1
 fi
 
-# เรียก script จริง
 exec "$REAL_SCRIPT" "$@"

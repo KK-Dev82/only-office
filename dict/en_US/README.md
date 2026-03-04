@@ -11,6 +11,7 @@ Dictionary ภาษาอังกฤษ (American English) จาก LibreOffi
 
 - `en_US.aff` - Affix rules
 - `en_US.dic` - Word list (~49,500 คำ)
+- `hyph_en_US.dic` - Hyphenation dictionary (พจนานุกรมแยกคำ) - OnlyOffice ต้องการไฟล์นี้เพื่อแก้ 404
 
 ## การใช้งานกับ OnlyOffice
 
@@ -22,4 +23,5 @@ Dictionary ภาษาอังกฤษ (American English) จาก LibreOffi
 ```bash
 curl -sL "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/en/en_US.aff" -o en_US.aff
 curl -sL "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/en/en_US.dic" -o en_US.dic
+curl -sL "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/en/hyph_en_US.dic" -o hyph_en_US.dic
 ```

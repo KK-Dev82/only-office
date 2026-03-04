@@ -1,14 +1,33 @@
 #!/bin/bash
-# Script สำหรับ setup Only Office Plugins และ Dictionary บน Server
+# Script สำหรับ setup Only Office Plugins และ Dictionary
+# รองรับทั้ง local (developer.docker-compose) และ server (staging/production)
 # Usage: ./setup-onlyoffice-server.sh [container-name] [only-office-path]
-# Default: container-name=onlyoffice-documentserver
-# 
+# Default: container-name=onlyoffice-documentserver (auto-detect ถ้าไม่ระบุ)
+#
 # NOTE: Script นี้จะหา only-office root directory อัตโนมัติจากตำแหน่ง script
 #       หรือระบุ only-office path เป็น parameter ที่ 2
 
 set -euo pipefail
 
-CONTAINER_NAME="${1:-onlyoffice-documentserver}"
+# Auto-detect container: ถ้าไม่ระบุ ให้ลอง onlyoffice-documentserver ก่อน แล้ว onlyoffice-docs-developer (legacy)
+resolve_container() {
+  local name="$1"
+  if [ -n "$name" ]; then
+    echo "$name"
+    return
+  fi
+  if docker ps --format "{{.Names}}" | grep -q "^onlyoffice-documentserver$"; then
+    echo "onlyoffice-documentserver"
+    return
+  fi
+  if docker ps --format "{{.Names}}" | grep -q "^onlyoffice-docs-developer$"; then
+    echo "onlyoffice-docs-developer"
+    return
+  fi
+  echo "onlyoffice-documentserver"  # default สำหรับ error message
+}
+
+CONTAINER_NAME="$(resolve_container "${1:-}")"
 
 # หา only-office root directory จากตำแหน่ง script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +45,9 @@ echo ""
 # ตรวจสอบว่า container กำลังรันอยู่หรือไม่
 if ! docker ps --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
     echo "❌ ERROR: Container '$CONTAINER_NAME' ไม่ได้รันอยู่"
-    echo "   เริ่ม container ก่อน: docker-compose restart $CONTAINER_NAME"
+    echo ""
+    echo "   Local:  docker compose -f compose/developer.docker-compose.yml up -d"
+    echo "   Server: docker compose restart onlyoffice-documentserver"
     exit 1
 fi
 
@@ -40,7 +61,7 @@ if [ ! -d "$ONLYOFFICE_PATH/dict/th_TH" ] || [ ! -d "$ONLYOFFICE_PATH/onlyoffice
     echo ""
     echo "   Usage:"
     echo "     # รันจาก scripts directory (แนะนำ):"
-    echo "     cd /path/to/only-office/onlyoffice-plugins/scripts"
+    echo "     cd /path/to/only-office/scripts"
     echo "     ./setup-onlyoffice-server.sh $CONTAINER_NAME"
     echo ""
     echo "     # หรือระบุ only-office path:"
