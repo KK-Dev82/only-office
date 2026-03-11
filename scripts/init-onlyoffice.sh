@@ -183,12 +183,39 @@ else
 fi
 
 # ============================================
-# 4. Example files
+# 4. Example files + DS Nginx static patch
 # ============================================
+# Local dev: Vite plugin serve-onlyoffice-local-assets อ่าน ../only-office/example/ จาก disk ตรง ๆ
+# Staging/Prod: DS container มีไฟล์อยู่แล้ว แต่ internal Nginx ส่งไป Example App (ไม่รัน)
+#               → patch DS Nginx ให้ serve /example/files/ เป็น static แทน
 EXAMPLE_DST="/var/www/onlyoffice/documentserver-example/example/files"
 mkdir -p "$EXAMPLE_DST"
 if [ -d "/opt/kk-example-src/files" ]; then
     cp -R /opt/kk-example-src/files/* "$EXAMPLE_DST"/ 2>/dev/null || true
+fi
+chown -R ds:ds "$EXAMPLE_DST" 2>/dev/null || true
+chmod -R a+r "$EXAMPLE_DST" 2>/dev/null || true
+
+DS_NGINX_CONF="/etc/nginx/conf.d/ds.conf"
+if [ -f "$DS_NGINX_CONF" ]; then
+    if grep -q 'location \^~ /example/files/' "$DS_NGINX_CONF" 2>/dev/null; then
+        echo "[KK] DS Nginx: /example/files/ static location already patched."
+    else
+        echo "[KK] DS Nginx: patching to serve /example/files/ statically..."
+        sed -i '/^[[:space:]]*location \/ {/i\
+    location ^~ /example/files/ {\
+        alias /var/www/onlyoffice/documentserver-example/example/files/;\
+        autoindex off;\
+    }\
+' "$DS_NGINX_CONF"
+        if grep -q 'location \^~ /example/files/' "$DS_NGINX_CONF" 2>/dev/null; then
+            echo "[KK] DS Nginx: patch OK."
+        else
+            echo "[KK] DS Nginx: WARNING - patch may have failed." >&2
+        fi
+    fi
+else
+    echo "[KK] DS Nginx: WARNING - $DS_NGINX_CONF not found." >&2
 fi
 
 # ============================================
