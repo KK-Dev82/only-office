@@ -416,14 +416,13 @@ else
 
     if docker exec "$CONTAINER_NAME" test -f "$DS_EXAMPLE_CONF" 2>/dev/null; then
         # เขียนทับ ds-example.conf (ไฟล์ว่างเดิม หรือ patch เดิม)
-        docker exec "$CONTAINER_NAME" sh -c "cat > $DS_EXAMPLE_CONF" << 'NGINX_EOF'
-# KK: serve example files (sample.docx) statically
-# เพราะ Example App (Node.js) ไม่รัน เนื่องจาก DS_EXAMPLE=false
+        # ใช้ sh -c 'echo ...' แทน heredoc เพราะ docker exec ไม่ forward stdin โดย default
+        docker exec "$CONTAINER_NAME" sh -c 'echo "# KK: serve example files (sample.docx) statically
+# DS_EXAMPLE=false -> Example App (Node.js) not running
 location ^~ /example/files/ {
     alias /var/www/onlyoffice/Data/example-files/;
     autoindex off;
-}
-NGINX_EOF
+}" > '"$DS_EXAMPLE_CONF"
 
         # ตรวจสอบว่าเขียนสำเร็จ
         if docker exec "$CONTAINER_NAME" grep -q 'example-files' "$DS_EXAMPLE_CONF" 2>/dev/null; then
