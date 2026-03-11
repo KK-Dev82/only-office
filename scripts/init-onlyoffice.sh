@@ -1,10 +1,13 @@
 #!/bin/bash
 # Init script สำหรับ Only Office DocumentServer
-# Script นี้สามารถรันได้ทั้งจาก container init และจากภายนอก
-# Usage: 
-#   - จาก container init: /opt/kk-init/init-onlyoffice.sh
+# Script นี้รันภายใน container เท่านั้น
+# Usage:
+#   - จาก container init (entrypoint): /opt/kk-init/init-onlyoffice.sh
 #   - sync ซ้ำ (manual): docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only
 #   - patch nginx เท่านั้น: docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh patch-nginx
+#
+# NOTE: ถ้า image ใช้ ENTRYPOINT แทน CMD ให้ใช้ entrypoint ใน docker-compose
+#       หรือรัน setup-onlyoffice-server.sh จาก host แทน (แนะนำ)
 
 # ไม่ใช้ set -e เพราะ non-critical failure ไม่ควรหยุด DS จาก start
 set -uo pipefail
@@ -24,60 +27,69 @@ echo "[KK] Only Office Init Script (mode=$MODE)"
 echo "[KK] Running in container: $IN_CONTAINER"
 echo ""
 
-# สคริปต์นี้ออกแบบมาสำหรับรันใน container เท่านั้น
 if [ "$IN_CONTAINER" != true ]; then
     echo "[KK] ERROR: สคริปต์นี้ต้องรันภายใน container"
     echo "[KK] Usage:"
     echo "[KK]   docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh"
     echo "[KK]   docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only"
     echo "[KK]   docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh patch-nginx"
+    echo "[KK]"
+    echo "[KK] หรือใช้ setup-onlyoffice-server.sh จาก host แทน (แนะนำ)"
     exit 1
 fi
 
 # ============================================
 # Nginx patch function (reusable)
 # ============================================
+# Image ใหม่: ds.conf ใช้ include /etc/nginx/includes/ds-*.conf;
+#   → ds-example.conf มีอยู่แล้วแต่ว่างเปล่า → เขียน location block เข้าไป
+# Example files: /var/www/onlyoffice/Data/example-files/ (named volume, writable)
+#   → ห้ามใช้ /documentserver-example/example/ เพราะเป็น binary file
 patch_ds_nginx() {
-    local DS_NGINX_CONF="/etc/nginx/conf.d/ds.conf"
-    local EXAMPLE_DST="/var/www/onlyoffice/documentserver-example/example/files"
+    local EXAMPLE_DST="/var/www/onlyoffice/Data/example-files"
+    local DS_EXAMPLE_CONF="/etc/nginx/includes/ds-example.conf"
 
-    # Copy example files
-    mkdir -p "$EXAMPLE_DST"
+    # Copy example files ไปที่ writable path
+    mkdir -p "$EXAMPLE_DST" 2>/dev/null || true
     if [ -d "/opt/kk-example-src/files" ]; then
         cp -R /opt/kk-example-src/files/* "$EXAMPLE_DST"/ 2>/dev/null || true
+        echo "[KK] Example files copied to $EXAMPLE_DST"
+    else
+        kk_warn "/opt/kk-example-src/files not found — check volume mount"
     fi
     chown -R ds:ds "$EXAMPLE_DST" 2>/dev/null || true
     chmod -R a+r "$EXAMPLE_DST" 2>/dev/null || true
 
-    if [ ! -f "$DS_NGINX_CONF" ]; then
-        kk_warn "$DS_NGINX_CONF not found — cannot patch."
-        return 1
-    fi
+    # เขียน nginx config เข้า ds-example.conf
+    if [ -f "$DS_EXAMPLE_CONF" ]; then
+        cat > "$DS_EXAMPLE_CONF" << 'NGINX_EOF'
+# KK: serve example files (sample.docx) statically
+# เพราะ Example App (Node.js) ไม่รัน เนื่องจาก DS_EXAMPLE=false
+location ^~ /example/files/ {
+    alias /var/www/onlyoffice/Data/example-files/;
+    autoindex off;
+}
+NGINX_EOF
 
-    if grep -q 'location \^~ /example/files/' "$DS_NGINX_CONF" 2>/dev/null; then
-        echo "[KK] DS Nginx: /example/files/ static location already patched."
-        return 0
-    fi
-
-    echo "[KK] DS Nginx: patching to serve /example/files/ statically..."
-    sed -i '/^[[:space:]]*location \/ {/i\
-    location ^~ /example/files/ {\
-        alias /var/www/onlyoffice/documentserver-example/example/files/;\
-        autoindex off;\
-    }\
-' "$DS_NGINX_CONF"
-
-    if grep -q 'location \^~ /example/files/' "$DS_NGINX_CONF" 2>/dev/null; then
-        echo "[KK] DS Nginx: patch OK."
+        if grep -q 'example-files' "$DS_EXAMPLE_CONF" 2>/dev/null; then
+            echo "[KK] DS Nginx: ds-example.conf updated OK."
+        else
+            kk_warn "Failed to write ds-example.conf"
+            return 1
+        fi
     else
-        kk_warn "DS Nginx patch may have failed."
+        kk_warn "$DS_EXAMPLE_CONF not found — image อาจใช้โครงสร้างอื่น"
         return 1
     fi
 
-    # ถ้า Nginx กำลังรันอยู่ → reload เพื่อให้ patch มีผลทันที
+    # ถ้า Nginx กำลังรันอยู่ → reload
     if pgrep -x nginx >/dev/null 2>&1; then
-        echo "[KK] DS Nginx: reloading (nginx is running)..."
-        nginx -s reload 2>/dev/null && echo "[KK] DS Nginx: reload OK." || kk_warn "nginx reload failed"
+        if nginx -t 2>&1 | grep -q "successful"; then
+            nginx -s reload 2>/dev/null && echo "[KK] DS Nginx: reload OK." || kk_warn "nginx reload failed"
+        else
+            kk_warn "nginx config test failed — not reloading"
+            nginx -t 2>&1 | head -5
+        fi
     fi
     return 0
 }
@@ -90,6 +102,7 @@ if [ "$MODE" = "patch-nginx" ]; then
     patch_ds_nginx
     echo "[KK] patch-nginx done (errors=$KK_ERRORS)."
     # Verify
+    sleep 1
     curl -s -o /dev/null -w "[KK] Verify /example/files/sample.docx → HTTP %{http_code}\n" \
         --max-time 5 http://localhost/example/files/sample.docx 2>/dev/null || true
     exit $KK_ERRORS
@@ -102,11 +115,8 @@ INIT_MARK="/var/www/onlyoffice/Data/.kk_init_done"
 
 if [ ! -f "$INIT_MARK" ]; then
     echo "[KK] init: installing fonts/plugins/dicts (first time)..."
-
-    # Fonts: rebuild font cache + generate allfonts (รันใน container เท่านั้น)
     (fc-cache -fv || true)
     (/usr/bin/documentserver-generate-allfonts.sh || true)
-
     date > "$INIT_MARK"
     echo "[KK] init: done."
 else
@@ -118,41 +128,34 @@ fi
 # ============================================
 echo "[KK] syncing dictionaries..."
 DICS_DST="/var/www/onlyoffice/documentserver/dictionaries/th_TH"
-mkdir -p "$DICS_DST" 2>/dev/null || true
 
-# ตรวจสอบว่า source มีอยู่
-if [ ! -d "/opt/kk-dict-src" ]; then
+# ตรวจสอบว่า destination เป็น bind mount read-only หรือไม่
+DICS_READONLY=false
+if ! touch "$DICS_DST/.write_test" 2>/dev/null; then
+    DICS_READONLY=true
+fi
+rm -f "$DICS_DST/.write_test" 2>/dev/null || true
+
+if [ "$DICS_READONLY" = true ]; then
+    echo "[KK] Dictionary path เป็น bind mount (read-only) — ไฟล์จาก host มีอยู่แล้ว"
+    for f in th_TH.dic th_TH.aff th_TH.json; do
+        [ -f "$DICS_DST/$f" ] && echo "[KK]   ✅ $f" || kk_warn "$f not found in bind mount"
+    done
+elif [ -d "/opt/kk-dict-src/th_TH" ]; then
+    mkdir -p "$DICS_DST" 2>/dev/null || true
+    for f in th_TH.dic th_TH.aff th_TH.json hyph_th_TH.dic; do
+        if [ -f "/opt/kk-dict-src/th_TH/$f" ]; then
+            cp "/opt/kk-dict-src/th_TH/$f" "$DICS_DST/$f" 2>/dev/null && echo "[KK] Copied $f" || kk_warn "Failed to copy $f"
+        fi
+    done
+    if [ ! -f "$DICS_DST/th_TH.json" ]; then
+        printf '{ "codes": [1054] }\n' > "$DICS_DST/th_TH.json" 2>/dev/null || true
+    fi
+    chown -R ds:ds "$DICS_DST" 2>/dev/null || true
+    chmod -R a+r "$DICS_DST"/* 2>/dev/null || true
+else
     kk_warn "/opt/kk-dict-src not found, skipping dictionary sync"
-else
-    # Copy ไฟล์ dictionary (overwrite)
-    if [ -f "/opt/kk-dict-src/th_TH/th_TH.dic" ]; then
-        cp "/opt/kk-dict-src/th_TH/th_TH.dic" "$DICS_DST/th_TH.dic" 2>/dev/null && echo "[KK] Copied th_TH.dic" || kk_warn "Failed to copy th_TH.dic"
-    else
-        kk_warn "/opt/kk-dict-src/th_TH/th_TH.dic not found"
-    fi
-    if [ -f "/opt/kk-dict-src/th_TH/th_TH.aff" ]; then
-        cp "/opt/kk-dict-src/th_TH/th_TH.aff" "$DICS_DST/th_TH.aff" 2>/dev/null && echo "[KK] Copied th_TH.aff" || kk_warn "Failed to copy th_TH.aff"
-    else
-        kk_warn "/opt/kk-dict-src/th_TH/th_TH.aff not found"
-    fi
-    if [ -f "/opt/kk-dict-src/th_TH/th_TH.json" ]; then
-        cp "/opt/kk-dict-src/th_TH/th_TH.json" "$DICS_DST/th_TH.json" 2>/dev/null && echo "[KK] Copied th_TH.json" || kk_warn "Failed to copy th_TH.json"
-    else
-        printf '{ "codes": [1054] }\n' > "$DICS_DST/th_TH.json" 2>/dev/null && echo "[KK] Created th_TH.json" || kk_warn "Failed to create th_TH.json"
-    fi
-    # Hyphenation dictionary (พจนานุกรมแยกคำ) - optional, same locale as main dict
-    if [ -f "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" ]; then
-        cp "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" "$DICS_DST/hyph_th_TH.dic" 2>/dev/null && echo "[KK] Copied hyph_th_TH.dic" || kk_warn "Failed to copy hyph_th_TH.dic"
-    fi
 fi
-
-# แก้ไข permission
-if command -v sudo >/dev/null 2>&1; then
-    sudo chown -R ds:ds "$DICS_DST" 2>/dev/null || chown -R ds:ds "$DICS_DST" 2>/dev/null || true
-else
-    chown -R ds:ds "$DICS_DST" 2>/dev/null || chown -R root:root "$DICS_DST" 2>/dev/null || true
-fi
-chmod -R a+r "$DICS_DST"/* 2>/dev/null || true
 
 # Update dictionary registry
 if [ -x "/var/www/onlyoffice/documentserver/server/dictionaries/update.py" ]; then
@@ -160,32 +163,26 @@ if [ -x "/var/www/onlyoffice/documentserver/server/dictionaries/update.py" ]; th
 elif [ -x "/usr/bin/documentserver-dictionaries-update.sh" ]; then
     (/usr/bin/documentserver-dictionaries-update.sh || true)
 else
-    # สร้าง registry file manually ถ้าไม่มี
     REGISTRY_DIR="/var/www/onlyoffice/documentserver/server/dictionaries"
     REGISTRY_FILE="$REGISTRY_DIR/dictionaries.json"
     if [ ! -f "$REGISTRY_FILE" ]; then
         mkdir -p "$REGISTRY_DIR" 2>/dev/null || true
         printf '[{"name":"Thai (Thailand)","code":"th_TH","codes":[1054],"file":"th_TH.dic"}]\n' > "$REGISTRY_FILE" 2>/dev/null || true
-        chown ds:ds "$REGISTRY_FILE" 2>/dev/null || chown root:root "$REGISTRY_FILE" 2>/dev/null || true
+        chown ds:ds "$REGISTRY_FILE" 2>/dev/null || true
     fi
 fi
 
 # ============================================
 # 3. Sync Plugins (ทุกครั้งที่ start)
 # ============================================
-# Plugins ที่ปิดการโหลด (มีใน source แต่ไม่ copy เข้า container)
 PLUGINS_DISABLED="comment-bridge thai-spellcheck"
 
 echo "[KK] syncing plugins..."
 echo "[KK] Disabled plugins (ไม่ copy): $PLUGINS_DISABLED"
 PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
 mkdir -p "$PLUGINS_DST"
-
-# บังคับให้ PLUGINS_DST เขียนได้ (documentserver-de image อาจมี permission แบบ read-only)
 chmod -R u+w "$PLUGINS_DST" 2>/dev/null || true
 
-# ลบ default plugins + GUID-named folders (plugin manager อาจไม่ลบโฟลเดอร์ที่ชื่อเป็น GUID)
-# รวมถึงลบ plugins ที่ disabled (comment-bridge, thai-spellcheck)
 if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserver/sdkjs-plugins" ]; then
     if [ -x /usr/bin/documentserver-pluginsmanager.sh ]; then
         echo "[KK] Removing default plugins using documentserver-pluginsmanager.sh..."
@@ -194,19 +191,15 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
             --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus" \
             2>&1 | grep -E "(Remove plugin|OK|Error)" || true
     fi
-    # Fallback: ลบโฟลเดอร์ที่ไม่ใช่ plugins ของเรา (รวม GUID-named {xxx-xxx} ที่ plugin manager ไม่ลบ)
-    # และลบ disabled plugins (comment-bridge, thai-spellcheck)
     echo "[KK] Cleaning non-custom plugin folders + disabled plugins..."
     for item in "$PLUGINS_DST"/*; do
         [ -e "$item" ] || continue
         case "$(basename "$item")" in
             document-office|dictionary-abbreviation|speech-to-text|spellcheck-then|thai-autocomplete|insert-text-bridge)
-                # เก็บเฉพาะ plugins ที่เปิดใช้งาน
                 ;;
             pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz|marketplace|v1)
                 ;;
             comment-bridge|thai-spellcheck)
-                # ลบ disabled plugins
                 [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; echo "[KK] Removed disabled: $(basename "$item")"; }
                 ;;
             *)
@@ -217,9 +210,7 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
     done
 fi
 
-# Copy plugins ที่เราพัฒนา (ยกเว้น disabled)
 if [ -d "/opt/kk-plugins-src" ]; then
-    echo "[KK] contents of /opt/kk-plugins-src: $(ls -la /opt/kk-plugins-src 2>/dev/null | head -20)"
     echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $PLUGINS_DST (excluding disabled)..."
     for p in /opt/kk-plugins-src/*; do
         [ -d "$p" ] || continue
@@ -230,12 +221,10 @@ if [ -d "/opt/kk-plugins-src" ]; then
         cp -R "$p" "$PLUGINS_DST/" || { kk_warn "cp $name failed"; }
         echo "[KK] Copied $name"
     done
-    # ตั้ง permission สำหรับ plugins ที่ copy
     for p in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete insert-text-bridge; do
         [ -d "$PLUGINS_DST/$p" ] && chown -R ds:ds "$PLUGINS_DST/$p" 2>/dev/null || true
         [ -d "$PLUGINS_DST/$p" ] && chmod -R a+rX "$PLUGINS_DST/$p" 2>/dev/null || true
     done
-    # ตรวจสอบว่า plugins ถูก copy แล้ว
     echo "[KK] checking plugins..."
     for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete insert-text-bridge; do
         if [ -d "$PLUGINS_DST/$plugin" ] && [ -f "$PLUGINS_DST/$plugin/config.json" ]; then
@@ -252,11 +241,8 @@ else
 fi
 
 # ============================================
-# 4. Example files + DS Nginx static patch
+# 4. Example files + DS Nginx (ds-example.conf)
 # ============================================
-# Local dev: Vite plugin serve-onlyoffice-local-assets อ่าน ../only-office/example/ จาก disk ตรง ๆ
-# Staging/Prod: DS container มีไฟล์อยู่แล้ว แต่ internal Nginx ส่งไป Example App (ไม่รัน)
-#               → patch DS Nginx ให้ serve /example/files/ เป็น static แทน
 patch_ds_nginx
 
 # ============================================
@@ -295,20 +281,23 @@ else
 fi
 
 # ============================================
-# 6. Start DocumentServer (ถ้ารันจาก init)
+# 6. Start DocumentServer (ถ้ารันจาก entrypoint)
 # ============================================
 if [ "$MODE" != "sync-only" ] && [ "$MODE" != "patch-nginx" ]; then
     echo "[KK] Starting DocumentServer..."
-    if [ -x /app/run-document-server.sh ]; then
-        exec /app/run-document-server.sh
-    elif [ -x /run-document-server.sh ]; then
-        exec /run-document-server.sh
-    elif command -v run-document-server.sh >/dev/null 2>&1; then
+    # Image ใหม่: /app/ds/run-document-server.sh (ไม่ใช่ /app/run-document-server.sh)
+    for run_script in /app/ds/run-document-server.sh /app/run-document-server.sh /run-document-server.sh; do
+        if [ -x "$run_script" ]; then
+            echo "[KK] Using: $run_script"
+            exec "$run_script"
+        fi
+    done
+    # Fallback: ลอง PATH
+    if command -v run-document-server.sh >/dev/null 2>&1; then
         exec run-document-server.sh
-    else
-        echo "[KK] ERROR: Cannot find run-document-server.sh" >&2
-        exit 1
     fi
+    echo "[KK] ERROR: Cannot find run-document-server.sh" >&2
+    exit 1
 fi
 
 echo "[KK] Init script completed (mode=$MODE)"

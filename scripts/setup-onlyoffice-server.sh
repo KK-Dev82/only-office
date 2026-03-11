@@ -367,7 +367,99 @@ fi
 echo ""
 
 # ============================================
-# 4. Summary
+# 4. Example Files + DS Nginx (serve sample.docx)
+# ============================================
+# Image ใหม่: /var/www/onlyoffice/documentserver-example/example เป็น binary (Node.js app)
+#   → ใช้ /var/www/onlyoffice/Data/example-files/ (named volume, writable) แทน
+# ds.conf ใช้ include /etc/nginx/includes/ds-*.conf;
+#   → เขียน location block เข้า ds-example.conf (ไฟล์มีอยู่แล้วแต่ว่างเปล่า)
+echo "📄 Setting up Example Files (sample.docx)..."
+echo "----------------------------------------"
+
+EXAMPLE_SRC="$ONLYOFFICE_PATH/example/files"
+EXAMPLE_DST="/var/www/onlyoffice/Data/example-files"
+DS_EXAMPLE_CONF="/etc/nginx/includes/ds-example.conf"
+
+if [ ! -d "$EXAMPLE_SRC" ]; then
+    echo "   ⚠️  Example files source ไม่พบ: $EXAMPLE_SRC"
+    echo "   💡 ข้ามขั้นตอนนี้"
+else
+    echo "   Source: $EXAMPLE_SRC"
+    echo "   Destination: $EXAMPLE_DST (inside container)"
+
+    # สร้าง directory + copy files
+    docker exec "$CONTAINER_NAME" mkdir -p "$EXAMPLE_DST" 2>/dev/null || \
+        docker exec -u root "$CONTAINER_NAME" mkdir -p "$EXAMPLE_DST"
+
+    EXAMPLE_COPIED=0
+    for f in "$EXAMPLE_SRC"/*; do
+        [ -f "$f" ] || continue
+        fname=$(basename "$f")
+        if docker cp "$f" "$CONTAINER_NAME:$EXAMPLE_DST/$fname" 2>/dev/null; then
+            echo "   ✅ Copied $fname"
+            EXAMPLE_COPIED=$((EXAMPLE_COPIED + 1))
+        else
+            echo "   ❌ Failed to copy $fname"
+        fi
+    done
+
+    # Fix permissions
+    docker exec "$CONTAINER_NAME" chown -R ds:ds "$EXAMPLE_DST" 2>/dev/null || \
+        docker exec -u root "$CONTAINER_NAME" chown -R ds:ds "$EXAMPLE_DST" 2>/dev/null || true
+    docker exec "$CONTAINER_NAME" chmod -R a+r "$EXAMPLE_DST" 2>/dev/null || true
+
+    echo "   ✅ Copied $EXAMPLE_COPIED file(s)"
+    echo ""
+
+    # Nginx: เขียน location block เข้า ds-example.conf
+    echo "   🔧 Patching Nginx (ds-example.conf)..."
+
+    if docker exec "$CONTAINER_NAME" test -f "$DS_EXAMPLE_CONF" 2>/dev/null; then
+        # เขียนทับ ds-example.conf (ไฟล์ว่างเดิม หรือ patch เดิม)
+        docker exec "$CONTAINER_NAME" sh -c "cat > $DS_EXAMPLE_CONF" << 'NGINX_EOF'
+# KK: serve example files (sample.docx) statically
+# เพราะ Example App (Node.js) ไม่รัน เนื่องจาก DS_EXAMPLE=false
+location ^~ /example/files/ {
+    alias /var/www/onlyoffice/Data/example-files/;
+    autoindex off;
+}
+NGINX_EOF
+
+        # ตรวจสอบว่าเขียนสำเร็จ
+        if docker exec "$CONTAINER_NAME" grep -q 'example-files' "$DS_EXAMPLE_CONF" 2>/dev/null; then
+            echo "   ✅ ds-example.conf updated"
+
+            # Test nginx config
+            if docker exec "$CONTAINER_NAME" nginx -t 2>&1 | grep -q "successful"; then
+                docker exec "$CONTAINER_NAME" nginx -s reload 2>/dev/null
+                echo "   ✅ Nginx reloaded"
+
+                # Verify
+                sleep 1
+                HTTP_CODE=$(docker exec "$CONTAINER_NAME" curl -s -o /dev/null -w "%{http_code}" \
+                    --max-time 5 http://localhost/example/files/sample.docx 2>/dev/null || echo "000")
+                if [ "$HTTP_CODE" = "200" ]; then
+                    echo "   ✅ Verified: /example/files/sample.docx → HTTP $HTTP_CODE"
+                else
+                    echo "   ⚠️  /example/files/sample.docx → HTTP $HTTP_CODE (อาจต้องรอ DS พร้อม)"
+                fi
+            else
+                echo "   ❌ Nginx config test failed:"
+                docker exec "$CONTAINER_NAME" nginx -t 2>&1 | head -5
+            fi
+        else
+            echo "   ❌ Failed to write ds-example.conf"
+        fi
+    else
+        echo "   ⚠️  $DS_EXAMPLE_CONF not found — image อาจใช้โครงสร้างอื่น"
+        echo "   💡 ลอง: docker exec $CONTAINER_NAME ls /etc/nginx/includes/"
+    fi
+fi
+
+echo ""
+
+# ============================================
+# 5. Summary
 # ============================================
 echo "=========================================="
 echo "✅ Setup completed!"
@@ -375,6 +467,7 @@ echo ""
 echo "📋 Summary:"
 echo "   - Dictionary: $DICT_DST"
 echo "   - Plugins: $PLUGINS_DST ($COPIED_COUNT plugins)"
+echo "   - Example files: $EXAMPLE_DST"
 echo ""
 echo "💡 Next steps:"
 echo "   1. Restart container เพื่อให้ plugins โหลด:"
@@ -383,6 +476,16 @@ echo ""
 echo "   2. ตรวจสอบผลลัพธ์:"
 echo "      docker exec $CONTAINER_NAME ls -la $DICT_DST"
 echo "      docker exec $CONTAINER_NAME ls -la $PLUGINS_DST"
+echo "      docker exec $CONTAINER_NAME curl -s -o /dev/null -w '%{http_code}' http://localhost/example/files/sample.docx"
 echo ""
 echo "   3. ตรวจสอบใน editor: เปิดเอกสารใน Only Office แล้วดูที่เมนู Plugins"
+echo ""
+echo "   4. Quick fix (ถ้า example files ไม่ทำงานหลัง restart):"
+echo "      docker exec $CONTAINER_NAME sh -c 'cat > /etc/nginx/includes/ds-example.conf << \"EOF\""
+echo "location ^~ /example/files/ {"
+echo "    alias /var/www/onlyoffice/Data/example-files/;"
+echo "    autoindex off;"
+echo "}"
+echo "EOF'"
+echo "      docker exec $CONTAINER_NAME nginx -s reload"
 echo "=========================================="
