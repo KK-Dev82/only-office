@@ -3,9 +3,14 @@
 # Script นี้สามารถรันได้ทั้งจาก container init และจากภายนอก
 # Usage: 
 #   - จาก container init: /opt/kk-init/init-onlyoffice.sh
-#   - จากภายนอก: docker exec container-name /opt/kk-init/init-onlyoffice.sh
+#   - sync ซ้ำ (manual): docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only
+#   - patch nginx เท่านั้น: docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh patch-nginx
 
-set -euo pipefail
+# ไม่ใช้ set -e เพราะ non-critical failure ไม่ควรหยุด DS จาก start
+set -uo pipefail
+
+KK_ERRORS=0
+kk_warn() { echo "[KK] WARNING: $*" >&2; KK_ERRORS=$((KK_ERRORS + 1)); }
 
 # ตรวจสอบว่าเราอยู่ใน container หรือไม่
 IN_CONTAINER=${IN_CONTAINER:-false}
@@ -13,24 +18,88 @@ if [ -f "/.dockerenv" ] || [ -n "${DOCKER_CONTAINER:-}" ] || [ -f "/var/www/only
     IN_CONTAINER=true
 fi
 
-echo "[KK] Only Office Init Script"
+MODE="${1:-full}"
+
+echo "[KK] Only Office Init Script (mode=$MODE)"
 echo "[KK] Running in container: $IN_CONTAINER"
 echo ""
 
 # สคริปต์นี้ออกแบบมาสำหรับรันใน container เท่านั้น
-# ถ้ารันบน host โดยตรง ให้ใช้: docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh
 if [ "$IN_CONTAINER" != true ]; then
     echo "[KK] ERROR: สคริปต์นี้ต้องรันภายใน container"
-    echo "[KK] Usage: docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh"
-    echo "[KK] หรือ: docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only"
+    echo "[KK] Usage:"
+    echo "[KK]   docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh"
+    echo "[KK]   docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh sync-only"
+    echo "[KK]   docker exec onlyoffice-documentserver /opt/kk-init/init-onlyoffice.sh patch-nginx"
     exit 1
 fi
 
-INIT_MARK="/var/www/onlyoffice/Data/.kk_init_done"
+# ============================================
+# Nginx patch function (reusable)
+# ============================================
+patch_ds_nginx() {
+    local DS_NGINX_CONF="/etc/nginx/conf.d/ds.conf"
+    local EXAMPLE_DST="/var/www/onlyoffice/documentserver-example/example/files"
+
+    # Copy example files
+    mkdir -p "$EXAMPLE_DST"
+    if [ -d "/opt/kk-example-src/files" ]; then
+        cp -R /opt/kk-example-src/files/* "$EXAMPLE_DST"/ 2>/dev/null || true
+    fi
+    chown -R ds:ds "$EXAMPLE_DST" 2>/dev/null || true
+    chmod -R a+r "$EXAMPLE_DST" 2>/dev/null || true
+
+    if [ ! -f "$DS_NGINX_CONF" ]; then
+        kk_warn "$DS_NGINX_CONF not found — cannot patch."
+        return 1
+    fi
+
+    if grep -q 'location \^~ /example/files/' "$DS_NGINX_CONF" 2>/dev/null; then
+        echo "[KK] DS Nginx: /example/files/ static location already patched."
+        return 0
+    fi
+
+    echo "[KK] DS Nginx: patching to serve /example/files/ statically..."
+    sed -i '/^[[:space:]]*location \/ {/i\
+    location ^~ /example/files/ {\
+        alias /var/www/onlyoffice/documentserver-example/example/files/;\
+        autoindex off;\
+    }\
+' "$DS_NGINX_CONF"
+
+    if grep -q 'location \^~ /example/files/' "$DS_NGINX_CONF" 2>/dev/null; then
+        echo "[KK] DS Nginx: patch OK."
+    else
+        kk_warn "DS Nginx patch may have failed."
+        return 1
+    fi
+
+    # ถ้า Nginx กำลังรันอยู่ → reload เพื่อให้ patch มีผลทันที
+    if pgrep -x nginx >/dev/null 2>&1; then
+        echo "[KK] DS Nginx: reloading (nginx is running)..."
+        nginx -s reload 2>/dev/null && echo "[KK] DS Nginx: reload OK." || kk_warn "nginx reload failed"
+    fi
+    return 0
+}
+
+# ============================================
+# patch-nginx mode: เฉพาะ Nginx patch + reload
+# ============================================
+if [ "$MODE" = "patch-nginx" ]; then
+    echo "[KK] Running patch-nginx only..."
+    patch_ds_nginx
+    echo "[KK] patch-nginx done (errors=$KK_ERRORS)."
+    # Verify
+    curl -s -o /dev/null -w "[KK] Verify /example/files/sample.docx → HTTP %{http_code}\n" \
+        --max-time 5 http://localhost/example/files/sample.docx 2>/dev/null || true
+    exit $KK_ERRORS
+fi
 
 # ============================================
 # 1. Initial Setup (ครั้งแรกเท่านั้น)
 # ============================================
+INIT_MARK="/var/www/onlyoffice/Data/.kk_init_done"
+
 if [ ! -f "$INIT_MARK" ]; then
     echo "[KK] init: installing fonts/plugins/dicts (first time)..."
 
@@ -53,27 +122,27 @@ mkdir -p "$DICS_DST" 2>/dev/null || true
 
 # ตรวจสอบว่า source มีอยู่
 if [ ! -d "/opt/kk-dict-src" ]; then
-    echo "[KK] Warning: /opt/kk-dict-src not found, skipping dictionary sync"
+    kk_warn "/opt/kk-dict-src not found, skipping dictionary sync"
 else
     # Copy ไฟล์ dictionary (overwrite)
     if [ -f "/opt/kk-dict-src/th_TH/th_TH.dic" ]; then
-        cp "/opt/kk-dict-src/th_TH/th_TH.dic" "$DICS_DST/th_TH.dic" 2>/dev/null && echo "[KK] Copied th_TH.dic" || echo "[KK] Failed to copy th_TH.dic"
+        cp "/opt/kk-dict-src/th_TH/th_TH.dic" "$DICS_DST/th_TH.dic" 2>/dev/null && echo "[KK] Copied th_TH.dic" || kk_warn "Failed to copy th_TH.dic"
     else
-        echo "[KK] Warning: /opt/kk-dict-src/th_TH/th_TH.dic not found"
+        kk_warn "/opt/kk-dict-src/th_TH/th_TH.dic not found"
     fi
     if [ -f "/opt/kk-dict-src/th_TH/th_TH.aff" ]; then
-        cp "/opt/kk-dict-src/th_TH/th_TH.aff" "$DICS_DST/th_TH.aff" 2>/dev/null && echo "[KK] Copied th_TH.aff" || echo "[KK] Failed to copy th_TH.aff"
+        cp "/opt/kk-dict-src/th_TH/th_TH.aff" "$DICS_DST/th_TH.aff" 2>/dev/null && echo "[KK] Copied th_TH.aff" || kk_warn "Failed to copy th_TH.aff"
     else
-        echo "[KK] Warning: /opt/kk-dict-src/th_TH/th_TH.aff not found"
+        kk_warn "/opt/kk-dict-src/th_TH/th_TH.aff not found"
     fi
     if [ -f "/opt/kk-dict-src/th_TH/th_TH.json" ]; then
-        cp "/opt/kk-dict-src/th_TH/th_TH.json" "$DICS_DST/th_TH.json" 2>/dev/null && echo "[KK] Copied th_TH.json" || echo "[KK] Failed to copy th_TH.json"
+        cp "/opt/kk-dict-src/th_TH/th_TH.json" "$DICS_DST/th_TH.json" 2>/dev/null && echo "[KK] Copied th_TH.json" || kk_warn "Failed to copy th_TH.json"
     else
-        printf '{ "codes": [1054] }\n' > "$DICS_DST/th_TH.json" 2>/dev/null && echo "[KK] Created th_TH.json" || echo "[KK] Failed to create th_TH.json"
+        printf '{ "codes": [1054] }\n' > "$DICS_DST/th_TH.json" 2>/dev/null && echo "[KK] Created th_TH.json" || kk_warn "Failed to create th_TH.json"
     fi
     # Hyphenation dictionary (พจนานุกรมแยกคำ) - optional, same locale as main dict
     if [ -f "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" ]; then
-        cp "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" "$DICS_DST/hyph_th_TH.dic" 2>/dev/null && echo "[KK] Copied hyph_th_TH.dic" || echo "[KK] Failed to copy hyph_th_TH.dic"
+        cp "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" "$DICS_DST/hyph_th_TH.dic" 2>/dev/null && echo "[KK] Copied hyph_th_TH.dic" || kk_warn "Failed to copy hyph_th_TH.dic"
     fi
 fi
 
@@ -158,7 +227,7 @@ if [ -d "/opt/kk-plugins-src" ]; then
         case " $PLUGINS_DISABLED " in
             *" $name "*) echo "[KK] Skipping disabled: $name"; continue ;;
         esac
-        cp -R "$p" "$PLUGINS_DST/" || { echo "[KK] ERROR: cp $name failed" >&2; exit 1; }
+        cp -R "$p" "$PLUGINS_DST/" || { kk_warn "cp $name failed"; }
         echo "[KK] Copied $name"
     done
     # ตั้ง permission สำหรับ plugins ที่ copy
@@ -179,7 +248,7 @@ if [ -d "/opt/kk-plugins-src" ]; then
         echo "[KK]   ⊘ $d (disabled)"
     done
 else
-    echo "[KK] ERROR: /opt/kk-plugins-src not found - check volume mount ./only-office/onlyoffice-plugins" >&2
+    kk_warn "/opt/kk-plugins-src not found - check volume mount ./only-office/onlyoffice-plugins"
 fi
 
 # ============================================
@@ -188,35 +257,7 @@ fi
 # Local dev: Vite plugin serve-onlyoffice-local-assets อ่าน ../only-office/example/ จาก disk ตรง ๆ
 # Staging/Prod: DS container มีไฟล์อยู่แล้ว แต่ internal Nginx ส่งไป Example App (ไม่รัน)
 #               → patch DS Nginx ให้ serve /example/files/ เป็น static แทน
-EXAMPLE_DST="/var/www/onlyoffice/documentserver-example/example/files"
-mkdir -p "$EXAMPLE_DST"
-if [ -d "/opt/kk-example-src/files" ]; then
-    cp -R /opt/kk-example-src/files/* "$EXAMPLE_DST"/ 2>/dev/null || true
-fi
-chown -R ds:ds "$EXAMPLE_DST" 2>/dev/null || true
-chmod -R a+r "$EXAMPLE_DST" 2>/dev/null || true
-
-DS_NGINX_CONF="/etc/nginx/conf.d/ds.conf"
-if [ -f "$DS_NGINX_CONF" ]; then
-    if grep -q 'location \^~ /example/files/' "$DS_NGINX_CONF" 2>/dev/null; then
-        echo "[KK] DS Nginx: /example/files/ static location already patched."
-    else
-        echo "[KK] DS Nginx: patching to serve /example/files/ statically..."
-        sed -i '/^[[:space:]]*location \/ {/i\
-    location ^~ /example/files/ {\
-        alias /var/www/onlyoffice/documentserver-example/example/files/;\
-        autoindex off;\
-    }\
-' "$DS_NGINX_CONF"
-        if grep -q 'location \^~ /example/files/' "$DS_NGINX_CONF" 2>/dev/null; then
-            echo "[KK] DS Nginx: patch OK."
-        else
-            echo "[KK] DS Nginx: WARNING - patch may have failed." >&2
-        fi
-    fi
-else
-    echo "[KK] DS Nginx: WARNING - $DS_NGINX_CONF not found." >&2
-fi
+patch_ds_nginx
 
 # ============================================
 # 5. Locale: sync en.json / th.json → documenteditor/main/locale (แก้ 404 ภาษาไทย)
@@ -243,9 +284,20 @@ if [ -d "/opt/kk-locale-src" ]; then
 fi
 
 # ============================================
+# Summary
+# ============================================
+if [ "$KK_ERRORS" -gt 0 ]; then
+    echo ""
+    echo "[KK] ⚠️  Completed with $KK_ERRORS warning(s). DS will still start."
+else
+    echo ""
+    echo "[KK] ✅ All init steps completed successfully."
+fi
+
+# ============================================
 # 6. Start DocumentServer (ถ้ารันจาก init)
 # ============================================
-if [ "$IN_CONTAINER" = true ] && [ "${1:-}" != "sync-only" ]; then
+if [ "$MODE" != "sync-only" ] && [ "$MODE" != "patch-nginx" ]; then
     echo "[KK] Starting DocumentServer..."
     if [ -x /app/run-document-server.sh ]; then
         exec /app/run-document-server.sh
@@ -254,9 +306,9 @@ if [ "$IN_CONTAINER" = true ] && [ "${1:-}" != "sync-only" ]; then
     elif command -v run-document-server.sh >/dev/null 2>&1; then
         exec run-document-server.sh
     else
-        echo "Cannot find run-document-server.sh" >&2
+        echo "[KK] ERROR: Cannot find run-document-server.sh" >&2
         exit 1
     fi
 fi
 
-echo "[KK] Init script completed"
+echo "[KK] Init script completed (mode=$MODE)"
