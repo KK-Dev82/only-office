@@ -1,0 +1,19 @@
+{
+  "name": "nbsp Space",
+  "guid": "asc.{C3F2E1D0-B9A8-7654-3210-FEDCBA987654}",
+  "version": "0.0.1",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Auto-replace every space with non-breaking space (v0.0.1)",
+      "url": "index.html",
+      "icons": ["resources/icon.svg"],
+      "isViewer": false,
+      "EditorsSupport": ["word"],
+      "isVisual": false,
+      "isSystem": true,
+      "initDataType": "none",
+      "events": ["onInputHelperClear", "onInputHelperInput"]
+    }
+  ]
+}
