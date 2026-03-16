@@ -32,6 +32,9 @@ services:
       # --- Document Editor locale (แก้ 404 web-apps/apps/documenteditor/main/locale - ภาษาไทย) ---
       - ./locale:/opt/kk-locale-src:ro
 
+      # --- OnlyOffice local config (siteUrl + JWT settings) ---
+      - ./local.json:/etc/onlyoffice/documentserver/local.json:ro
+
     # Run init (fonts/plugins/dicts) then start DocumentServer.
     # We keep it idempotent using a marker file in /var/www/onlyoffice/Data
     command:

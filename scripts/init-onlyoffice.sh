@@ -241,12 +241,58 @@ else
 fi
 
 # ============================================
-# 4. Example files + DS Nginx (ds-example.conf)
+# 4. Write local.json (JWT browser token + optional siteUrl)
+# ============================================
+# แก้ 403 บน /cache/files/data/.../Editor.bin
+# สาเหตุ: OnlyOffice 9.x ต้องการ JWT token จาก browser สำหรับ cache requests
+#         ต้อง set token.enable.browser=true เพื่อให้ SDK attach JWT ให้อัตโนมัติ
+#
+# ONLYOFFICE_SITE_URL (optional):
+#   - ถ้า OO ใช้กับ domain เดียว → ตั้งค่า (เช่น https://bmsh.senate.go.th)
+#   - ถ้า OO ใช้ร่วมกันหลาย domain (production + staging) → ไม่ต้องตั้ง
+#     OO จะใช้ Host header จาก request แทน ทำให้รองรับทุก domain อัตโนมัติ
+LOCAL_JSON_PATH="/etc/onlyoffice/documentserver/local.json"
+if [ -f "$LOCAL_JSON_PATH" ] && grep -q '"browser"' "$LOCAL_JSON_PATH" 2>/dev/null; then
+    echo "[KK] local.json already configured (mounted or from image) — skipping write."
+else
+    mkdir -p "$(dirname "$LOCAL_JSON_PATH")" 2>/dev/null || true
+
+    # build siteUrl block เฉพาะเมื่อมี ONLYOFFICE_SITE_URL
+    if [ -n "${ONLYOFFICE_SITE_URL:-}" ]; then
+        echo "[KK] Writing local.json (siteUrl=${ONLYOFFICE_SITE_URL}, browser JWT=true)..."
+        SITE_URL_BLOCK="\"server\": { \"siteUrl\": \"${ONLYOFFICE_SITE_URL}\" },"
+    else
+        echo "[KK] Writing local.json (browser JWT=true, no siteUrl — multi-domain mode)..."
+        SITE_URL_BLOCK=""
+    fi
+
+    cat > "$LOCAL_JSON_PATH" << LOCALJSON_EOF
+{
+  "services": {
+    "CoAuthoring": {
+      ${SITE_URL_BLOCK}
+      "token": {
+        "enable": {
+          "request": { "inbox": true, "outbox": true },
+          "browser": true
+        },
+        "inbox": { "header": "Authorization" },
+        "outbox": { "header": "Authorization" }
+      }
+    }
+  }
+}
+LOCALJSON_EOF
+    echo "[KK] local.json written OK."
+fi
+
+# ============================================
+# 5. Example files + DS Nginx (ds-example.conf)
 # ============================================
 patch_ds_nginx
 
 # ============================================
-# 5. Locale: sync en.json / th.json → documenteditor/main/locale (แก้ 404 ภาษาไทย)
+# 6. Locale: sync en.json / th.json → documenteditor/main/locale (แก้ 404 ภาษาไทย)
 # ============================================
 if [ -d "/opt/kk-locale-src" ]; then
     echo "[KK] syncing locale (documenteditor/main/locale)..."
@@ -281,7 +327,7 @@ else
 fi
 
 # ============================================
-# 6. Start DocumentServer (ถ้ารันจาก entrypoint)
+# 7. Start DocumentServer (ถ้ารันจาก entrypoint)
 # ============================================
 if [ "$MODE" != "sync-only" ] && [ "$MODE" != "patch-nginx" ]; then
     echo "[KK] Starting DocumentServer..."

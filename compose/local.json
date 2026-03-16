@@ -1,0 +1,24 @@
+{
+  "services": {
+    "CoAuthoring": {
+      "server": {
+        "siteUrl": "https://bmsh.senate.go.th"
+      },
+      "token": {
+        "enable": {
+          "request": {
+            "inbox": true,
+            "outbox": true
+          },
+          "browser": true
+        },
+        "inbox": {
+          "header": "Authorization"
+        },
+        "outbox": {
+          "header": "Authorization"
+        }
+      }
+    }
+  }
+}
