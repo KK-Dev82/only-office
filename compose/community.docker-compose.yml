@@ -17,8 +17,8 @@ services:
       - onlyoffice_data:/var/www/onlyoffice/Data
       - onlyoffice_logs:/var/log/onlyoffice
 
-      # --- Custom Fonts (TH Sarabun New) ---
-      - ../THSarabunNew:/usr/share/fonts/truetype/th-sarabun:ro
+      # --- Custom Fonts (TH SarabunPSK) ---
+      - ../THSarabunPSK:/usr/share/fonts/truetype/th-sarabun:ro
 
       # --- Plugin sources (we will copy into sdkjs-plugins on start) ---
       - ../onlyoffice-plugins:/opt/kk-plugins-src:ro
