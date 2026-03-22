@@ -1,10 +1,12 @@
 # onlyoffice-plugins
 
-## Fonts (TH Sarabun New)
+## Fonts (TH SarabunPSK)
 
-ใช้โฟลเดอร์ `THSarabunNew` (mount ใน docker-compose เป็น `/usr/share/fonts/truetype/th-sarabun`)
+ปัจจุบันใช้โฟลเดอร์ `THSarabunPSK` (mount ใน docker-compose เป็น `/usr/share/fonts/truetype/th-sarabun`)
 
-**เมื่อเปลี่ยนชุด font (เช่นจาก THSarabunITBold เป็น THSarabunNew):**
+> **หมายเหตุ:** Frontend (senate-vite) ใช้ชื่อ font-family ว่า `THSarabunNew` — config อยู่ที่ `senate-vite/src/config/fonts.ts` (TS) และ `senate-vite/src/styles/_variables.scss` (SCSS)
+
+**เมื่อเปลี่ยนชุด font (เช่นจาก THSarabunPSK เป็น THSarabunNew):**
 1. อัปเดต path ใน docker-compose เป็นโฟลเดอร์ font ใหม่ (ไม่ต้อง copy ไฟล์ — แค่ชี้ path)
 2. Recreate container: `docker compose up -d --force-recreate` (หรือ `docker-compose up -d --force-recreate`) เพื่อให้ volume ใหม่มีผล
 3. ถ้าฟอนต์ยังไม่ขึ้นใน editor: init script รัน `documentserver-generate-allfonts.sh` เฉพาะครั้งแรก (เมื่อไม่มี `.kk_init_done`) — ให้ลบ mark แล้ว restart หรือรันเอง:

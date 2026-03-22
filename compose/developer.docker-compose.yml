@@ -26,8 +26,8 @@ services:
       - ../license/license.lic:/var/www/onlyoffice/Data/license.lic:ro
 
       # --- Custom Fonts (TH Sarabun New) ---
-      # - ../THSarabunNew:/usr/share/fonts/truetype/th-sarabun:ro
-      - ../THSarabunPSK:/usr/share/fonts/truetype/th-sarabun:ro
+      - ../THSarabunNew-13:/usr/share/fonts/truetype/th-sarabun:ro
+      # - ../THSarabunPSK:/usr/share/fonts/truetype/th-sarabun:ro
 
       # --- Plugin sources (we will copy into sdkjs-plugins on start) ---
       - ../onlyoffice-plugins:/opt/kk-plugins-src:ro
