@@ -37,8 +37,20 @@
     var preserveParagraphs = opts.preserveParagraphs !== false;
     try {
       var doc = typeof document !== "undefined" && document.createElement("div");
-      if (!doc) return String(html).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (!doc) {
+        // fallback: ลบ <style>...</style> และ tag อื่น ๆ ด้วย regex
+        return String(html)
+          .replace(/<style[\s\S]*?<\/style>/gi, "")
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
       doc.innerHTML = html;
+      // ลบ <style>, <script>, <head>, <meta>, <link>, <title> ก่อน extract text
+      // เพื่อป้องกัน CSS/JS text จาก online editor อื่นหลุดเข้ามาเป็นข้อความ
+      var unwanted = doc.querySelectorAll("style, script, head, meta, link, title");
+      for (var i = 0; i < unwanted.length; i++) unwanted[i].remove();
       var text = doc.innerText || doc.textContent || "";
       text = String(text).trim();
       if (preserveParagraphs) {
@@ -48,7 +60,13 @@
       }
       return text;
     } catch (e) {
-      return String(html).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      // fallback: ลบ <style>...</style> และ tag อื่น ๆ ด้วย regex
+      return String(html)
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
     }
   }
 
@@ -103,7 +121,7 @@
     var t = String(str).trim();
     if (!t) return "";
     if (!hasThaiCharacter(t)) return t;
-    return t.replace(/ /g, "\u00A0").replace(/\t/g, "\u00A0");
+    return t.replace(/ /g, "\u00A0");
   }
 
   /** สำหรับ bus: เมื่อได้แค่ text (ไม่มี html) ใช้ processPasteContent เหมือนกัน — ZWSP เท่านั้น, ไม่ hard wrap ไม่ NBSP */
@@ -124,12 +142,14 @@
     var useThaiWordBreaks = opts.useThaiWordBreaks !== false;
     var thaiWordBoundary = opts.thaiWordBoundary === "space" ? "space" : "zwsp";
     var raw = "";
-    if (html && String(html).trim()) {
+    // ใช้ text/plain ก่อนเสมอ — คง Tab (\t) จากต้นทาง
+    if (text != null && String(text).trim()) {
+      raw = String(text).trim();
+    } else if (html && String(html).trim()) {
       raw = htmlToPlainText(html, { preserveParagraphs: preserveParagraphs });
     }
-    if (!raw && text != null) raw = String(text).trim();
     if (!raw) return "";
-    raw = raw.replace(/\r\n|\r/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+/g, " ").trim();
+    raw = raw.replace(/\r\n|\r/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/ {2,}/g, " ").trim();
     if (hasThaiCharacter(raw) && useThaiWordBreaks) {
       raw = thaiWordBoundary === "space" ? addThaiWordBreaksWithSpace(raw) : addThaiWordBreaks(raw);
     }
