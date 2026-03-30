@@ -171,3 +171,86 @@ body {
 }
 
 .tscEmpty { color: var(--tsc-muted); }
+
+/* ─── Count badge ─── */
+.tscCount {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--tsc-muted);
+}
+
+/* ─── Danger button (Replace All) ─── */
+.tscBtnDanger {
+  border-color: rgba(211, 47, 47, 0.35);
+  background: rgba(211, 47, 47, 0.08);
+  color: var(--tsc-danger);
+}
+
+/* ─── Occurrence list ─── */
+.tscOccurrences {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  border-top: 1px solid var(--tsc-border);
+  padding-top: 8px;
+}
+
+.tscOccurrence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--tsc-border);
+  transition: background 0.15s;
+}
+
+.tscOccurrence:hover {
+  background: rgba(25, 118, 210, 0.06);
+}
+
+.tscOccNum {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tsc-muted);
+  min-width: 22px;
+}
+
+.tscOccContext {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--tsc-fg);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tscOccContext:hover {
+  color: var(--tsc-primary);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.tscHighlight {
+  background: rgba(211, 47, 47, 0.18);
+  color: var(--tsc-danger);
+  font-weight: 700;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
+.tscReplaceOne {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 3px 8px;
+  background: var(--tsc-primary-surface);
+  border-color: rgba(25, 118, 210, 0.30);
+  color: var(--tsc-primary);
+  font-weight: 600;
+}

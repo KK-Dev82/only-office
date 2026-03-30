@@ -4,8 +4,8 @@
   var DO = (window.DO = window.DO || {});
   DO.features = DO.features || {};
 
-  var DEBOUNCE_MS = 80;
-  var MIN_INTERVAL_MS = 150; // ป้องกัน replace ซ้ำซ้อนเร็วเกินไป
+  var DEBOUNCE_MS = 500; // backup layer — ชั้นที่ 1 (Thai NBSP Space plugin) ดัก space ทันทีตอนกด key อยู่แล้ว
+  var MIN_INTERVAL_MS = 600; // ป้องกัน replace ซ้ำซ้อนเร็วเกินไป
 
   function isEnabled() {
     try {
