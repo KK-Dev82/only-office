@@ -6,8 +6,40 @@
   DO.state = DO.state || {};
   DO.state._abbrUi = DO.state._abbrUi || { lastToken: "", items: [], selectedIndex: 0, keyBound: false, bound: false };
 
-  // จำนวนตัวอักษรขั้นต่ำของคำย่อที่ใช้สำหรับ live-suggest
-  var ABBR_MIN_CHARS = 2;
+  // จำนวนตัวอักษรขั้นต่ำของคำย่อที่ใช้สำหรับ live-suggest (รองรับตั้งแต่ 1 ตัวอักษร)
+  var ABBR_MIN_CHARS = 1;
+
+  // ---- HashMap cache สำหรับ O(1) lookup แทน O(n) loop ----
+  var _abbrMapCache = null; // { byExact: {shortFormLower: [abbr]}, byPrefix: {prefix: [abbr]}, version: number }
+
+  function getAbbrMap() {
+    var list = (DO.store && DO.store.abbreviations) ? DO.store.abbreviations : [];
+    var ver = list.length + (list[0] && list[0].id || 0); // simple change detection
+    if (_abbrMapCache && _abbrMapCache.version === ver) return _abbrMapCache;
+
+    var byExact = {};   // key = shortForm.toLowerCase() → [abbr, ...]
+    var byPrefix = {};  // key = prefix (1-char, 2-char) → [abbr, ...]
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i] || {};
+      var sf = String(a.shortForm || "").trim();
+      var ff = String(a.fullForm || "").trim();
+      if (!sf || !ff) continue;
+      var lower = sf.toLowerCase();
+
+      // exact map
+      if (!byExact[lower]) byExact[lower] = [];
+      byExact[lower].push({ id: a.id, shortForm: sf, fullForm: ff });
+
+      // prefix map (first 1 and 2 chars)
+      var p1 = lower.slice(0, 1);
+      var p2 = lower.slice(0, 2);
+      if (p1) { if (!byPrefix[p1]) byPrefix[p1] = []; byPrefix[p1].push({ id: a.id, shortForm: sf, fullForm: ff }); }
+      if (p2 && p2.length === 2) { if (!byPrefix[p2]) byPrefix[p2] = []; byPrefix[p2].push({ id: a.id, shortForm: sf, fullForm: ff }); }
+    }
+
+    _abbrMapCache = { byExact: byExact, byPrefix: byPrefix, version: ver };
+    return _abbrMapCache;
+  }
 
   function isAutoFocusEnabled() {
     try {
@@ -474,28 +506,23 @@
   function findAbbrMatchesForToken(token) {
     var q = String(token || "").trim().toLowerCase();
     if (!q) return [];
-    var items = (DO.store && DO.store.abbreviations) ? DO.store.abbreviations : [];
+    // ใช้ prefix map — ค้น O(m) เฉพาะ abbreviations ที่ขึ้นต้นด้วย prefix เดียวกัน แทน O(n) ทั้ง store
+    var map = getAbbrMap();
+    var prefix = q.slice(0, 2) || q.slice(0, 1);
+    var candidates = (prefix.length >= 2 && map.byPrefix[prefix]) ? map.byPrefix[prefix] : (map.byPrefix[q.slice(0, 1)] || []);
     var out = [];
     var seen = {};
-    for (var i = 0; i < items.length; i++) {
-      var a = items[i] || {};
-      var shortForm = String(a.shortForm || "").trim();
-      var fullForm = String(a.fullForm || "").trim();
-      if (!shortForm || !fullForm) continue;
-      if (shortForm.toLowerCase().indexOf(q) === 0) {
-        var key = shortForm.toLowerCase() + "|" + fullForm;
-        if (seen[key]) continue; // กัน duplicate จาก storage เก่า/ใหม่
+    for (var i = 0; i < candidates.length; i++) {
+      var a = candidates[i];
+      if (a.shortForm.toLowerCase().indexOf(q) === 0) {
+        var key = a.shortForm.toLowerCase() + "|" + a.fullForm;
+        if (seen[key]) continue;
         seen[key] = true;
-        out.push({ id: a.id, shortForm: shortForm, fullForm: fullForm });
+        out.push(a);
       }
     }
-    // เรียงยาวสุดก่อน (สสฝฝ ก่อน สฝฝ) ให้สอดคล้องกับ findCompletedAbbreviationFromParagraph
     try {
-      out.sort(function (a, b) {
-        var la = (a.shortForm || "").length;
-        var lb = (b.shortForm || "").length;
-        return lb - la;
-      });
+      out.sort(function (a, b) { return (b.shortForm || "").length - (a.shortForm || "").length; });
     } catch (eSort) {}
     return out;
   }
@@ -548,37 +575,32 @@
         .replace(/\s+$/g, ""); // ตัดช่องว่าง/newline ท้ายสุดออก
       if (!s) return null;
 
-      var list = (DO.store && DO.store.abbreviations) ? DO.store.abbreviations : [];
-      if (!list.length) return null;
+      // ดึง token สุดท้ายของย่อหน้า แล้วใช้ exact match จาก HashMap — O(1) แทน O(n)
+      var map = getAbbrMap();
+      var m = s.match(/([A-Za-z0-9ก-๙._-]{1,})$/);
+      if (!m) return null;
+      var lastToken = String(m[1] || "").toLowerCase();
+      if (!lastToken || lastToken.length < ABBR_MIN_CHARS) return null;
 
-      var lower = s.toLowerCase();
+      // exact match: token ตรงกับ shortForm ทั้งตัว
+      var exactMatches = map.byExact[lastToken];
+      if (!exactMatches || !exactMatches.length) return null;
+
       var matches = [];
       var seen = {};
-      for (var i = 0; i < list.length; i++) {
-        var a = list[i] || {};
-        var shortForm = String(a.shortForm || "").trim();
-        var fullForm = String(a.fullForm || "").trim();
-        if (!shortForm || !fullForm) continue;
-        if (shortForm.length < ABBR_MIN_CHARS) continue;
-
-        if (lower.slice(-shortForm.length).toLowerCase() === shortForm.toLowerCase()) {
-          var key = shortForm.toLowerCase() + "|" + fullForm;
-          if (seen[key]) continue; // กัน duplicate จาก prefix เก่า/ใหม่
-          seen[key] = true;
-          matches.push({ id: a.id, shortForm: shortForm, fullForm: fullForm });
-        }
+      for (var i = 0; i < exactMatches.length; i++) {
+        var a = exactMatches[i];
+        var key = a.shortForm.toLowerCase() + "|" + a.fullForm;
+        if (seen[key]) continue;
+        seen[key] = true;
+        matches.push(a);
       }
 
       if (!matches.length) return null;
 
-      // เรียงตามความยาว shortForm จากยาวไปสั้น (ยาวสุดก่อน) เพื่อจัดการคำย่อซ้อน เช่น สสฝฝ vs สฝฝ
-      // เมื่อท้าย paragraph ลงท้าย "สสฝฝ" จะเลือก สสฝฝ แทน สฝฝ
+      // เรียงยาวสุดก่อน (สสฝฝ ก่อน สฝฝ)
       try {
-        matches.sort(function (a, b) {
-          var la = (a.shortForm || "").length;
-          var lb = (b.shortForm || "").length;
-          return lb - la;
-        });
+        matches.sort(function (a, b) { return (b.shortForm || "").length - (a.shortForm || "").length; });
       } catch (eSort) {}
 
       try {
