@@ -4,17 +4,17 @@
   var DO = (window.DO = window.DO || {});
   DO.features = DO.features || {};
 
-  var DEBOUNCE_MS = 500; // backup layer — ชั้นที่ 1 (Thai NBSP Space plugin) ดัก space ทันทีตอนกด key อยู่แล้ว
-  var MIN_INTERVAL_MS = 600; // ป้องกัน replace ซ้ำซ้อนเร็วเกินไป
+  var DEBOUNCE_MS = 500;
+  var MIN_INTERVAL_MS = 600;
 
   function isEnabled() {
     try {
       var opts = DO.pluginOptions && DO.pluginOptions.features;
-      if (!opts) return true; // เปิดใช้โดยค่าเริ่มต้น
-      if (opts.spaceToNbsp === false) return false;
-      return true;
+      if (!opts) return false; // ปิดโดยค่าเริ่มต้น — ชั้นที่ 1 (Thai NBSP Space plugin) ดัก space ทันทีตอนกด key อยู่แล้ว
+      if (opts.spaceToNbsp === true) return true; // เปิดได้ถ้าต้องการ backup layer
+      return false;
     } catch (e) {
-      return true;
+      return false;
     }
   }
 
