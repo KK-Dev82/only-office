@@ -69,11 +69,12 @@
     state.replacing = false;
   };
 
-  // ─── แทนที่ space ทุกตัวในข้อความด้วย nbsp ──────────────────────────────
-  // oldText = ข้อความเดิม (accumulated text ที่ OO ส่งมา)
-  // InputText([newText, oldText]):
-  //   1. ลบ oldText.length ตัวอักษรก่อน cursor
-  //   2. insert newText แทน
+  // ─── แทนที่ space ด้วย nbsp ──────────────────────────────────────────────
+  // Debounce 300ms: ถ้าพิมพ์ต่อเนื่อง timer reset → replace ครั้งเดียวตอนหยุดพิมพ์
+  // ลด reflow จาก "ทุก space" เป็น "หลังหยุดพิมพ์ 300ms"
+  var _nbspTimer = 0;
+  var NBSP_DEBOUNCE_MS = 300;
+
   function replaceSpaces(oldText) {
     if (state.replacing) return;
     state.replacing = true;
@@ -81,26 +82,26 @@
       var newText = oldText.split(" ").join(NBSP);
       window.Asc.plugin.executeMethod("InputText", [newText, oldText]);
     } catch (_e) {}
-    setTimeout(function () {
-      state.replacing = false;
-    }, 150);
+    setTimeout(function () { state.replacing = false; }, 150);
   }
 
   // ─── onInputHelperClear: context cleared, nothing to do ──────────────────
   window.Asc.plugin.event_onInputHelperClear = function () {};
 
-  // ─── onInputHelperInput: ตรวจ space แล้วแทนที่ทั้งหมด ───────────────────
-  // typing ทีละตัว: data.text = "สวัสดี "       (space ท้าย)
-  // paste ทั้งก้อน: data.text = "สวัสดี ครับ"  (space กลางข้อความ)
-  // ทั้งสองกรณีใช้ indexOf(" ") > -1 ตรวจจับแล้วแทนที่ทั้งหมดในครั้งเดียว
+  // ─── onInputHelperInput: ตรวจ space แล้ว debounce replace ────────────────
   window.Asc.plugin.event_onInputHelperInput = function (data) {
     if (state.replacing) return;
     if (isDisabled()) return;
     try {
       if (!data || typeof data.text !== "string" || data.text.length === 0) return;
-      if (data.text.indexOf(" ") !== -1) {
-        replaceSpaces(data.text);
-      }
+      if (data.text.indexOf(" ") === -1) return;
+      // Debounce: รอ 300ms — ถ้าพิมพ์ต่อ timer reset → replace ครั้งเดียวตอนหยุดพิมพ์
+      if (_nbspTimer) clearTimeout(_nbspTimer);
+      var textSnapshot = data.text;
+      _nbspTimer = setTimeout(function () {
+        _nbspTimer = 0;
+        replaceSpaces(textSnapshot);
+      }, NBSP_DEBOUNCE_MS);
     } catch (_e) {
       state.replacing = false;
     }
