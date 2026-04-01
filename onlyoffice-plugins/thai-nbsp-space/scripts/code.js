@@ -48,6 +48,12 @@
     replacing: false, // ❸ re-entrancy guard
   };
 
+  // ปิด/เปิด NBSP replacement ได้จาก localStorage: localStorage.setItem("DO_DISABLE_NBSP", "1")
+  // ใช้สำหรับทดสอบ performance — ลบด้วย localStorage.removeItem("DO_DISABLE_NBSP")
+  function isDisabled() {
+    try { return localStorage.getItem("DO_DISABLE_NBSP") === "1"; } catch (e) { return false; }
+  }
+
   window.Asc = window.Asc || {};
   window.Asc.plugin = window.Asc.plugin || {};
 
@@ -81,6 +87,7 @@
   // ทั้งสองกรณีใช้ indexOf(" ") > -1 ตรวจจับแล้วแทนที่ทั้งหมดในครั้งเดียว
   window.Asc.plugin.event_onInputHelperInput = function (data) {
     if (state.replacing) return;
+    if (isDisabled()) return;
     try {
       if (!data || typeof data.text !== "string" || data.text.length === 0) return;
       if (data.text.indexOf(" ") !== -1) {
