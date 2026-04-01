@@ -48,10 +48,18 @@
     replacing: false, // ❸ re-entrancy guard
   };
 
-  // ปิด/เปิด NBSP replacement ได้จาก localStorage: localStorage.setItem("DO_DISABLE_NBSP", "1")
-  // ใช้สำหรับทดสอบ performance — ลบด้วย localStorage.removeItem("DO_DISABLE_NBSP")
+  // ปิด/เปิด NBSP replacement: พิมพ์ใน Browser Console ของหน้าหลัก:
+  //   ปิด: window.DO_DISABLE_NBSP = true
+  //   เปิด: window.DO_DISABLE_NBSP = false
   function isDisabled() {
-    try { return localStorage.getItem("DO_DISABLE_NBSP") === "1"; } catch (e) { return false; }
+    try {
+      // เช็ค window ของ plugin เอง
+      if (window.DO_DISABLE_NBSP === true) return true;
+      // เช็ค window ของ parent (main page) — plugin อยู่ใน iframe ซ้อน
+      if (window.parent && window.parent.DO_DISABLE_NBSP === true) return true;
+      if (window.top && window.top.DO_DISABLE_NBSP === true) return true;
+    } catch (e) {}
+    return false;
   }
 
   window.Asc = window.Asc || {};
