@@ -22,9 +22,14 @@
  *        กด Space      → text = "สวัสดี "  ← ลงท้ายด้วย space
  *        พิมพ์ "ค"     → text = "ค"       ← คำใหม่
  *
- *   ❷  ตรวจ: text ลงท้ายด้วย " " → space เพิ่งถูก insert
- *      → executeMethod("InputText", [NBSP, " "])
- *      → OO ลบ " " ก่อน cursor แล้ว insert NBSP แทน (length-based delete)
+ *   ❷  ตรวจ: text มี " " อยู่ที่ไหน → แยก 2 path:
+ *
+ *      Fast path (typing): space อยู่ท้ายสุดตัวเดียว
+ *        → InputText([NBSP, " "]) → ลบ 1 char, insert 1 char ← เบามาก
+ *
+ *      Full path (paste): space อยู่กลางข้อความ
+ *        → InputText([fullReplaced, fullOriginal]) → ลบ+insert ทั้งก้อน
+ *        → เกิดไม่บ่อย จึงรับได้
  *
  *   ❸  replacing flag ป้องกัน re-entrant loop
  *      (InputText อาจ trigger onInputHelperInput อีกรอบ)
@@ -69,15 +74,12 @@
     state.replacing = false;
   };
 
-  // ─── แทนที่ space ทุกตัวในข้อความด้วย nbsp ──────────────────────────────
-  // ต้องทำทันที (ไม่ debounce) เพราะ InputText ใช้ oldText ลบตัวอักษรก่อน cursor
-  // ถ้า debounce แล้ว user พิมพ์ต่อ → oldText ไม่ตรงกับ cursor → ตัวอักษรเพี้ยน
-  function replaceSpaces(oldText) {
+  // ─── execute: wrapper รอบ InputText + re-entrancy guard ─────────────────
+  function execute(newText, delText) {
     if (state.replacing) return;
     state.replacing = true;
     try {
-      var newText = oldText.split(" ").join(NBSP);
-      window.Asc.plugin.executeMethod("InputText", [newText, oldText]);
+      window.Asc.plugin.executeMethod("InputText", [newText, delText]);
     } catch (_e) {}
     setTimeout(function () {
       state.replacing = false;
@@ -87,15 +89,40 @@
   // ─── onInputHelperClear: context cleared, nothing to do ──────────────────
   window.Asc.plugin.event_onInputHelperClear = function () {};
 
-  // ─── onInputHelperInput: ตรวจ space แล้วแทนที่ทันที ─────────────────────
+  // ─── onInputHelperInput: ตรวจ space แล้วแทนที่ ─────────────────────────
+  //
+  // ⚡ Performance: แยก 2 path ตามตำแหน่ง space
+  //
+  //   typing (space ท้ายสุดตัวเดียว):
+  //     InputText([NBSP, " "]) → ลบ 1 char, insert 1 char → เบามาก
+  //
+  //   paste (space กลางข้อความ):
+  //     InputText([fullReplaced, fullOriginal]) → ลบ+insert ทั้งก้อน → หนักกว่า
+  //     แต่เกิดแค่ตอน paste ไม่บ่อย จึงรับได้
+  //
   window.Asc.plugin.event_onInputHelperInput = function (data) {
     if (state.replacing) return;
     if (isDisabled()) return;
     try {
       if (!data || typeof data.text !== "string" || data.text.length === 0) return;
-      if (data.text.indexOf(" ") !== -1) {
-        replaceSpaces(data.text);
+
+      var text = data.text;
+      var len = text.length;
+      var firstSpace = text.indexOf(" ");
+
+      if (firstSpace === -1) return; // ไม่มี space → ข้าม
+
+      // ── Fast path: space อยู่ท้ายสุดตัวเดียว (typing ปกติ) ──────────────
+      // ลบแค่ 1 char แทนที่ 1 char → ไม่ reflow ทั้ง paragraph
+      if (firstSpace === len - 1) {
+        execute(NBSP, " ");
+        return;
       }
+
+      // ── Full path: space อยู่กลางข้อความ (paste / multi-space) ───────────
+      // ต้องแทนที่ทั้งก้อน เพราะ InputText ลบจาก cursor ย้อนกลับ
+      var replaced = text.split(" ").join(NBSP);
+      execute(replaced, text);
     } catch (_e) {
       state.replacing = false;
     }
