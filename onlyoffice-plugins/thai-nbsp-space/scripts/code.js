@@ -69,12 +69,9 @@
     state.replacing = false;
   };
 
-  // ─── แทนที่ space ด้วย nbsp ──────────────────────────────────────────────
-  // Debounce 300ms: ถ้าพิมพ์ต่อเนื่อง timer reset → replace ครั้งเดียวตอนหยุดพิมพ์
-  // ลด reflow จาก "ทุก space" เป็น "หลังหยุดพิมพ์ 300ms"
-  var _nbspTimer = 0;
-  var NBSP_DEBOUNCE_MS = 300;
-
+  // ─── แทนที่ space ทุกตัวในข้อความด้วย nbsp ──────────────────────────────
+  // ต้องทำทันที (ไม่ debounce) เพราะ InputText ใช้ oldText ลบตัวอักษรก่อน cursor
+  // ถ้า debounce แล้ว user พิมพ์ต่อ → oldText ไม่ตรงกับ cursor → ตัวอักษรเพี้ยน
   function replaceSpaces(oldText) {
     if (state.replacing) return;
     state.replacing = true;
@@ -82,26 +79,23 @@
       var newText = oldText.split(" ").join(NBSP);
       window.Asc.plugin.executeMethod("InputText", [newText, oldText]);
     } catch (_e) {}
-    setTimeout(function () { state.replacing = false; }, 150);
+    setTimeout(function () {
+      state.replacing = false;
+    }, 150);
   }
 
   // ─── onInputHelperClear: context cleared, nothing to do ──────────────────
   window.Asc.plugin.event_onInputHelperClear = function () {};
 
-  // ─── onInputHelperInput: ตรวจ space แล้ว debounce replace ────────────────
+  // ─── onInputHelperInput: ตรวจ space แล้วแทนที่ทันที ─────────────────────
   window.Asc.plugin.event_onInputHelperInput = function (data) {
     if (state.replacing) return;
     if (isDisabled()) return;
     try {
       if (!data || typeof data.text !== "string" || data.text.length === 0) return;
-      if (data.text.indexOf(" ") === -1) return;
-      // Debounce: รอ 300ms — ถ้าพิมพ์ต่อ timer reset → replace ครั้งเดียวตอนหยุดพิมพ์
-      if (_nbspTimer) clearTimeout(_nbspTimer);
-      var textSnapshot = data.text;
-      _nbspTimer = setTimeout(function () {
-        _nbspTimer = 0;
-        replaceSpaces(textSnapshot);
-      }, NBSP_DEBOUNCE_MS);
+      if (data.text.indexOf(" ") !== -1) {
+        replaceSpaces(data.text);
+      }
     } catch (_e) {
       state.replacing = false;
     }
