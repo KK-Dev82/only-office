@@ -221,12 +221,12 @@ if [ -d "/opt/kk-plugins-src" ]; then
         cp -R "$p" "$PLUGINS_DST/" || { kk_warn "cp $name failed"; }
         echo "[KK] Copied $name"
     done
-    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete insert-text-bridge; do
+    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete thai-nbsp-space insert-text-bridge; do
         [ -d "$PLUGINS_DST/$p" ] && chown -R ds:ds "$PLUGINS_DST/$p" 2>/dev/null || true
         [ -d "$PLUGINS_DST/$p" ] && chmod -R a+rX "$PLUGINS_DST/$p" 2>/dev/null || true
     done
     echo "[KK] checking plugins..."
-    for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete insert-text-bridge; do
+    for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete thai-nbsp-space insert-text-bridge; do
         if [ -d "$PLUGINS_DST/$plugin" ] && [ -f "$PLUGINS_DST/$plugin/config.json" ]; then
             echo "[KK]   ✅ $plugin"
         else
