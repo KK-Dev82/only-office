@@ -1,12 +1,12 @@
 {
   "name": "nbsp Space",
   "guid": "asc.{C3F2E1D0-B9A8-7654-3210-FEDCBA987654}",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "baseUrl": "",
   "variations": [
     {
-      "description": "Auto-replace every space with non-breaking space (v0.0.1)",
-      "url": "index.html",
+      "description": "Auto-replace every space with non-breaking space (v0.0.2)",
+      "url": "index.html?v=0.0.2",
       "icons": ["resources/icon.svg"],
       "isViewer": false,
       "EditorsSupport": ["word"],
