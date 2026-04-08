@@ -20,8 +20,7 @@
  *
  *   ❷  Fast path (typing): space ท้ายสุดตัวเดียว
  *        → InputText([NBSP, " "]) → ลบ 1 char, insert 1 char
- *      Full path (paste): space กลางข้อความ
- *        → InputText([fullReplaced, fullOriginal]) → ลบ+insert ทั้งก้อน
+ *      space กลางข้อความ → skip (มาจาก plugin อื่นเช่น autocomplete)
  *
  *   ❸  Re-entrancy guard (skipUntil 50ms)
  *      OO re-fire event หลัง InputText → text มี NBSP → ข้ามเอง
@@ -70,15 +69,14 @@
 
       var len = text.length;
 
-      // Fast path: space ท้ายสุดตัวเดียว (typing)
+      // Only handle space at the very end (user typing).
+      // Space in the middle means another plugin (e.g. autocomplete) inserted text —
+      // the Full path (replace entire buffer) conflicts with other plugins and
+      // can delete/corrupt surrounding text, so we skip it entirely.
       if (firstSpace === len - 1) {
         execute(NBSP, " ");
         return;
       }
-
-      // Full path: space กลาง (paste / multi-space)
-      var replaced = text.split(" ").join(NBSP);
-      execute(replaced, text);
     } catch (_e) {}
   };
 })(window);

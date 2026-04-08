@@ -163,7 +163,10 @@
 
     DO.persist.macros();
     DO.debugLog("macro_window_saved", { created: created });
-    DO.setStatus("saved");
+    DO.setStatus("✅ เพิ่ม " + created + " รายการสำเร็จ");
+    try {
+      alert("เพิ่ม Macro " + created + " รายการสำเร็จ");
+    } catch (eAlert) {}
     setTimeout(function () { closeWindow(); }, 120);
   }
 

@@ -82,7 +82,8 @@
   function mergeDictionary(dbItems) {
     ensureStore();
     var local = DO.store.dictionary || [];
-    // Keep local first, then DB. Dedup by word lower.
+    // Merge: DB items first (have englishWord/description), then local.
+    // If both have same word, DB version wins (has richer data from API).
     var seen = {};
     var out = [];
 
@@ -95,8 +96,10 @@
       out.push(obj);
     }
 
-    for (var i = 0; i < local.length; i++) pushWord(local[i]);
+    // DB items first — they have englishWord/description from API
     for (var j = 0; j < dbItems.length; j++) pushWord(dbItems[j]);
+    // Then local-only items (user-added words not in DB)
+    for (var i = 0; i < local.length; i++) pushWord(local[i]);
 
     DO.store.dictionary = out;
     try { if (DO.persist && DO.persist.dictionary) DO.persist.dictionary(); } catch (e0) {}
@@ -144,10 +147,12 @@
           var it = list[i] || {};
           var w = String(it.word || it.Word || "").trim();
           if (!w) continue;
+          var englishWord = String(it.englishWord || it.EnglishWord || "").trim();
+          var desc = String(it.entryDescription || it.EntryDescription || it.description || it.Description || "").trim();
           mapped.push({
             id: "db:" + String(it.id || it.Id || w),
             word: w,
-            description: String(it.entryDescription || it.EntryDescription || it.description || it.Description || "").trim(),
+            description: englishWord || desc,
             scope: "DB",
           });
         }

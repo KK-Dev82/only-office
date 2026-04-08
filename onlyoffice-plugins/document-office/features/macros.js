@@ -589,8 +589,9 @@
           return function (ev) {
             try {
               var target = ev && ev.target ? ev.target : null;
+              if (target && typeof target.closest === "function" && target.closest("button")) return;
               var tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
-              if (tag === "button") return;
+              if (tag === "button" || tag === "svg" || tag === "path") return;
             } catch (e0) {}
             DO.debugLog("macro_insert", { id: mid, len: String(t || "").length });
             DO.editor.insertText(t);

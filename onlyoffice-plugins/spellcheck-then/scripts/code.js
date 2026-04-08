@@ -1,21 +1,19 @@
-/* SpellCheck TH+EN plugin (OnlyOffice)
+/* SpellCheck TH+EN plugin (OnlyOffice) v0.2.1
  * - แหล่งที่ 1: only-office/dict (words.json จาก th_TH.dic, en_US.dic)
  * - แหล่งที่ 2: Dictionary API (คำที่ผู้ใช้เพิ่มใน M0106)
  * - ใช้ Intl.Segmenter — ไม่ใช้ PyThai
  * - Add words: api/word-management/spellcheck/add-words
- * - Selective replace: replace ทีละ occurrence โดยใช้ paragraph position
+ * - Selective replace: replace ทีละ occurrence ด้วย doc.Search()[index]
  */
 (function (window) {
   var STORAGE_KEY_IGNORED = "spellcheck-then:v1:ignoredWords";
-  var VERSION = "0.2.0";
+  var VERSION = "0.3.0";
 
   var BACKEND_ADD_WORDS_PATH = "api/word-management/spellcheck/add-words";
 
-  // แหล่งที่ 1: Built-in dict (words.json สร้างจาก .dic)
   var BASE_DICT_THAI_PATH = "onlyoffice-dict/th_TH/words.json";
   var BASE_DICT_ENGLISH_PATH = "onlyoffice-dict/en_US/words.json";
 
-  // แหล่งที่ 2: Dictionary API (คำที่ผู้ใช้เพิ่ม)
   var DICT_THAI_PATH = "api/word-management/dictionary?language=thai&limit=3000&includeGlobal=true";
   var DICT_ENGLISH_PATH = "api/word-management/dictionary?language=english&limit=3000&includeGlobal=true";
 
@@ -23,18 +21,17 @@
   var FUZZY_MAX_SUGGESTIONS = 5;
   var FUZZY_MAX_LENGTH_DIFF = 2;
 
-  // ข้ามคำที่สั้นมากหรือเป็นตัวเลข
-  var MIN_WORD_LENGTH = 1;
-  // ข้ามตัวเลขทั้งไทย (๐-๙) และอาหรับ (0-9)
-  var SKIP_NUMERIC = /^[\d\u0E50-\u0E59]+$/;
+  var MIN_WORD_LENGTH = 2;
+  // ข้ามตัวเลข (ไทย+อาหรับ) รวมเลขที่มี . - : , / เช่น ๐๔.๐๐, 3.14, 12:30
+  var SKIP_NUMERIC = /^[\d\u0E50-\u0E59][.\-:,/\d\u0E50-\u0E59]*$/;
   var SKIP_PUNCTUATION = /^[\s\u200B-\u200D\uFEFF]*$/;
 
   var state = {
     lastIssues: [],                        // unique misspelled words [{word, suggestions}]
-    lastOccurrences: [],                   // all occurrences [{word, suggestions, paraIdx, start, end, context, occId}]
-    lastParagraphs: [],                    // cached paragraph data [{idx, text}]
+    lastOccurrences: [],                   // all occurrences [{word, suggestions, start, end, context, occId, wordOccIndex}]
+    lastDocText: "",                       // cached document text
     selectedSuggestionByWord: Object.create(null),
-    replacedOccurrences: Object.create(null),  // occId → true
+    replacedOccurrences: Object.create(null),
     ignoredWords: Object.create(null),
     dictionaryWords: [],
     dictionaryByLength: null,
@@ -45,7 +42,7 @@
     dictionaryByLengthThai: null,
     dictionaryWordsEnglish: [],
     dictionaryByLengthEnglish: null,
-    sugCache: Object.create(null),         // cache suggestions by word
+    sugCache: Object.create(null),
     inited: false,
   };
 
@@ -88,43 +85,7 @@
     } catch (e) { return false; }
   }
 
-  /* ========== TEXT RETRIEVAL (keep existing) ========== */
-
-  function getCurrentParagraphText(cb) {
-    if (!canCallCommand()) {
-      execMethod("GetCurrentParagraph", [], function (p) {
-        var t = "";
-        try {
-          if (typeof p === "string") t = p || "";
-          else if (p && typeof p.text === "string") t = p.text || "";
-        } catch (e0) {}
-        try { cb && cb(String(t || "")); } catch (e1) {}
-      });
-      return;
-    }
-    try {
-      window.Asc.plugin.callCommand(
-        function () {
-          try {
-            var doc = Api.GetDocument();
-            if (!doc || !doc.GetCurrentParagraph) return "";
-            var p = doc.GetCurrentParagraph();
-            if (!p) return "";
-            var r = p.GetRange ? p.GetRange() : null;
-            if (!r || !r.GetText) return "";
-            return String(r.GetText({
-              Numbering: false, Math: false,
-              ParaSeparator: "\n", TableRowSeparator: "\n", NewLineSeparator: "\n",
-            }) || "");
-          } catch (e) { return ""; }
-        },
-        false, true,
-        function (text) { try { cb && cb(String(text || "")); } catch (e2) {} }
-      );
-    } catch (e3) {
-      try { cb && cb(""); } catch (e4) {}
-    }
-  }
+  /* ========== TEXT RETRIEVAL (ใช้ execMethod — ไม่ใช้ callCommand) ========== */
 
   function stripHtmlToText(html) {
     if (!html || typeof html !== "string") return "";
@@ -140,90 +101,14 @@
       .trim();
   }
 
-  function getDocumentBodyText(cb) {
+  /**
+   * ดึง text ทั้งเอกสารผ่าน execMethod("GetFileHTML") — ไม่ใช้ callCommand
+   * ทำให้ไม่ block pipeline ของ plugin
+   */
+  function getDocumentText(cb) {
     execMethod("GetFileHTML", [], function (html) {
       var t = stripHtmlToText(html);
-      if (t) {
-        try { cb && cb(t); } catch (e) {}
-        return;
-      }
-      if (!canCallCommand()) {
-        try { cb && cb(""); } catch (e) {}
-        return;
-      }
-      try {
-        window.Asc.plugin.callCommand(
-          function () {
-            try {
-              var doc = Api.GetDocument();
-              if (!doc) return "";
-              var body = doc.GetBody ? doc.GetBody() : null;
-              if (!body || !body.GetElementsCount) return "";
-              var parts = [];
-              var n = body.GetElementsCount();
-              for (var i = 0; i < n; i++) {
-                try {
-                  var el = body.GetElement ? body.GetElement(i) : null;
-                  if (!el || !el.GetRange) continue;
-                  var r = el.GetRange();
-                  if (!r || !r.GetText) continue;
-                  var txt = r.GetText({
-                    Numbering: false, Math: false,
-                    ParaSeparator: "\n", TableRowSeparator: "\n", NewLineSeparator: "\n",
-                  }) || "";
-                  if (txt) parts.push(txt);
-                } catch (e) {}
-              }
-              return parts.join("\n");
-            } catch (e) { return ""; }
-          },
-          false, true,
-          function (text) { try { cb && cb(String(text || "")); } catch (e2) {} }
-        );
-      } catch (e3) {
-        try { cb && cb(""); } catch (e4) {}
-      }
-    });
-  }
-
-  function getTextByMode(mode, cb) {
-    var m = String(mode || "selection");
-    if (m === "document") {
-      getDocumentBodyText(function (t) { cb && cb(String(t || "")); });
-      return;
-    }
-    if (m === "selection") {
-      execMethod("GetSelectedText", [], function (t) {
-        t = String(t || "").trim();
-        if (!t) {
-          setStatus("ไม่มีข้อความที่เลือก — กำลังตรวจทั้งเอกสาร...");
-          getDocumentBodyText(function (d) { cb && cb(String(d || "")); });
-        } else {
-          cb && cb(t);
-        }
-      });
-      return;
-    }
-    if (m === "sentence") {
-      execMethod("GetCurrentSentence", [], function (t) {
-        t = String(t || "").trim();
-        if (!t) {
-          setStatus("ไม่พบประโยค — กำลังตรวจทั้งเอกสาร...");
-          getDocumentBodyText(function (d) { cb && cb(String(d || "")); });
-        } else {
-          cb && cb(t);
-        }
-      });
-      return;
-    }
-    getCurrentParagraphText(function (t) {
-      t = String(t || "").trim();
-      if (!t && m === "paragraph") {
-        setStatus("ไม่พบย่อหน้า — กำลังตรวจทั้งเอกสาร...");
-        getDocumentBodyText(function (d) { cb && cb(String(d || "")); });
-      } else {
-        cb && cb(t || "");
-      }
+      try { cb && cb(String(t || "")); } catch (e) {}
     });
   }
 
@@ -264,7 +149,6 @@
   function extractWordsFromText(text) {
     var t = String(text || "").trim();
     if (!t) return [];
-
     var words = [];
     var seen = Object.create(null);
 
@@ -296,7 +180,7 @@
     return words;
   }
 
-  /* ========== DICTIONARY LOADING (unchanged) ========== */
+  /* ========== DICTIONARY LOADING ========== */
 
   function getFetchOrigin() {
     try {
@@ -323,9 +207,7 @@
     return fetch(url, { method: "GET", credentials: "include" })
       .then(function (r) {
         if (!r || !r.ok) {
-          if (typeof console !== "undefined" && console.warn) {
-            console.warn("[SpellCheckTHEN] Base dict fetch failed:", path, "status=" + (r ? r.status : "no response"));
-          }
+          console.warn("[SpellCheckTHEN] Base dict fetch failed:", path, "status=" + (r ? r.status : "no response"));
           return { words: [], byLength: {} };
         }
         return r.text().then(function (txt) {
@@ -350,15 +232,11 @@
           if (!byLength[len]) byLength[len] = [];
           byLength[len].push(w);
         }
-        if (typeof console !== "undefined" && console.log) {
-          console.log("[SpellCheckTHEN] Base dict loaded:", path, words.length, "words");
-        }
+        console.log("[SpellCheckTHEN] Base dict loaded:", path, words.length, "words");
         return { words: words, byLength: byLength };
       })
       .catch(function (err) {
-        if (typeof console !== "undefined" && console.warn) {
-          console.warn("[SpellCheckTHEN] Base dict error:", path, err);
-        }
+        console.warn("[SpellCheckTHEN] Base dict error:", path, err);
         return { words: [], byLength: {} };
       });
   }
@@ -441,9 +319,7 @@
       ]).then(function (apiResults) {
         var thaiMerged = mergeDictResults([baseResults[0], apiResults[0]]);
         var englishMerged = mergeDictResults([baseResults[1], apiResults[1]]);
-        if (typeof console !== "undefined" && console.log) {
-          console.log("[SpellCheckTHEN] Thai dict:", Object.keys(thaiMerged.validWords).length, "words, EN dict:", Object.keys(englishMerged.validWords).length, "words");
-        }
+        console.log("[SpellCheckTHEN] Thai dict:", Object.keys(thaiMerged.validWords).length, "words, EN dict:", Object.keys(englishMerged.validWords).length, "words");
         return {
           validWordsThai: thaiMerged.validWords,
           validWordsEnglish: englishMerged.validWords,
@@ -459,7 +335,7 @@
     });
   }
 
-  /* ========== FUZZY MATCHING (unchanged) ========== */
+  /* ========== FUZZY MATCHING ========== */
 
   function levenshtein(a, b) {
     a = String(a || "");
@@ -534,8 +410,8 @@
       if (validSet && validSet[k]) continue;
 
       var dictWords = isThai ? (state.dictionaryWordsThai || []) : (state.dictionaryWordsEnglish || []);
-      var byLength = isThai ? (state.dictionaryByLengthThai || null) : (state.dictionaryByLengthEnglish || null);
-      var sugs = fuzzyMatchDictionary(w, dictWords, Object.create(null), byLength);
+      var byLenDict = isThai ? (state.dictionaryByLengthThai || null) : (state.dictionaryByLengthEnglish || null);
+      var sugs = fuzzyMatchDictionary(w, dictWords, Object.create(null), byLenDict);
       state.sugCache[k] = sugs;
       issues.push({ word: w, suggestions: sugs });
     }
@@ -543,126 +419,79 @@
     return issues;
   }
 
-  /* ========== OCCURRENCE TRACKING (phase 2: find all positions in document) ========== */
+  /* ========== OCCURRENCE FINDING (phase 2: flat text, ใช้ Intl.Segmenter) ========== */
 
   /**
-   * ดึง text ของทุก paragraph ในเอกสาร พร้อม element index
-   * ผลลัพธ์: [{idx: Number, text: String}, ...]
+   * หาทุก occurrence ของคำผิดในข้อความ (flat text)
+   * ใช้ Intl.Segmenter เพื่อ match เฉพาะ word boundary
+   * เก็บ wordOccIndex = ลำดับที่ N ของคำนี้ในเอกสาร (สำหรับ doc.Search()[N])
    */
-  function getAllParagraphs(cb) {
-    if (!canCallCommand()) {
-      try { cb && cb([]); } catch (e) {}
-      return;
-    }
-    try {
-      window.Asc.plugin.callCommand(
-        function () {
-          try {
-            var doc = Api.GetDocument();
-            if (!doc) return [];
-            var body = doc.GetBody ? doc.GetBody() : null;
-            if (!body || !body.GetElementsCount) return [];
-            var n = body.GetElementsCount();
-            var paras = [];
-            for (var i = 0; i < n; i++) {
-              try {
-                var el = body.GetElement(i);
-                if (!el || !el.GetRange) continue;
-                var r = el.GetRange();
-                if (!r || !r.GetText) continue;
-                var text = r.GetText({
-                  Numbering: false, Math: false,
-                  ParaSeparator: "\n", TableRowSeparator: "\n", NewLineSeparator: "\n",
-                }) || "";
-                paras.push({ idx: i, text: text });
-              } catch (eInner) {}
-            }
-            return paras;
-          } catch (e) { return []; }
-        },
-        false, true,
-        function (result) {
-          try { cb && cb(Array.isArray(result) ? result : []); } catch (e) {}
-        }
-      );
-    } catch (e) {
-      try { cb && cb([]); } catch (e2) {}
-    }
-  }
-
-  /**
-   * จาก paragraphs + issues (unique misspelled words) → หาทุก occurrence พร้อมตำแหน่ง
-   * ใช้ Intl.Segmenter เพื่อ match เฉพาะ word boundary (ไม่ match partial)
-   * ผลลัพธ์: [{word, suggestions, paraIdx, start, end, context, occId}, ...]
-   */
-  function findOccurrencesForIssues(paragraphs, issues) {
-    // Build lookup: lowercased word → issue
+  function findOccurrencesInText(text, issues) {
     var issueMap = Object.create(null);
     for (var i = 0; i < issues.length; i++) {
-      var it = issues[i];
-      issueMap[it.word.toLowerCase()] = it;
+      issueMap[issues[i].word.toLowerCase()] = issues[i];
     }
 
     var occurrences = [];
     var occId = 0;
+    // นับ wordOccIndex: จำนวนครั้งที่คำนี้เจอแล้ว
+    var wordCount = Object.create(null);
     var hasSegmenter = typeof Intl !== "undefined" && Intl.Segmenter;
 
-    for (var p = 0; p < paragraphs.length; p++) {
-      var para = paragraphs[p];
-      var text = String(para.text || "");
-      if (!text.trim()) continue;
-
-      if (hasSegmenter) {
-        try {
-          var segmenter = new Intl.Segmenter("th", { granularity: "word" });
-          var segments = segmenter.segment(text);
-          for (var seg of segments) {
-            if (!seg.isWordLike) continue;
-            var w = String(seg.segment || "").trim();
-            if (!w || w.length < MIN_WORD_LENGTH) continue;
-            if (SKIP_NUMERIC.test(w) || SKIP_PUNCTUATION.test(w)) continue;
-            var k = w.toLowerCase();
-            var issue = issueMap[k];
-            if (!issue) continue;
-            if (state.ignoredWords[w] || state.ignoredWords[issue.word]) continue;
-
-            occurrences.push({
-              word: issue.word,
-              suggestions: issue.suggestions,
-              paraIdx: para.idx,
-              start: seg.index,
-              end: seg.index + seg.segment.length,
-              context: text,
-              occId: occId++
-            });
-          }
-        } catch (err) {
-          console.warn("[SpellCheckTHEN] Segmenter error in paragraph", para.idx, err);
-        }
-      } else {
-        // Fallback: space-based splitting
-        var parts = text.split(/[\s\u00A0\u200B-\u200D\uFEFF]+/);
-        var pos = 0;
-        for (var j = 0; j < parts.length; j++) {
-          var w = String(parts[j] || "").trim();
-          if (!w) continue;
-          var idx = text.indexOf(w, pos);
-          if (idx < 0) idx = pos;
+    if (hasSegmenter) {
+      try {
+        var segmenter = new Intl.Segmenter("th", { granularity: "word" });
+        var segments = segmenter.segment(text);
+        for (var seg of segments) {
+          if (!seg.isWordLike) continue;
+          var w = String(seg.segment || "").trim();
+          if (!w || w.length < MIN_WORD_LENGTH) continue;
+          if (SKIP_NUMERIC.test(w) || SKIP_PUNCTUATION.test(w)) continue;
           var k = w.toLowerCase();
           var issue = issueMap[k];
-          if (issue && !state.ignoredWords[w] && !state.ignoredWords[issue.word]) {
-            occurrences.push({
-              word: issue.word,
-              suggestions: issue.suggestions,
-              paraIdx: para.idx,
-              start: idx,
-              end: idx + w.length,
-              context: text,
-              occId: occId++
-            });
-          }
-          pos = idx + w.length;
+          if (!issue) continue;
+          if (state.ignoredWords[w] || state.ignoredWords[issue.word]) continue;
+
+          if (!wordCount[k]) wordCount[k] = 0;
+          occurrences.push({
+            word: issue.word,
+            suggestions: issue.suggestions,
+            start: seg.index,
+            end: seg.index + seg.segment.length,
+            context: text,
+            occId: occId++,
+            wordOccIndex: wordCount[k]++
+          });
         }
+      } catch (err) {
+        console.warn("[SpellCheckTHEN] Segmenter error:", err);
+      }
+    }
+
+    if (!occurrences.length && !hasSegmenter) {
+      // Fallback: space-based splitting
+      var parts = text.split(/[\s\u00A0\u200B-\u200D\uFEFF]+/);
+      var pos = 0;
+      for (var j = 0; j < parts.length; j++) {
+        var w = String(parts[j] || "").trim();
+        if (!w) continue;
+        var idx = text.indexOf(w, pos);
+        if (idx < 0) idx = pos;
+        var k = w.toLowerCase();
+        var issue = issueMap[k];
+        if (issue && !state.ignoredWords[w] && !state.ignoredWords[issue.word]) {
+          if (!wordCount[k]) wordCount[k] = 0;
+          occurrences.push({
+            word: issue.word,
+            suggestions: issue.suggestions,
+            start: idx,
+            end: idx + w.length,
+            context: text,
+            occId: occId++,
+            wordOccIndex: wordCount[k]++
+          });
+        }
+        pos = idx + w.length;
       }
     }
 
@@ -691,8 +520,6 @@
     if (!root) return;
 
     var occs = state.lastOccurrences || [];
-
-    // Filter out replaced and ignored
     var active = [];
     for (var i = 0; i < occs.length; i++) {
       var o = occs[i];
@@ -706,17 +533,16 @@
       return;
     }
 
-    // Group by word (preserve order of first appearance)
+    // Group by word
     var groups = Object.create(null);
     var groupOrder = [];
     for (var i = 0; i < active.length; i++) {
       var o = active[i];
-      var wk = o.word;
-      if (!groups[wk]) {
-        groups[wk] = { word: wk, suggestions: o.suggestions, items: [] };
-        groupOrder.push(wk);
+      if (!groups[o.word]) {
+        groups[o.word] = { word: o.word, suggestions: o.suggestions, items: [] };
+        groupOrder.push(o.word);
       }
-      groups[wk].items.push(o);
+      groups[o.word].items.push(o);
     }
 
     var html = "";
@@ -730,7 +556,7 @@
 
       html += '<div class="tscIssue" data-word="' + escapeHtml(word) + '">';
 
-      // ─── Header ───
+      // Header
       html += '<div class="tscIssueTop">';
       html += '<div class="tscWord">' + escapeHtml(word) +
         ' <span class="tscCount">(' + items.length + ' ตำแหน่ง)</span></div>';
@@ -742,7 +568,7 @@
       }
       html += '</div></div>';
 
-      // ─── Suggestions ───
+      // Suggestions
       if (sugs.length) {
         html += '<div class="tscSugList">';
         for (var j = 0; j < sugs.length; j++) {
@@ -758,94 +584,113 @@
         html += '<div class="tscHint" style="margin-top:6px">ไม่พบคำแนะนำ (ลองเพิ่มคำใน Dictionary)</div>';
       }
 
-      // ─── Per-occurrence list ───
+      // Per-occurrence list
       html += '<div class="tscOccurrences">';
       for (var k = 0; k < items.length; k++) {
         var occ = items[k];
         var ctx = getContextSnippet(occ.context, occ.start, occ.end);
-        html += '<div class="tscOccurrence" data-occ-id="' + occ.occId +
-          '" data-para="' + occ.paraIdx +
-          '" data-start="' + occ.start +
-          '" data-end="' + occ.end + '">';
+        html += '<div class="tscOccurrence" data-occ-id="' + occ.occId + '">';
         html += '<span class="tscOccNum">#' + (k + 1) + '</span>';
         html += '<span class="tscOccContext" data-act="jump-occ" title="คลิกเพื่อไปที่ตำแหน่งนี้ในเอกสาร">' + ctx + '</span>';
         html += '<button class="tscSmallBtn tscReplaceOne" data-act="replace-one" title="แทนที่เฉพาะตำแหน่งนี้">Replace</button>';
         html += '</div>';
       }
       html += '</div>';
-
       html += '</div>';
     }
     root.innerHTML = html;
   }
 
-  /* ========== REPLACEMENT ========== */
+  /* ========== REPLACEMENT (doc.Search → Select → InputText) ========== */
 
   /**
-   * แทนที่ occurrence เฉพาะตำแหน่ง โดยใช้ paragraph index + character offset
-   * ใช้ ApiParagraph.GetRange(start, end) → ApiRange.SetText(newText)
+   * ใช้ callCommand + doc.Search(word) เพื่อ:
+   * - นับจำนวน occurrence ทั้งหมด
+   * - Select occurrence ที่ index ที่ระบุ
+   * - Log methods ที่มีบน range object (เพื่อ debug)
    */
-  function replaceOccurrence(paraIdx, start, end, newText, cb) {
-    if (!canCallCommand()) { if (cb) cb({ ok: false }); return; }
+  function searchAndSelect(word, occIndex, cb) {
+    if (!canCallCommand()) { if (cb) cb({ ok: false, reason: "no_callCommand" }); return; }
     window.Asc.scope = window.Asc.scope || {};
-    window.Asc.scope.__tsc_para = paraIdx;
-    window.Asc.scope.__tsc_start = start;
-    window.Asc.scope.__tsc_end = end - 1; // GetRange ใช้ end inclusive
-    window.Asc.scope.__tsc_text = newText;
+    window.Asc.scope.__tsc_word = word;
+    window.Asc.scope.__tsc_idx = occIndex;
     try {
       window.Asc.plugin.callCommand(
         function () {
           try {
             var doc = Api.GetDocument();
-            if (!doc) return { ok: false };
-            var body = doc.GetBody ? doc.GetBody() : null;
-            if (!body) return { ok: false };
-            var el = body.GetElement(Asc.scope.__tsc_para);
-            if (!el || !el.GetRange) return { ok: false };
-            var range = el.GetRange(Asc.scope.__tsc_start, Asc.scope.__tsc_end);
-            if (!range) return { ok: false };
-            range.SetText(Asc.scope.__tsc_text);
-            return { ok: true };
+            if (!doc || typeof doc.Search !== "function") {
+              return { ok: false, reason: "no_search_api" };
+            }
+            var ranges = doc.Search(Asc.scope.__tsc_word, true);
+            if (!ranges || !ranges.length) {
+              return { ok: false, reason: "not_found", count: 0 };
+            }
+            var idx = Asc.scope.__tsc_idx;
+            var count = ranges.length;
+            if (idx < 0 || idx >= count) {
+              return { ok: false, reason: "index_out", count: count, idx: idx };
+            }
+            var r = ranges[idx];
+            // Log methods ที่มีบน range object
+            var methods = [];
+            for (var key in r) {
+              if (typeof r[key] === "function") methods.push(key);
+            }
+            // ลอง Select
+            if (typeof r.Select === "function") {
+              r.Select();
+              return { ok: true, count: count, idx: idx, methods: methods, selected: true };
+            }
+            return { ok: false, reason: "no_select", count: count, methods: methods };
           } catch (e) { return { ok: false, error: String(e) }; }
         },
         false, true,
-        function (result) { if (cb) cb(result || { ok: false }); }
+        function (result) {
+          console.log("[SpellCheckTHEN] searchAndSelect result:", JSON.stringify(result));
+          if (cb) cb(result || { ok: false });
+        }
       );
-    } catch (e) { if (cb) cb({ ok: false }); }
+    } catch (e) {
+      if (cb) cb({ ok: false, error: String(e) });
+    }
   }
 
   /**
-   * นำทางไปที่ occurrence เฉพาะตำแหน่ง โดยใช้ Select()
+   * Replace occurrence ที่ index ที่ระบุ:
+   * 1. doc.Search(word) → select occurrence #N
+   * 2. InputText → พิมพ์ทับ selection
    */
-  function selectOccurrence(paraIdx, start, end) {
-    if (!canCallCommand()) return;
-    window.Asc.scope = window.Asc.scope || {};
-    window.Asc.scope.__tsc_para = paraIdx;
-    window.Asc.scope.__tsc_start = start;
-    window.Asc.scope.__tsc_end = end - 1;
-    try {
-      window.Asc.plugin.callCommand(
-        function () {
-          try {
-            var doc = Api.GetDocument();
-            if (!doc) return;
-            var body = doc.GetBody ? doc.GetBody() : null;
-            if (!body) return;
-            var el = body.GetElement(Asc.scope.__tsc_para);
-            if (!el || !el.GetRange) return;
-            var range = el.GetRange(Asc.scope.__tsc_start, Asc.scope.__tsc_end);
-            if (range && range.Select) range.Select();
-          } catch (e) {}
-        },
-        false, true,
-        function () {}
-      );
-    } catch (e) {}
+  function replaceAtIndex(word, occIndex, newText, cb) {
+    console.log("[SpellCheckTHEN] replaceAtIndex:", word, "idx=" + occIndex, "→", newText);
+    // Step 1: Select the specific occurrence
+    searchAndSelect(word, occIndex, function (selResult) {
+      if (!selResult || !selResult.ok) {
+        console.warn("[SpellCheckTHEN] searchAndSelect failed:", selResult);
+        if (cb) cb(selResult || { ok: false });
+        return;
+      }
+      // Step 2: InputText — พิมพ์ทับ selection
+      execMethod("InputText", [newText, ""], function (inputResult) {
+        console.log("[SpellCheckTHEN] InputText result:", inputResult);
+        if (cb) cb({ ok: true, count: selResult.count });
+      });
+    });
   }
 
   /**
-   * แทนที่คำทุกตำแหน่ง — ใช้ SearchAndReplace ของ OnlyOffice
-   * หลัง replace เสร็จจะ rescan เอกสาร
+   * นำทางไปที่ occurrence #N — ใช้ doc.Search → Select
+   */
+  function selectOccurrence(word, occIndex) {
+    searchAndSelect(word, occIndex, function (result) {
+      if (!result || !result.ok) {
+        setStatus('ไม่พบ "' + word + '" ในเอกสาร');
+      }
+    });
+  }
+
+  /**
+   * แทนที่คำทุกตำแหน่ง — ใช้ SearchAndReplace
    */
   function replaceAllWord(word, suggestion, cb) {
     var w = String(word || "").trim(), s = String(suggestion || "").trim();
@@ -877,12 +722,10 @@
         function (result) {
           var cnt = (result && result.count) || 0;
           setStatus('แทนที่ "' + w + '" → "' + s + '" ทั้งหมด ' + cnt + ' ตำแหน่ง');
-          // Mark all occurrences of this word as replaced
           var occs = state.lastOccurrences || [];
           for (var i = 0; i < occs.length; i++) {
             if (occs[i].word === w) state.replacedOccurrences[occs[i].occId] = true;
           }
-          // Remove from issues
           state.lastIssues = (state.lastIssues || []).filter(function (it) { return it.word !== w; });
           renderGroupedOccurrences();
           if (cb) cb();
@@ -892,21 +735,18 @@
   }
 
   /**
-   * Rescan เอกสาร (ดึง paragraph texts ใหม่) แล้ว rebuild occurrences + render
-   * เรียกหลังจาก replace เดี่ยวเพื่อให้ positions ถูกต้อง
+   * Rescan: ดึง text เอกสารใหม่ (ผ่าน GetFileHTML) แล้ว rebuild occurrences + render
    */
   function rescanAndRender() {
     setStatus("กำลังสแกนเอกสารใหม่...");
     state.replacedOccurrences = Object.create(null);
-    getAllParagraphs(function (paragraphs) {
-      state.lastParagraphs = paragraphs;
-      state.lastOccurrences = findOccurrencesForIssues(paragraphs, state.lastIssues);
+    getDocumentText(function (text) {
+      state.lastDocText = text;
+      state.lastOccurrences = findOccurrencesInText(text, state.lastIssues);
       renderGroupedOccurrences();
-      // Count remaining active
       var active = 0;
       for (var i = 0; i < state.lastOccurrences.length; i++) {
-        var o = state.lastOccurrences[i];
-        if (!state.replacedOccurrences[o.occId] && !state.ignoredWords[o.word]) active++;
+        if (!state.ignoredWords[state.lastOccurrences[i].word]) active++;
       }
       setStatus("เสร็จแล้ว (" + active + " รายการ)");
     });
@@ -968,34 +808,29 @@
     /* ── ปุ่ม "ตรวจคำ" ── */
     if (btnCheck) {
       btnCheck.addEventListener("click", function () {
-        // Reset state
         state.lastIssues = [];
         state.lastOccurrences = [];
-        state.lastParagraphs = [];
+        state.lastDocText = "";
         state.replacedOccurrences = Object.create(null);
         state.selectedSuggestionByWord = Object.create(null);
         state.sugCache = Object.create(null);
         renderGroupedOccurrences();
-        setStatus("กำลังโหลด Dictionary...");
 
-        var modeEl = $("tscMode");
-        var mode = modeEl ? String(modeEl.value || "selection") : "selection";
+        var t0 = Date.now();
 
-        getTextByMode(mode, function (text) {
-          var t = String(text || "").trim();
-          if (!t) {
-            setStatus(mode === "document"
-              ? "เอกสารว่างเปล่า หรือไม่สามารถอ่านเนื้อหาได้"
-              : "ไม่มีข้อความให้ตรวจ (ลองเลือกข้อความก่อน)");
+        // ─── ดึง text ทั้งเอกสาร (ผ่าน execMethod — ไม่ใช้ callCommand) ───
+        setStatus("กำลังอ่านเอกสาร...");
+        getDocumentText(function (docText) {
+          state.lastDocText = docText;
+          var ct = String(docText || "").trim();
+          if (!ct) {
+            setStatus("เอกสารว่างเปล่า หรือไม่สามารถอ่านเนื้อหาได้");
             return;
           }
 
-          setStatus("กำลังตรวจคำ...");
-          var t0 = Date.now();
-
+          setStatus("กำลังโหลด Dictionary...");
           fetchAllDictionaries()
             .then(function (dictResult) {
-              // Store dictionaries
               state.dictionaryWords = dictResult.words || [];
               state.dictionaryByLength = dictResult.byLength || null;
               state.validWords = dictResult.validWords || Object.create(null);
@@ -1006,8 +841,8 @@
               state.dictionaryWordsEnglish = dictResult.dictionaryWordsEnglish || [];
               state.dictionaryByLengthEnglish = dictResult.dictionaryByLengthEnglish || null;
 
-              // Phase 1: find unique misspelled words
-              state.lastIssues = runSpellcheck(t);
+              setStatus("กำลังตรวจคำ...");
+              state.lastIssues = runSpellcheck(ct);
 
               if (!state.lastIssues.length) {
                 renderGroupedOccurrences();
@@ -1015,17 +850,12 @@
                 return;
               }
 
-              // Phase 2: scan all paragraphs → find every occurrence with position
-              setStatus("กำลังสแกนตำแหน่งในเอกสาร...");
-              getAllParagraphs(function (paragraphs) {
-                state.lastParagraphs = paragraphs;
-                state.lastOccurrences = findOccurrencesForIssues(paragraphs, state.lastIssues);
-                renderGroupedOccurrences();
+              state.lastOccurrences = findOccurrencesInText(docText, state.lastIssues);
+              renderGroupedOccurrences();
 
-                var nWords = state.lastIssues.length;
-                var nOccs = state.lastOccurrences.length;
-                setStatus("เสร็จแล้ว — " + nWords + " คำ, " + nOccs + " ตำแหน่ง (" + (Date.now() - t0) + " ms)");
-              });
+              var nWords = state.lastIssues.length;
+              var nOccs = state.lastOccurrences.length;
+              setStatus("เสร็จแล้ว — " + nWords + " คำ, " + nOccs + " ตำแหน่ง (" + (Date.now() - t0) + " ms)");
             })
             .catch(function (e) {
               renderGroupedOccurrences();
@@ -1044,7 +874,6 @@
         var act = target.getAttribute ? target.getAttribute("data-act") : "";
         if (!act) return;
 
-        // หา parent .tscIssue เพื่อดึง word
         var issueEl = target.closest ? target.closest(".tscIssue") : null;
         var word = issueEl ? String(issueEl.getAttribute("data-word") || "") : "";
 
@@ -1058,42 +887,42 @@
           return;
         }
 
-        // ─── jump-occ: คลิก context snippet เพื่อ navigate ไปที่ตำแหน่ง ───
-        if (act === "jump-occ") {
+        // ─── jump-occ: navigate ไปที่ occurrence ที่ระบุ ───
+        if (act === "jump-occ" && word) {
           var occEl = target.closest ? target.closest(".tscOccurrence") : null;
-          if (occEl) {
-            var paraIdx = parseInt(occEl.getAttribute("data-para"), 10);
-            var startOff = parseInt(occEl.getAttribute("data-start"), 10);
-            var endOff = parseInt(occEl.getAttribute("data-end"), 10);
-            if (!isNaN(paraIdx) && !isNaN(startOff) && !isNaN(endOff)) {
-              selectOccurrence(paraIdx, startOff, endOff);
-              setStatus('ไปที่ตำแหน่ง #' + (occEl.getAttribute("data-occ-id") || ""));
-            }
+          var occId = occEl ? parseInt(occEl.getAttribute("data-occ-id"), 10) : -1;
+          var wordOccIdx = 0;
+          var occs = state.lastOccurrences || [];
+          for (var oi = 0; oi < occs.length; oi++) {
+            if (occs[oi].occId === occId) { wordOccIdx = occs[oi].wordOccIndex; break; }
           }
+          selectOccurrence(word, wordOccIdx);
+          setStatus('ไปที่ "' + word + '" #' + (wordOccIdx + 1));
           return;
         }
 
-        // ─── replace-one: แทนที่ occurrence เดียว ───
+        // ─── replace-one: แทนที่ occurrence ที่ระบุ ───
         if (act === "replace-one" && word) {
           var chosen = String(state.selectedSuggestionByWord[word] || "");
           if (!chosen) { setStatus("กรุณาเลือกคำแนะนำก่อน"); return; }
           var occEl = target.closest ? target.closest(".tscOccurrence") : null;
-          if (!occEl) return;
+          var occId = occEl ? parseInt(occEl.getAttribute("data-occ-id"), 10) : -1;
+          // หา wordOccIndex จาก occId
+          var wordOccIdx = 0;
+          var occs = state.lastOccurrences || [];
+          for (var oi = 0; oi < occs.length; oi++) {
+            if (occs[oi].occId === occId) { wordOccIdx = occs[oi].wordOccIndex; break; }
+          }
 
-          var paraIdx = parseInt(occEl.getAttribute("data-para"), 10);
-          var startOff = parseInt(occEl.getAttribute("data-start"), 10);
-          var endOff = parseInt(occEl.getAttribute("data-end"), 10);
-          if (isNaN(paraIdx) || isNaN(startOff) || isNaN(endOff)) return;
-
-          setStatus('กำลังแทนที่ "' + word + '" → "' + chosen + '"...');
-          replaceOccurrence(paraIdx, startOff, endOff, chosen, function (result) {
+          setStatus('กำลังแทนที่ "' + word + '" #' + (wordOccIdx + 1) + '...');
+          replaceAtIndex(word, wordOccIdx, chosen, function (result) {
             if (result && result.ok) {
-              setStatus('แทนที่ "' + word + '" → "' + chosen + '" สำเร็จ');
-              // Rescan เพื่อ update ตำแหน่งทั้งหมด (เพราะ offset อาจเลื่อน)
-              // ลบ issue ถ้าไม่เหลือ occurrence
-              setTimeout(function () { rescanAndRender(); }, 100);
+              setStatus('แทนที่ "' + word + '" #' + (wordOccIdx + 1) + ' → "' + chosen + '" สำเร็จ');
+              setTimeout(function () { rescanAndRender(); }, 200);
             } else {
-              setStatus('แทนที่ไม่สำเร็จ — ลอง "ตรวจคำ" ใหม่');
+              var reason = (result && result.reason) || (result && result.error) || "unknown";
+              setStatus('แทนที่ไม่สำเร็จ: ' + reason);
+              console.warn("[SpellCheckTHEN] replace failed:", result);
             }
           });
           return;
@@ -1102,17 +931,16 @@
         if (!word) return;
         var chosen = String(state.selectedSuggestionByWord[word] || "");
 
-        // ─── ignore: ข้ามคำนี้ทุกตำแหน่ง ───
+        // ─── ignore ───
         if (act === "ignore") {
           addToIgnoredWords(word);
           setStatus('ข้ามคำ "' + word + '" แล้ว');
-          // Remove from issues
           state.lastIssues = (state.lastIssues || []).filter(function (it) { return it.word !== word; });
           renderGroupedOccurrences();
           return;
         }
 
-        // ─── add: เพิ่มคำลง Dictionary ───
+        // ─── add word ───
         if (act === "add") {
           addWord(word, function () {
             state.lastIssues = (state.lastIssues || []).filter(function (it) { return it.word !== word; });
@@ -1121,11 +949,11 @@
           return;
         }
 
-        // ─── all: แทนที่ทุกตำแหน่ง ───
+        // ─── replace all ───
         if (act === "all") {
           if (!chosen) { setStatus("กรุณาเลือกคำแนะนำก่อน"); return; }
           replaceAllWord(word, chosen, function () {
-            setTimeout(function () { rescanAndRender(); }, 100);
+            setTimeout(function () { rescanAndRender(); }, 150);
           });
           return;
         }
