@@ -21,6 +21,14 @@
     }
   }
 
+  /**
+   * Feature flag: เปิด/ปิดการแทรก ZWSP ระหว่างคำไทย
+   * - false (default): ไม่แทรก ZWSP — paste ข้อความไทยจาก transcription จะไม่มีสี่เหลี่ยมเล็กๆ ตอน export DOCX
+   * - true: แทรก ZWSP ตาม Intl.Segmenter (พฤติกรรมเดิม)
+   * เปลี่ยนค่าตรงนี้ถ้าต้องการเปิดใช้ ZWSP กลับมา
+   */
+  var ZWSP_INSERT_ENABLED = false;
+
   /** ตรวจว่ามีตัวอักษรไทย */
   function hasThaiCharacter(s) {
     return /[\u0E00-\u0E7F]/.test(String(s || ""));
@@ -76,6 +84,7 @@
    */
   function addThaiWordBreaks(str) {
     if (str == null || typeof str !== "string" || !hasThaiCharacter(str)) return String(str || "");
+    if (!ZWSP_INSERT_ENABLED) return str;
     try {
       if (typeof Intl !== "undefined" && Intl.Segmenter) {
         var segmenter = new Intl.Segmenter("th", { granularity: "word" });
