@@ -49,7 +49,7 @@ docker exec -it onlyoffice-documentserver bash -lc "grep -Rni 'about to expire\\
 
 ตัวอย่าง output เมื่อ license ใกล้หมดอายุ:
 
-```
+```text
 /var/log/onlyoffice/documentserver/docservice/out.log-20260217:12:[2026-02-17T03:23:18.557] [WARN] [localhost] [docId] [userId] nodeJS - Attention! Your license is about to expire on February 27, 2026.
 ```
 
@@ -79,8 +79,52 @@ docker restart onlyoffice-documentserver
 
 จากนั้น restart Document Server แล้วตรวจสอบอีกครั้งด้วย Command `license` หรือจาก UI ว่าสถานะเปลี่ยนเป็น licensed แล้ว
 
+## วิธีที่ 5: Reset Trial กลับไปใช้ Mode Develop (หลัง Trial หมด)
+
+ถ้า Trial 30 วันหมดอายุ และต้องการกลับไปใช้ Developer Edition แบบ Trial ใหม่ (ยังไม่ซื้อ license)
+
+### หลักการ
+
+- **Trial state ไม่ได้อยู่ใน image** → ไม่ต้อง build image ใหม่
+- **Trial state เก็บใน data volume** ที่ mount ไปที่ `/var/www/onlyoffice/Data` (volume ชื่อ `onlyoffice_data`)
+- **`docker compose up -d --force-recreate` อย่างเดียวไม่พอ** เพราะ `--force-recreate` recreate แค่ container แต่ volume เดิมยังอยู่ → trial timestamp ยังอยู่
+- **ต้องลบ volume `onlyoffice_data` ด้วย** เพื่อ reset trial state
+
+### ขั้นตอน
+
+1. ปิด / comment bind mount ของ `license.lic` ใน [`compose/developer.docker-compose.yml`](../compose/developer.docker-compose.yml) (ถ้าเป็น license หมดอายุ):
+
+   ```yaml
+   # - ../license/license.lic:/var/www/onlyoffice/Data/license.lic:ro
+   ```
+
+2. หยุดและลบ volume:
+
+   ```bash
+   docker compose -f compose/developer.docker-compose.yml down -v
+   # หรือถ้าต้องการเก็บ logs ไว้ ให้ลบเฉพาะ data volume:
+   # docker compose -f compose/developer.docker-compose.yml down
+   # docker volume rm only-office_onlyoffice_data
+   ```
+
+3. ขึ้นใหม่:
+
+   ```bash
+   docker compose -f compose/developer.docker-compose.yml up -d
+   ```
+
+หลัง up ใหม่ `INIT_MARK` (`.kk_init_done`) จะหาย → init fonts/plugins/dicts ใหม่ทั้งหมด และ trial นับ 30 วันใหม่
+
+### หมายเหตุ
+
+- `down -v` จะลบทั้ง `onlyoffice_data` และ `onlyoffice_logs` — ถ้าต้องเก็บ logs ให้ใช้ `docker volume rm` เฉพาะ data volume แทน
+- ชื่อ volume จริงขึ้นอยู่กับ compose project name (default = ชื่อโฟลเดอร์) เช่น `only-office_onlyoffice_data` — ตรวจจริงด้วย `docker volume ls`
+- ถ้า `license/license.lic` เป็น trial license ที่ออกโดย OnlyOffice ไม่ต้อง comment mount แต่ลบ volume อยู่ดี
+- Plugins / dicts / fonts ที่เพิ่ม custom ไว้ จะถูก sync ใหม่จาก bind mount โดย init script — ไม่หาย
+
 ## สรุป
 
 - **ตรวจว่า Trial เหลือกี่วัน**: ใช้ Command Service ส่ง `{"c":"license"}` แล้วดู `license.end_date` และ `license.trial`
 - **ตรวจจาก log (Docker)**: `grep -Rni 'about to expire\|expire on\|License expired' /var/log/onlyoffice/documentserver/docservice/out.log*`
+- **Reset Trial กลับไปใช้ Mode Develop**: ลบ volume `onlyoffice_data` (ไม่ใช่แค่ `--force-recreate`) — ไม่ต้อง build image ใหม่
 - **อ้างอิง**: [ONLYOFFICE API - license command](https://api.onlyoffice.com/editors/command/license), [Trial FAQ](https://guides.onlyoffice.com/faq/trial.aspx)

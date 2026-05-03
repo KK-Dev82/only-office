@@ -4,7 +4,7 @@
 # - ดู scripts/README.md สำหรับความแตกต่างกับ staging/production
 services:
   onlyoffice-documentserver:
-    image: onlyoffice/documentserver-de:latest
+    image: onlyoffice/documentserver-de:9.2.1
     container_name: onlyoffice-documentserver
     restart: unless-stopped
     platform: ${DOCKER_PLATFORM:-linux/arm64}

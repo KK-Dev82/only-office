@@ -1,6 +1,6 @@
 services:
   onlyoffice-documentserver:
-    image: onlyoffice/documentserver:latest
+    image: onlyoffice/documentserver:9.2.1
     container_name: onlyoffice-docs-community
     restart: unless-stopped
     platform: ${DOCKER_PLATFORM:-linux/arm64}
