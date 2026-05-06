@@ -175,7 +175,7 @@ fi
 # ============================================
 # 3. Sync Plugins (ทุกครั้งที่ start)
 # ============================================
-PLUGINS_DISABLED="comment-bridge thai-spellcheck"
+PLUGINS_DISABLED="comment-bridge thai-spellcheck spellcheck-then"
 
 echo "[KK] syncing plugins..."
 echo "[KK] Disabled plugins (ไม่ copy): $PLUGINS_DISABLED"
@@ -188,18 +188,18 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
         echo "[KK] Removing default plugins using documentserver-pluginsmanager.sh..."
         /usr/bin/documentserver-pluginsmanager.sh \
             --directory="$PLUGINS_DST" \
-            --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus" \
+            --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus, typograf, doc2md, languagetool, deepl, draw.io, jitsi, telegram, wordpress, send" \
             2>&1 | grep -E "(Remove plugin|OK|Error)" || true
     fi
     echo "[KK] Cleaning non-custom plugin folders + disabled plugins..."
     for item in "$PLUGINS_DST"/*; do
         [ -e "$item" ] || continue
         case "$(basename "$item")" in
-            document-office|dictionary-abbreviation|speech-to-text|spellcheck-then|thai-autocomplete|insert-text-bridge)
+            document-office|dictionary-abbreviation|speech-to-text|spellcheck-then-v2|thai-autocomplete|insert-text-bridge)
                 ;;
             pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz|marketplace|v1)
                 ;;
-            comment-bridge|thai-spellcheck)
+            comment-bridge|thai-spellcheck|spellcheck-then|typograf|doc2md|languagetool|deepl)
                 [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; echo "[KK] Removed disabled: $(basename "$item")"; }
                 ;;
             *)
@@ -221,12 +221,12 @@ if [ -d "/opt/kk-plugins-src" ]; then
         cp -R "$p" "$PLUGINS_DST/" || { kk_warn "cp $name failed"; }
         echo "[KK] Copied $name"
     done
-    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete thai-nbsp-space insert-text-bridge; do
+    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then-v2 thai-autocomplete thai-nbsp-space insert-text-bridge; do
         [ -d "$PLUGINS_DST/$p" ] && chown -R ds:ds "$PLUGINS_DST/$p" 2>/dev/null || true
         [ -d "$PLUGINS_DST/$p" ] && chmod -R a+rX "$PLUGINS_DST/$p" 2>/dev/null || true
     done
     echo "[KK] checking plugins..."
-    for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then thai-autocomplete thai-nbsp-space insert-text-bridge; do
+    for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then-v2 thai-autocomplete thai-nbsp-space insert-text-bridge; do
         if [ -d "$PLUGINS_DST/$plugin" ] && [ -f "$PLUGINS_DST/$plugin/config.json" ]; then
             echo "[KK]   ✅ $plugin"
         else

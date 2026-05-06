@@ -16,24 +16,24 @@
     <!-- ONLYOFFICE UI helpers + base styles -->
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
-    <link rel="stylesheet" href="styles.css?v=0.1.17" />
+    <link rel="stylesheet" href="styles.css?v=0.1.18" />
     <!-- no bundler: load multiple scripts in order -->
     <!-- NOTE: do NOT use defer; SDK may call Asc.plugin.init before deferred scripts run -->
-    <script type="text/javascript" src="core/ns.js?v=0.1.17"></script>
-    <script type="text/javascript" src="core/util.js?v=0.1.17"></script>
-    <script type="text/javascript" src="core/telemetry.js?v=0.1.17"></script>
-    <script type="text/javascript" src="core/storage.js?v=0.1.17"></script>
-    <script type="text/javascript" src="core/editor.js?v=0.1.17"></script>
-    <script type="text/javascript" src="core/bus.js?v=0.1.17"></script>
-    <script type="text/javascript" src="core/uiwatch.js?v=0.1.17"></script>
-    <script type="text/javascript" src="core/tabs.js?v=0.1.17"></script>
-    <script type="text/javascript" src="features/clipboard.js?v=0.1.17"></script>
-    <script type="text/javascript" src="features/macros.js?v=0.1.17"></script>
+    <script type="text/javascript" src="core/ns.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/telemetry.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/bus.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/uiwatch.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/tabs.js?v=0.1.18"></script>
+    <script type="text/javascript" src="features/clipboard.js?v=0.1.18"></script>
+    <script type="text/javascript" src="features/macros.js?v=0.1.18"></script>
     <!-- InputHelper typing/token detection (runs in background) -->
-    <script type="text/javascript" src="features/inputhelper.js?v=0.1.17"></script>
+    <script type="text/javascript" src="features/inputhelper.js?v=0.1.18"></script>
     <!-- Space → nbsp: แทนที่ Space ด้วย non-breaking space เพื่อลดการขึ้นบรรทัดใหม่โดยไม่ตั้งใจ -->
-    <script type="text/javascript" src="features/spaceToNbsp.js?v=0.1.17"></script>
-    <script type="text/javascript" src="bootstrap.js?v=0.1.17"></script>
+    <script type="text/javascript" src="features/spaceToNbsp.js?v=0.1.18"></script>
+    <script type="text/javascript" src="bootstrap.js?v=0.1.18"></script>
   </head>
   <body>
     <div class="doSimpleRoot">
@@ -51,6 +51,7 @@
         <div class="doSimpleSectionHeader">
           <div class="doSimpleSectionTitle">📋 Clipboard</div>
           <div class="doSimpleActions">
+            <button id="clipOpenSystem" type="button">ดู Clipboard ส่วนกลาง</button>
             <button id="clipReload" type="button">Reload</button>
           </div>
         </div>
@@ -65,6 +66,7 @@
         <div class="doSimpleSectionHeader">
           <div class="doSimpleSectionTitle">🧩 Macros</div>
           <div class="doSimpleActions">
+            <button id="macroOpenSystem" type="button">ดู Macro ส่วนกลาง</button>
             <button id="macroOpenAdd" type="button">เพิ่ม Macro</button>
             <button id="macroReload" type="button">Reload</button>
           </div>
@@ -75,4 +77,3 @@
     </div>
   </body>
 </html>
-

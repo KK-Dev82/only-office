@@ -1,21 +1,25 @@
-/* SpellCheck TH+EN plugin (OnlyOffice) v0.2.1
- * - แหล่งที่ 1: only-office/dict (words.json จาก th_TH.dic, en_US.dic)
- * - แหล่งที่ 2: Dictionary API (คำที่ผู้ใช้เพิ่มใน M0106)
- * - ใช้ Intl.Segmenter — ไม่ใช้ PyThai
+/* SpellCheck TH+EN plugin v2 (OnlyOffice)
+ * - Tokenizer: Custom Trie + Forward Maximum Matching (ภาษาไทย)
+ * - Dict B: only-office/dict (words.json จาก th_TH.dic, en_US.dic)
+ * - Dict C: API /api/word-management/dictionary (M0106 + global)
+ * - Suggester: Levenshtein (เก็บจาก v1)
+ * - Fallback: Intl.Segmenter ถ้า trie โหลดไม่ได้
  * - Add words: api/word-management/spellcheck/add-words
- * - Selective replace: replace ทีละ occurrence ด้วย doc.Search()[index]
+ * - Selective replace: ผ่าน doc.Search()[index] + Asc.scope
  */
 (function (window) {
-  var STORAGE_KEY_IGNORED = "spellcheck-then:v1:ignoredWords";
-  var VERSION = "0.3.1";
+  var STORAGE_KEY_IGNORED = "spellcheck-then-v2:ignoredWords";
+  var VERSION = "0.1.3";
 
   var BACKEND_ADD_WORDS_PATH = "api/word-management/spellcheck/add-words";
 
   var BASE_DICT_THAI_PATH = "onlyoffice-dict/th_TH/words.json";
   var BASE_DICT_ENGLISH_PATH = "onlyoffice-dict/en_US/words.json";
 
-  var DICT_THAI_PATH = "api/word-management/dictionary?language=thai&limit=3000&includeGlobal=true";
-  var DICT_ENGLISH_PATH = "api/word-management/dictionary?language=english&limit=3000&includeGlobal=true";
+  // limit ชั่วคราว = 10000 (Sprint 2 จะเปลี่ยนเป็น unlimited ฝั่ง backend)
+  var DICT_LIMIT = 10000;
+  var DICT_THAI_PATH = "api/word-management/dictionary?language=thai&limit=" + DICT_LIMIT + "&includeGlobal=true";
+  var DICT_ENGLISH_PATH = "api/word-management/dictionary?language=english&limit=" + DICT_LIMIT + "&includeGlobal=true";
 
   var FUZZY_MAX_DISTANCE = 2;
   var FUZZY_MAX_SUGGESTIONS = 5;
@@ -42,9 +46,19 @@
     dictionaryByLengthThai: null,
     dictionaryWordsEnglish: [],
     dictionaryByLengthEnglish: null,
+    trieThai: null,                        // root node ของ Trie ภาษาไทย
+    trieEnglish: null,                     // root node ของ Trie ภาษาอังกฤษ
     sugCache: Object.create(null),
     inited: false,
   };
+
+  function getTrieAPI() {
+    return (window.SpellcheckTrieV2) || null;
+  }
+
+  function getTokenizerAPI() {
+    return (window.SpellcheckTokenizerV2) || null;
+  }
 
   /* ========== UTILITIES ========== */
 
@@ -146,9 +160,66 @@
 
   /* ========== WORD EXTRACTION (unique, for spellcheck phase) ========== */
 
+  /**
+   * Tokenize text \u2192 flat list of tokens with { word, start, end, inDict, lang }
+   * - \u0E43\u0E0A\u0E49 pretokenize \u0E41\u0E22\u0E01 TH/EN/digit/punct
+   * - chunk TH \u2192 forwardMaxMatch(trieThai)
+   * - chunk EN \u2192 \u0E17\u0E31\u0E49\u0E07 chunk \u0E40\u0E1B\u0E47\u0E19 1 token (latin \u0E21\u0E35 space \u0E41\u0E22\u0E01\u0E2D\u0E22\u0E39\u0E48\u0E41\u0E25\u0E49\u0E27\u0E43\u0E19 pretokenize)
+   * - chunk digit/punct \u2192 skip
+   *
+   * \u0E04\u0E37\u0E19 array \u0E15\u0E32\u0E21\u0E25\u0E33\u0E14\u0E31\u0E1A\u0E43\u0E19 text (\u0E21\u0E35 start/end \u0E02\u0E2D\u0E07\u0E08\u0E23\u0E34\u0E07\u0E43\u0E19\u0E40\u0E2D\u0E01\u0E2A\u0E32\u0E23)
+   */
+  function tokenizeWithTrie(text) {
+    var trieAPI = getTrieAPI();
+    var tokAPI = getTokenizerAPI();
+    var out = [];
+    if (!trieAPI || !tokAPI) return out;
+
+    var chunks = tokAPI.pretokenize(text);
+    for (var i = 0; i < chunks.length; i++) {
+      var chunk = chunks[i];
+      if (chunk.type === "thai") {
+        if (state.trieThai) {
+          var thaiTokens = trieAPI.forwardMaxMatch(chunk.text, state.trieThai, chunk.start);
+          for (var j = 0; j < thaiTokens.length; j++) {
+            thaiTokens[j].lang = "th";
+            out.push(thaiTokens[j]);
+          }
+        } else {
+          out.push({
+            word: chunk.text,
+            start: chunk.start,
+            end: chunk.start + chunk.text.length,
+            inDict: false,
+            lang: "th"
+          });
+        }
+      } else if (chunk.type === "latin") {
+        var inDictEN = false;
+        if (state.trieEnglish && trieAPI.trieHas(state.trieEnglish, chunk.text.toLowerCase())) {
+          inDictEN = true;
+        }
+        out.push({
+          word: chunk.text,
+          start: chunk.start,
+          end: chunk.start + chunk.text.length,
+          inDict: inDictEN,
+          lang: "en"
+        });
+      }
+      // digit / punct \u2192 skip
+    }
+    return out;
+  }
+
+  /**
+   * Phase 1 (legacy compat): \u0E04\u0E37\u0E19 unique word list \u0E08\u0E32\u0E01 tokens \u0E17\u0E35\u0E48 inDict=false
+   * \u0E40\u0E01\u0E47\u0E1A signature \u0E40\u0E14\u0E34\u0E21\u0E44\u0E27\u0E49\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E43\u0E2B\u0E49 runSpellcheck \u0E17\u0E33\u0E07\u0E32\u0E19\u0E15\u0E48\u0E2D\u0E44\u0E14\u0E49
+   */
   function extractWordsFromText(text) {
     var t = String(text || "").trim();
     if (!t) return [];
+    var trieReady = state.trieThai && state.trieEnglish;
     var words = [];
     var seen = Object.create(null);
 
@@ -162,25 +233,40 @@
       words.push(ww);
     }
 
+    // Path A: Trie FMM (preferred)
+    if (trieReady) {
+      var tokens = tokenizeWithTrie(t);
+      var __dbgAll = [];
+      var __dbgMiss = [];
+      for (var i = 0; i < tokens.length; i++) {
+        var tok = tokens[i];
+        __dbgAll.push(tok.word);
+        if (tok.inDict) continue; // \u0E2D\u0E22\u0E39\u0E48\u0E43\u0E19 dict \u2192 \u0E44\u0E21\u0E48\u0E15\u0E49\u0E2D\u0E07 spellcheck
+        __dbgMiss.push(tok.word);
+        addWord(tok.word);
+      }
+      console.log("[SpellCheckTHEN-V2][FMM] totalTokens(" + __dbgAll.length + ")");
+      console.log("[SpellCheckTHEN-V2][FMM] miss(" + __dbgMiss.length + "):", __dbgMiss);
+      console.log("[SpellCheckTHEN-V2][FMM] uniqueToCheck(" + words.length + "):", words);
+      return words;
+    }
+
+    // Path B: Intl.Segmenter fallback (\u0E16\u0E49\u0E32 trie \u0E44\u0E21\u0E48\u0E1E\u0E23\u0E49\u0E2D\u0E21)
     if (typeof Intl !== "undefined" && Intl.Segmenter) {
       try {
         var segmenterTh = new Intl.Segmenter("th", { granularity: "word" });
         var iter = segmenterTh.segment(t);
-        var __debugTokens = [];
         for (var it of iter) {
-          if (it && it.isWordLike && it.segment) {
-            __debugTokens.push(it.segment);
-            addWord(it.segment);
-          }
+          if (it && it.isWordLike && it.segment) addWord(it.segment);
         }
-        console.log("[SpellCheckTHEN][Intl] tokens(" + __debugTokens.length + "):", __debugTokens);
-        console.log("[SpellCheckTHEN][Intl] uniqueAccepted(" + words.length + "):", words);
+        console.warn("[SpellCheckTHEN-V2] Trie not ready \u2014 used Intl.Segmenter fallback");
         if (words.length > 0) return words;
       } catch (err) {
-        console.warn("[SpellCheckTHEN] Intl.Segmenter error, using fallback", err);
+        console.warn("[SpellCheckTHEN-V2] Intl.Segmenter error, using whitespace fallback", err);
       }
     }
 
+    // Path C: split by whitespace (last resort)
     var fallback = t.split(/[\s\u00A0\u200B-\u200D\uFEFF]+/);
     for (var j = 0; j < fallback.length; j++) addWord(fallback[j]);
     return words;
@@ -213,7 +299,7 @@
     return fetch(url, { method: "GET", credentials: "include" })
       .then(function (r) {
         if (!r || !r.ok) {
-          console.warn("[SpellCheckTHEN] Base dict fetch failed:", path, "status=" + (r ? r.status : "no response"));
+          console.warn("[SpellCheckTHEN-V2] Base dict fetch failed:", path, "status=" + (r ? r.status : "no response"));
           return { words: [], byLength: {} };
         }
         return r.text().then(function (txt) {
@@ -238,11 +324,11 @@
           if (!byLength[len]) byLength[len] = [];
           byLength[len].push(w);
         }
-        console.log("[SpellCheckTHEN] Base dict loaded:", path, words.length, "words");
+        console.log("[SpellCheckTHEN-V2] Base dict loaded:", path, words.length, "words");
         return { words: words, byLength: byLength };
       })
       .catch(function (err) {
-        console.warn("[SpellCheckTHEN] Base dict error:", path, err);
+        console.warn("[SpellCheckTHEN-V2] Base dict error:", path, err);
         return { words: [], byLength: {} };
       });
   }
@@ -325,12 +411,45 @@
       ]).then(function (apiResults) {
         var thaiMerged = mergeDictResults([baseResults[0], apiResults[0]]);
         var englishMerged = mergeDictResults([baseResults[1], apiResults[1]]);
-        console.log("[SpellCheckTHEN] Thai dict:", Object.keys(thaiMerged.validWords).length, "words, EN dict:", Object.keys(englishMerged.validWords).length, "words");
-        // ตัวอย่างคำที่ "ควร" อยู่ในพจนานุกรมไทย — ใช้ตรวจว่า base dict โหลดสมบูรณ์ไหม
+        console.log("[SpellCheckTHEN-V2] Thai dict:", Object.keys(thaiMerged.validWords).length, "words, EN dict:", Object.keys(englishMerged.validWords).length, "words");
         var __probe = ["ตำแหน่ง", "ที่", "และ", "ของ", "เป็น", "ครับ", "ค่ะ"];
-        console.log("[SpellCheckTHEN] probe TH dict:", __probe.map(function (p) {
+        console.log("[SpellCheckTHEN-V2] probe TH dict:", __probe.map(function (p) {
           return p + "=" + (thaiMerged.validWords[p.toLowerCase()] ? "Y" : "N");
         }).join(", "));
+
+        // Build Trie structures
+        var trieAPI = getTrieAPI();
+        var trieThai = null, trieEnglish = null;
+        if (trieAPI) {
+          var t0 = Date.now();
+          // กลยุทธ์ trie สำหรับภาษาไทย:
+          //   - Hunspell base: minLength=3 — กัน affix garbage 1-2 char (ฟา, ลา, ม, พ, ส...)
+          //                    ที่ "ดูดซับ" คำผิดให้ดูถูก เช่น "ฟาม" ตัดเป็น "ฟา"+"ม"
+          //   - M0106 (DB): all length — admin ตั้งใจเพิ่มคำ 2-char ที่ legitimate
+          //                  (ใน, ไป, มี, ที่, จะ, ได้...) ผ่าน UI หรือ bulk seed
+          //   ผลลัพธ์: trie มี Hunspell 3+ char + M0106 ทุก length
+          //
+          // Build จาก Hunspell ก่อน (filter ≥3 char) แล้ว trieAdd ของ M0106 ทับ (no filter)
+          var hunspellThai = (baseResults[0] && baseResults[0].words) || [];
+          var m0106Thai = (apiResults[0] && apiResults[0].words) || [];
+          trieThai = trieAPI.buildTrie(hunspellThai, { minLength: 3 });
+          for (var iTh = 0; iTh < m0106Thai.length; iTh++) {
+            trieAPI.trieAdd(trieThai, m0106Thai[iTh]);
+          }
+          console.log("[SpellCheckTHEN-V2] Trie TH: Hunspell(≥3 char)=" + hunspellThai.length +
+                      " filtered, M0106 added=" + m0106Thai.length);
+
+          var t1 = Date.now();
+
+          // English: minLength=1 ตามเดิม — เก็บ "I", "a" เพราะเป็นคำจริง
+          var enLower = englishMerged.words.map(function (w) { return String(w || "").toLowerCase(); });
+          trieEnglish = trieAPI.buildTrie(enLower, { minLength: 1 });
+          var t2 = Date.now();
+          console.log("[SpellCheckTHEN-V2] Trie build: TH=" + (t1 - t0) + "ms, EN=" + (t2 - t1) + "ms");
+        } else {
+          console.warn("[SpellCheckTHEN-V2] Trie API not loaded — will use Intl.Segmenter fallback");
+        }
+
         return {
           validWordsThai: thaiMerged.validWords,
           validWordsEnglish: englishMerged.validWords,
@@ -338,6 +457,8 @@
           dictionaryByLengthThai: thaiMerged.byLength,
           dictionaryWordsEnglish: englishMerged.words,
           dictionaryByLengthEnglish: englishMerged.byLength,
+          trieThai: trieThai,
+          trieEnglish: trieEnglish,
           words: thaiMerged.words.concat(englishMerged.words),
           byLength: thaiMerged.byLength,
           validWords: Object.assign(Object.create(null), thaiMerged.validWords, englishMerged.validWords),
@@ -410,33 +531,33 @@
 
     state.sugCache = Object.create(null);
 
-    console.log("[SpellCheckTHEN][Check] dictSize TH=" + Object.keys(validThai).length +
+    console.log("[SpellCheckTHEN-V2][Check] dictSize TH=" + Object.keys(validThai).length +
       " EN=" + Object.keys(validEnglish).length + " ignored=" + Object.keys(state.ignoredWords).length);
     for (var i = 0; i < words.length; i++) {
       var w = words[i];
       if (!w) continue;
       var k = w.toLowerCase();
       if (state.ignoredWords[w]) {
-        console.log("[SpellCheckTHEN][Check] SKIP(ignored):", w);
+        console.log("[SpellCheckTHEN-V2][Check] SKIP(ignored):", w);
         continue;
       }
 
       var isThai = isThaiWord(w);
       var validSet = isThai ? validThai : validEnglish;
       if (validSet && validSet[k]) {
-        console.log("[SpellCheckTHEN][Check] OK(in dict " + (isThai ? "TH" : "EN") + "):", w);
+        console.log("[SpellCheckTHEN-V2][Check] OK(in dict " + (isThai ? "TH" : "EN") + "):", w);
         continue;
       }
 
       var dictWords = isThai ? (state.dictionaryWordsThai || []) : (state.dictionaryWordsEnglish || []);
       var byLenDict = isThai ? (state.dictionaryByLengthThai || null) : (state.dictionaryByLengthEnglish || null);
       var sugs = fuzzyMatchDictionary(w, dictWords, Object.create(null), byLenDict);
-      console.warn("[SpellCheckTHEN][Check] MISS(" + (isThai ? "TH" : "EN") + "):", w,
+      console.warn("[SpellCheckTHEN-V2][Check] MISS(" + (isThai ? "TH" : "EN") + "):", w,
         "→ suggestions:", sugs);
       state.sugCache[k] = sugs;
       issues.push({ word: w, suggestions: sugs });
     }
-    console.log("[SpellCheckTHEN][Check] summary issues:", issues.map(function (x) {
+    console.log("[SpellCheckTHEN-V2][Check] summary issues:", issues.map(function (x) {
       return { word: x.word, suggestions: x.suggestions };
     }));
 
@@ -458,10 +579,40 @@
 
     var occurrences = [];
     var occId = 0;
-    // นับ wordOccIndex: จำนวนครั้งที่คำนี้เจอแล้ว
     var wordCount = Object.create(null);
+    var trieReady = state.trieThai && state.trieEnglish;
+
+    // Path A: FMM tokenize → match with issueMap by word
+    if (trieReady) {
+      var tokens = tokenizeWithTrie(text);
+      for (var ti = 0; ti < tokens.length; ti++) {
+        var tok = tokens[ti];
+        if (tok.inDict) continue;
+        var w = String(tok.word || "").trim();
+        if (!w || w.length < MIN_WORD_LENGTH) continue;
+        if (SKIP_NUMERIC.test(w) || SKIP_PUNCTUATION.test(w)) continue;
+        var k = w.toLowerCase();
+        var issue = issueMap[k];
+        if (!issue) continue;
+        if (state.ignoredWords[w] || state.ignoredWords[issue.word]) continue;
+
+        if (!wordCount[k]) wordCount[k] = 0;
+        occurrences.push({
+          word: issue.word,
+          suggestions: issue.suggestions,
+          start: tok.start,
+          end: tok.end,
+          context: text,
+          occId: occId++,
+          wordOccIndex: wordCount[k]++
+        });
+      }
+      return occurrences;
+    }
+
     var hasSegmenter = typeof Intl !== "undefined" && Intl.Segmenter;
 
+    // Path B: Intl.Segmenter fallback
     if (hasSegmenter) {
       try {
         var segmenter = new Intl.Segmenter("th", { granularity: "word" });
@@ -488,7 +639,7 @@
           });
         }
       } catch (err) {
-        console.warn("[SpellCheckTHEN] Segmenter error:", err);
+        console.warn("[SpellCheckTHEN-V2] Segmenter error:", err);
       }
     }
 
@@ -599,9 +750,9 @@
           var s = String(sugs[j] || "").trim();
           if (!s) continue;
           var isSel = chosen === s;
-          html += '<button class="tscSug" data-act="pick" data-sug="' + escapeHtml(s) + '"' +
-            (isSel ? ' style="border-color:rgba(25,118,210,0.65);background:rgba(25,118,210,0.18);"' : '') +
-            '>' + escapeHtml(s) + '</button>';
+          html += '<button class="tscSug' + (isSel ? ' tscSugSelected' : '') +
+            '" data-act="pick" data-sug="' + escapeHtml(s) + '">' +
+            escapeHtml(s) + '</button>';
         }
         html += '</div>';
       } else {
@@ -671,7 +822,7 @@
         },
         false, true,
         function (result) {
-          console.log("[SpellCheckTHEN] searchAndSelect result:", JSON.stringify(result));
+          console.log("[SpellCheckTHEN-V2] searchAndSelect result:", JSON.stringify(result));
           if (cb) cb(result || { ok: false });
         }
       );
@@ -686,17 +837,17 @@
    * 2. InputText → พิมพ์ทับ selection
    */
   function replaceAtIndex(word, occIndex, newText, cb) {
-    console.log("[SpellCheckTHEN] replaceAtIndex:", word, "idx=" + occIndex, "→", newText);
+    console.log("[SpellCheckTHEN-V2] replaceAtIndex:", word, "idx=" + occIndex, "→", newText);
     // Step 1: Select the specific occurrence
     searchAndSelect(word, occIndex, function (selResult) {
       if (!selResult || !selResult.ok) {
-        console.warn("[SpellCheckTHEN] searchAndSelect failed:", selResult);
+        console.warn("[SpellCheckTHEN-V2] searchAndSelect failed:", selResult);
         if (cb) cb(selResult || { ok: false });
         return;
       }
       // Step 2: InputText — พิมพ์ทับ selection
       execMethod("InputText", [newText, ""], function (inputResult) {
-        console.log("[SpellCheckTHEN] InputText result:", inputResult);
+        console.log("[SpellCheckTHEN-V2] InputText result:", inputResult);
         if (cb) cb({ ok: true, count: selResult.count });
       });
     });
@@ -797,18 +948,38 @@
     var w = String(word || "").trim();
     if (!w) return;
     setStatus('กำลังเพิ่มคำ "' + w + '" ...');
-    apiPostJson("/add-words", { words: [w] })
-      .then(function () {
-        setStatus('เพิ่มคำ "' + w + '" แล้ว');
+    apiPostJson("/add-words", { words: [w], language: "auto" })
+      .then(function (result) {
+        // ใหม่: response = { addedCount, skippedCount, failedCount, added[], skipped[], failed[] }
+        var added = (result && result.addedCount) || 0;
+        var skipped = (result && result.skippedCount) || 0;
+        var failed = (result && result.failedCount) || 0;
+
+        if (added > 0) {
+          setStatus('เพิ่มคำ "' + w + '" แล้ว');
+        } else if (skipped > 0) {
+          setStatus('คำ "' + w + '" มีอยู่ใน Dictionary แล้ว');
+        } else if (failed > 0) {
+          var firstErr = (result.failed && result.failed[0] && result.failed[0].error) || "unknown";
+          setStatus('เพิ่มคำ "' + w + '" ไม่สำเร็จ: ' + firstErr);
+          return;
+        } else {
+          setStatus('เพิ่มคำ "' + w + '" — ไม่มีผลลัพธ์');
+        }
+
+        // อัพเดต state local — ทั้ง added และ skipped ถือว่ามีในระบบแล้ว
         var k = w.toLowerCase();
         state.validWords = state.validWords || Object.create(null);
         state.validWords[k] = true;
+        var trieAPI = getTrieAPI();
         if (isThaiWord(w)) {
           state.validWordsThai = state.validWordsThai || Object.create(null);
           state.validWordsThai[k] = true;
+          if (trieAPI && state.trieThai) trieAPI.trieAdd(state.trieThai, w);
         } else {
           state.validWordsEnglish = state.validWordsEnglish || Object.create(null);
           state.validWordsEnglish[k] = true;
+          if (trieAPI && state.trieEnglish) trieAPI.trieAdd(state.trieEnglish, k);
         }
         if (typeof onSuccess === "function") onSuccess(w);
       })
@@ -818,6 +989,67 @@
   }
 
   /* ========== EVENT WIRING ========== */
+
+  /**
+   * Core spellcheck pipeline — รับ textGetter (function ที่คืน text ผ่าน callback)
+   * และ label เพื่อแสดง status
+   */
+  function runCheckPipeline(textGetter, scopeLabel) {
+    state.lastIssues = [];
+    state.lastOccurrences = [];
+    state.lastDocText = "";
+    state.replacedOccurrences = Object.create(null);
+    state.selectedSuggestionByWord = Object.create(null);
+    state.sugCache = Object.create(null);
+    renderGroupedOccurrences();
+
+    var t0 = Date.now();
+    setStatus("กำลังอ่าน" + scopeLabel + "...");
+    textGetter(function (docText) {
+      state.lastDocText = docText;
+      var ct = String(docText || "").trim();
+      if (!ct) {
+        setStatus(scopeLabel + "ว่างเปล่า — กรุณาเลือกข้อความก่อน");
+        return;
+      }
+
+      setStatus("กำลังโหลด Dictionary...");
+      fetchAllDictionaries()
+        .then(function (dictResult) {
+          state.dictionaryWords = dictResult.words || [];
+          state.dictionaryByLength = dictResult.byLength || null;
+          state.validWords = dictResult.validWords || Object.create(null);
+          state.validWordsThai = dictResult.validWordsThai || Object.create(null);
+          state.validWordsEnglish = dictResult.validWordsEnglish || Object.create(null);
+          state.dictionaryWordsThai = dictResult.dictionaryWordsThai || [];
+          state.dictionaryByLengthThai = dictResult.dictionaryByLengthThai || null;
+          state.dictionaryWordsEnglish = dictResult.dictionaryWordsEnglish || [];
+          state.dictionaryByLengthEnglish = dictResult.dictionaryByLengthEnglish || null;
+          state.trieThai = dictResult.trieThai || null;
+          state.trieEnglish = dictResult.trieEnglish || null;
+
+          setStatus("กำลังตรวจคำ (" + scopeLabel + ")...");
+          state.lastIssues = runSpellcheck(ct);
+
+          if (!state.lastIssues.length) {
+            renderGroupedOccurrences();
+            setStatus("เสร็จแล้ว — ไม่พบคำผิดใน" + scopeLabel + " (" + (Date.now() - t0) + " ms)");
+            return;
+          }
+
+          state.lastOccurrences = findOccurrencesInText(docText, state.lastIssues);
+          renderGroupedOccurrences();
+
+          var nWords = state.lastIssues.length;
+          var nOccs = state.lastOccurrences.length;
+          setStatus("เสร็จ (" + scopeLabel + ") — " + nWords + " คำ, " + nOccs + " ตำแหน่ง (" + (Date.now() - t0) + " ms)");
+        })
+        .catch(function (e) {
+          renderGroupedOccurrences();
+          setStatus("โหลด Dictionary ไม่สำเร็จ: " + String(e && e.message ? e.message : e));
+        });
+    });
+  }
 
   function wireEvents() {
     var btnCheck = $("tscBtnCheck");
@@ -829,66 +1061,12 @@
       });
     }
 
-    /* ── ปุ่ม "ตรวจคำ" ── */
+    /* ── ปุ่ม "ตรวจทั้งเอกสาร" ── */
     if (btnCheck) {
       btnCheck.addEventListener("click", function () {
-        state.lastIssues = [];
-        state.lastOccurrences = [];
-        state.lastDocText = "";
-        state.replacedOccurrences = Object.create(null);
-        state.selectedSuggestionByWord = Object.create(null);
-        state.sugCache = Object.create(null);
-        renderGroupedOccurrences();
-
-        var t0 = Date.now();
-
-        // ─── ดึง text ทั้งเอกสาร (ผ่าน execMethod — ไม่ใช้ callCommand) ───
-        setStatus("กำลังอ่านเอกสาร...");
-        getDocumentText(function (docText) {
-          state.lastDocText = docText;
-          var ct = String(docText || "").trim();
-          if (!ct) {
-            setStatus("เอกสารว่างเปล่า หรือไม่สามารถอ่านเนื้อหาได้");
-            return;
-          }
-
-          setStatus("กำลังโหลด Dictionary...");
-          fetchAllDictionaries()
-            .then(function (dictResult) {
-              state.dictionaryWords = dictResult.words || [];
-              state.dictionaryByLength = dictResult.byLength || null;
-              state.validWords = dictResult.validWords || Object.create(null);
-              state.validWordsThai = dictResult.validWordsThai || Object.create(null);
-              state.validWordsEnglish = dictResult.validWordsEnglish || Object.create(null);
-              state.dictionaryWordsThai = dictResult.dictionaryWordsThai || [];
-              state.dictionaryByLengthThai = dictResult.dictionaryByLengthThai || null;
-              state.dictionaryWordsEnglish = dictResult.dictionaryWordsEnglish || [];
-              state.dictionaryByLengthEnglish = dictResult.dictionaryByLengthEnglish || null;
-
-              setStatus("กำลังตรวจคำ...");
-              state.lastIssues = runSpellcheck(ct);
-
-              if (!state.lastIssues.length) {
-                renderGroupedOccurrences();
-                setStatus("เสร็จแล้ว — ไม่พบคำผิด (" + (Date.now() - t0) + " ms)");
-                return;
-              }
-
-              state.lastOccurrences = findOccurrencesInText(docText, state.lastIssues);
-              renderGroupedOccurrences();
-
-              var nWords = state.lastIssues.length;
-              var nOccs = state.lastOccurrences.length;
-              setStatus("เสร็จแล้ว — " + nWords + " คำ, " + nOccs + " ตำแหน่ง (" + (Date.now() - t0) + " ms)");
-            })
-            .catch(function (e) {
-              renderGroupedOccurrences();
-              setStatus("โหลด Dictionary ไม่สำเร็จ: " + String(e && e.message ? e.message : e));
-            });
-        });
+        runCheckPipeline(getDocumentText, "เอกสาร");
       });
     }
-
     /* ── Event delegation สำหรับ results panel ── */
     var results = $("tscResults");
     if (results) {
@@ -946,7 +1124,7 @@
             } else {
               var reason = (result && result.reason) || (result && result.error) || "unknown";
               setStatus('แทนที่ไม่สำเร็จ: ' + reason);
-              console.warn("[SpellCheckTHEN] replace failed:", result);
+              console.warn("[SpellCheckTHEN-V2] replace failed:", result);
             }
           });
           return;

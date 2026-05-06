@@ -23,7 +23,7 @@ services:
 
       # --- License (Developer Edition): ต้องมี license.lic ใน Data เพื่อ activate ---
       # ดู only-office/example และ helpcenter.onlyoffice.com/docs-developer-activation
-      - ../license/license.lic:/var/www/onlyoffice/Data/license.lic:ro
+      #- ../license/license.lic:/var/www/onlyoffice/Data/license.lic:ro
 
       # --- Custom Fonts (TH Sarabun New) ---
       - ../THSarabunNew-13:/usr/share/fonts/truetype/th-sarabun:ro
@@ -105,13 +105,13 @@ services:
           if [ -x /usr/bin/documentserver-pluginsmanager.sh ]; then
             /usr/bin/documentserver-pluginsmanager.sh \
               --directory="$$PLUGINS_DST" \
-              --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus" \
+              --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus, typograf, doc2md, languagetool, deepl, draw.io, jitsi, telegram, wordpress, send" \
               2>&1 | grep -E "(Remove plugin|OK|Error)" || true
             echo "[KK] Plugin removal completed."
           else
             echo "[KK] Warning: documentserver-pluginsmanager.sh not found, using fallback method..."
             # Fallback: ใช้ find + rm (ถ้า plugin manager ไม่มี)
-            find "$$PLUGINS_DST" -mindepth 1 -maxdepth 1 -type d ! -name "document-office" ! -name "dictionary-abbreviation" ! -name "speech-to-text" ! -name "thai-spellcheck" ! -name "spellcheck-then" ! -name "thai-autocomplete" ! -name "comment-bridge" -exec sh -c 'chmod -R u+w "$$1" 2>/dev/null || true; rm -rf "$$1" 2>/dev/null || true' _ {} \; || true
+            find "$$PLUGINS_DST" -mindepth 1 -maxdepth 1 -type d ! -name "document-office" ! -name "dictionary-abbreviation" ! -name "speech-to-text" ! -name "spellcheck-then-v2" ! -name "thai-autocomplete" ! -name "insert-text-bridge" -exec sh -c 'chmod -R u+w "$$1" 2>/dev/null || true; rm -rf "$$1" 2>/dev/null || true' _ {} \; || true
             find "$$PLUGINS_DST" -maxdepth 1 -type f ! -name "*.md" -exec sh -c 'chmod u+w "$$1" 2>/dev/null || true; rm -f "$$1" 2>/dev/null || true' _ {} \; || true
           fi
         fi
@@ -121,8 +121,12 @@ services:
           echo "[KK] syncing custom plugins from /opt/kk-plugins-src to $$PLUGINS_DST..."
           cp -R /opt/kk-plugins-src/* "$$PLUGINS_DST"/
           # ตั้ง permission ให้ถูกต้อง
-          chown -R ds:ds "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck "$$PLUGINS_DST"/spellcheck-then "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/comment-bridge 2>/dev/null || true
-          chmod -R a+rX "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/thai-spellcheck "$$PLUGINS_DST"/spellcheck-then "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/comment-bridge 2>/dev/null || true
+          # ลบ disabled plugins ก่อน (v1, comment-bridge, thai-spellcheck) ถ้า volume copy พามา
+          for d in spellcheck-then comment-bridge thai-spellcheck; do
+            [ -d "$$PLUGINS_DST/$$d" ] && { chmod -R u+w "$$PLUGINS_DST/$$d" 2>/dev/null || true; rm -rf "$$PLUGINS_DST/$$d" 2>/dev/null || true; echo "[KK] Removed disabled: $$d"; }
+          done
+          chown -R ds:ds "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/spellcheck-then-v2 "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/insert-text-bridge 2>/dev/null || true
+          chmod -R a+rX "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/spellcheck-then-v2 "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/insert-text-bridge 2>/dev/null || true
         fi
 
         # Example files: ensure /example/files/sample.docx exists (idempotent; safe every boot)

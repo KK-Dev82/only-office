@@ -123,6 +123,47 @@
     return false;
   }
 
+  function bindSystemWindowButton(btnId, mode, boundFlag, description, frameSuffix) {
+    var btn = DO.$ ? DO.$(btnId) : document.getElementById(btnId);
+    if (!btn) return;
+    if (DO.state[boundFlag]) return;
+    DO.state[boundFlag] = true;
+    btn.addEventListener("click", function () {
+      try {
+        if (!(window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function")) return;
+        var href = "";
+        try { href = String(window.location && window.location.href ? window.location.href : ""); } catch (eHref) {}
+        var base = href;
+        try {
+          base = base.split("#")[0].split("?")[0];
+          base = base.slice(0, base.lastIndexOf("/") + 1);
+        } catch (eBase) {}
+        var winUrl = (base ? base : "") + "system_window.html?mode=" + encodeURIComponent(mode) + "&v=" + encodeURIComponent(String(DO.VERSION || "0.1.18"));
+        // Dedicated frame id per mode to avoid collisions with the panelRight iframe
+        var frameId = "iframe_asc.{C6A86F5A-5A0F-49F8-9E72-9E8E1E2F86A1}" + String(frameSuffix || "_sysWin");
+        var variation = {
+          url: winUrl,
+          description: description,
+          isVisual: true,
+          isModal: true,
+          EditorsSupport: ["word"],
+          size: [900, 680],
+          buttons: [{ text: "Close", primary: false }]
+        };
+        window.Asc.plugin.executeMethod("ShowWindow", [frameId, variation], function (windowID) {
+          try {
+            if (DO.STORAGE_PREFIX) {
+              localStorage.setItem(DO.STORAGE_PREFIX + "systemWindowId:" + mode, String(windowID || ""));
+            }
+          } catch (e0) {}
+          try { DO.debugLog("sys_open_window", { mode: mode, url: winUrl, windowID: windowID }); } catch (e1) {}
+        });
+      } catch (e0) {
+        try { DO.debugLog("sys_open_window_failed", { mode: mode, error: String(e0) }); } catch (e1) {}
+      }
+    });
+  }
+
   function softInitForUiAndLocalData() {
     try {
       bindCoreUi();
@@ -160,6 +201,18 @@
 
       var injected = tryReadInjectedOptions();
       mergeOptions(injected);
+
+      // Persist options for child windows (ShowWindow can't reliably pass options in all builds)
+      try {
+        if (DO.STORAGE_PREFIX) {
+          if (DO.pluginOptions && DO.pluginOptions.apiBaseUrl) {
+            localStorage.setItem(DO.STORAGE_PREFIX + "apiBaseUrl", String(DO.pluginOptions.apiBaseUrl || ""));
+          }
+          if (DO.pluginOptions && DO.pluginOptions.accessToken) {
+            localStorage.setItem(DO.STORAGE_PREFIX + "accessToken", String(DO.pluginOptions.accessToken || ""));
+          }
+        }
+      } catch (eOptStore) {}
 
       DO.initLocalData();
       // Always start detection hooks (no UI required)
@@ -200,6 +253,12 @@
             DO.features.macros.reload();
           } catch (e0) {}
         }
+
+        // System Window: ดูข้อมูล Global จาก M0106
+        try {
+          bindSystemWindowButton("clipOpenSystem", "clipboard", "__clipSysBtnBound", "System Clipboard", "_sysClip");
+          bindSystemWindowButton("macroOpenSystem", "macros", "__macroSysBtnBound", "System Macros", "_sysMacro");
+        } catch (eSys) {}
 
         // if (DO.features && DO.features.abbreviation) {
         //   DO.features.abbreviation.bind();

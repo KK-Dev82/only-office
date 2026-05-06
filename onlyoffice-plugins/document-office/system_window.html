@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Clipboard & Macros - System</title>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
+    <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
+    <link rel="stylesheet" href="styles.css?v=0.1.18" />
+    <style>
+      /* System window: allow scrolling for large lists */
+      .doSimpleRoot { overflow: auto !important; padding: 12px; }
+      #sysWinList {
+        overflow: auto;
+        max-height: calc(100vh - 230px);
+        padding-right: 2px;
+      }
+      #sysWinList .doItemText {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.35;
+      }
+      .doCard { padding: 10px; border: 1px solid var(--do-border, #e1e4e8); border-radius: 6px; margin-bottom: 10px; }
+      .doRow { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+      .doInput { flex: 1; min-width: 0; padding: 6px 8px; }
+      .doMuted { color: #888; font-size: 12px; }
+    </style>
+
+    <script type="text/javascript" src="core/ns.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.18"></script>
+    <script type="text/javascript" src="core/system_window.js?v=0.1.18"></script>
+    <script type="text/javascript" src="system_window_bootstrap.js?v=0.1.18"></script>
+  </head>
+  <body>
+    <div class="doSimpleRoot">
+      <div class="doSimpleHeader">
+        <div>
+          <div class="doSimpleTitle" id="sysWinTitle">System</div>
+          <div class="doSimpleSub">
+            <span class="doSimpleBadge" id="pluginVersion">v?</span>
+          </div>
+        </div>
+        <div class="doSimpleStatus" id="status">loading…</div>
+      </div>
+
+      <div class="doCard">
+        <div class="doRow">
+          <input id="sysWinSearch" class="doInput" placeholder="ค้นหา..." />
+          <button id="sysWinSearchBtn" type="button">ค้นหา</button>
+          <button id="sysWinReload" type="button">Reload</button>
+        </div>
+        <div class="doRow">
+          <div class="doMuted" id="sysWinMeta">-</div>
+          <div style="flex: 1"></div>
+          <button id="sysWinPrev" type="button">ก่อนหน้า</button>
+          <button id="sysWinNext" type="button">ถัดไป</button>
+          <button id="sysWinClose" type="button">Close</button>
+        </div>
+      </div>
+
+      <div class="doCard">
+        <div id="sysWinList" class="doList"></div>
+      </div>
+    </div>
+  </body>
+</html>
