@@ -191,6 +191,24 @@ body {
 
 .tscEmpty { color: var(--tsc-muted); }
 
+/* WordCorrection (M0106 "แก้ไขคำผิด") source indicator */
+.tscIssueCorrection {
+  border-left: 3px solid #f57c00;
+  padding-left: 8px;
+}
+
+.tscSourceBadge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #f57c00;
+  color: #fff;
+  font-weight: 500;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
 /* ─── Count badge ─── */
 .tscCount {
   font-weight: 400;

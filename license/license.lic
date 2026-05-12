@@ -1,6 +1,6 @@
 {
-  "start_date": "2026-04-03T00:00:00.000Z",
-  "end_date": "2026-04-30T23:59:59.000Z",
+  "start_date": "2026-05-11T00:00:00.000Z",
+  "end_date": "2026-05-31T23:59:59.000Z",
   "timelimited": false,
   "trial": true,
   "connections": 100,
@@ -12,14 +12,14 @@
   "customization": true,
   "users_expire": 0,
   "developer": false,
-  "resource_key": "0cfbd6e9-c76b-4e9d-8028-ebaadd318226",
+  "resource_key": "4f2117cf-041a-4984-9135-84e2aba022e2",
   "alias": "",
   "multitenancy": false,
   "docspace_dev": false,
   "cluster": false,
-  "grace_days": 30,
+  "grace_days": 0,
   "customer_id": "0b37176ec30042d69ef7edca10e1044e",
   "version": 2,
   "process": 2,
-  "signature": "6b1915e0719ea82607b6e9c8c529148bea5ceba0cd1ac88e9f50bc8009bdbaaf8cd00590c232f22d4caed8402ca308bd130d39d9e8062449b5d06a4366efa8332f4ca89562aa7e0a56573b1f6760b0d83ccb7012fd4a6f291bee3b894c0ccbe3730d24ce4895c26a123122678dbe3852244d548e2201335b134109d768fb0080"
+  "signature": "875e2358d5ae75caf181760954aad6296582ccd6a050c5ee333c3ddb2b0b511bd37841e4872907b7877e56057b88899966a09d91581443ace8f88942b417a0e7991ef2ab2cfc1fceddf046f5ec551828941e5f78721bdd1e285a093d50fa44163253c2f771b01178a4992aff95717bdf7671eb5bd2de39002dc740b088f9c4c8"
 }

@@ -9,7 +9,7 @@
  */
 (function (window) {
   var STORAGE_KEY_IGNORED = "spellcheck-then-v2:ignoredWords";
-  var VERSION = "0.1.3";
+  var VERSION = "0.1.5";
 
   var BACKEND_ADD_WORDS_PATH = "api/word-management/spellcheck/add-words";
 
@@ -20,6 +20,11 @@
   var DICT_LIMIT = 10000;
   var DICT_THAI_PATH = "api/word-management/dictionary?language=thai&limit=" + DICT_LIMIT + "&includeGlobal=true";
   var DICT_ENGLISH_PATH = "api/word-management/dictionary?language=english&limit=" + DICT_LIMIT + "&includeGlobal=true";
+
+  // WordCorrection (M0106 Tab "แก้ไขคำผิด"): exact phrase mapping ผิด → ถูก
+  // เช่น findWord="บ้างครั้ง" → replaceWord="บางครั้ง"
+  // ใช้ใน pre-scan ก่อน FMM tokenize — flag เป็น MISS พร้อม suggest = replaceWord
+  var WORD_CORRECTION_PATH = "api/word-management/entries?type=WordCorrection&includeGlobal=true";
 
   var FUZZY_MAX_DISTANCE = 2;
   var FUZZY_MAX_SUGGESTIONS = 5;
@@ -48,6 +53,7 @@
     dictionaryByLengthEnglish: null,
     trieThai: null,                        // root node ของ Trie ภาษาไทย
     trieEnglish: null,                     // root node ของ Trie ภาษาอังกฤษ
+    wordCorrections: [],                   // [{ findWord, replaceWord }] sorted desc by findWord.length
     sugCache: Object.create(null),
     inited: false,
   };
@@ -181,9 +187,14 @@
       if (chunk.type === "thai") {
         if (state.trieThai) {
           var thaiTokens = trieAPI.forwardMaxMatch(chunk.text, state.trieThai, chunk.start);
-          for (var j = 0; j < thaiTokens.length; j++) {
-            thaiTokens[j].lang = "th";
-            out.push(thaiTokens[j]);
+          // Post-process: merge "orphan 1-char" \u0e15\u0e34\u0e14\u0e01\u0e31\u0e1a token \u0e01\u0e48\u0e2d\u0e19\u0e2b\u0e19\u0e49\u0e32 \u2192 MISS chunk
+          //   \u0e40\u0e04\u0e2a "\u0e01\u0e47\u0e0c": FMM \u2192 [\u0e01\u0e47[OK], \u0e0c[MISS-1char]] \u2192 MIN_WORD_LENGTH=2 filter \u0e0c \u0e17\u0e34\u0e49\u0e07
+          //   \u0e17\u0e32\u0e07\u0e41\u0e01\u0e49: merge \u0e0c \u0e40\u0e02\u0e49\u0e32\u0e01\u0e31\u0e1a \u0e01\u0e47 \u2192 \u0e01\u0e47\u0e0c[MISS] \u0e40\u0e1e\u0e23\u0e32\u0e30 \u0e01\u0e47\u0e0c \u0e44\u0e21\u0e48\u0e43\u0e19 dict
+          //   \u0e2b\u0e25\u0e35\u0e01\u0e40\u0e25\u0e35\u0e48\u0e22\u0e07 false positive: merge \u0e40\u0e09\u0e1e\u0e32\u0e30 token \u0e17\u0e35\u0e48 "\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19" (start == prev.end) \u2014 \u0e43\u0e19 chunk \u0e40\u0e14\u0e35\u0e22\u0e27\u0e01\u0e31\u0e19
+          var merged = mergeOrphanOneChar(thaiTokens, trieAPI, state.trieThai);
+          for (var j = 0; j < merged.length; j++) {
+            merged[j].lang = "th";
+            out.push(merged[j]);
           }
         } else {
           out.push({
@@ -210,6 +221,45 @@
       // digit / punct \u2192 skip
     }
     return out;
+  }
+
+  /**
+   * Merge "orphan 1-char tokens" \u0e40\u0e02\u0e49\u0e32\u0e01\u0e31\u0e1a token \u0e01\u0e48\u0e2d\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e2b\u0e23\u0e37\u0e2d\u0e16\u0e31\u0e14\u0e44\u0e1b
+   * \u0e40\u0e04\u0e2a\u0e17\u0e35\u0e48\u0e40\u0e01\u0e34\u0e14: FMM \u0e15\u0e31\u0e14 "\u0e01\u0e47\u0e0c" \u0e40\u0e1b\u0e47\u0e19 [\u0e01\u0e47(OK), \u0e0c(MISS-1char)] \u0e40\u0e1e\u0e23\u0e32\u0e30 "\u0e01\u0e47" \u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19 dict
+   *             \u0e41\u0e15\u0e48 "\u0e0c" 1-char \u0e16\u0e39\u0e01 MIN_WORD_LENGTH filter \u0e17\u0e34\u0e49\u0e07 \u2192 user \u0e44\u0e21\u0e48\u0e40\u0e2b\u0e47\u0e19 typo
+   * \u0e27\u0e34\u0e18\u0e35\u0e41\u0e01\u0e49: \u0e16\u0e49\u0e32 token \u0e04\u0e27\u0e32\u0e21\u0e22\u0e32\u0e27 1 + "\u0e15\u0e34\u0e14\u0e01\u0e31\u0e1a" token \u0e02\u0e49\u0e32\u0e07 \u0e46 (no space) \u2192 merge \u0e40\u0e1b\u0e47\u0e19 token \u0e43\u0e2b\u0e21\u0e48
+   *         \u0e41\u0e25\u0e49\u0e27\u0e40\u0e0a\u0e47\u0e04 trie \u0e2d\u0e35\u0e01\u0e04\u0e23\u0e31\u0e49\u0e07 \u2014 \u0e16\u0e49\u0e32 merged form \u0e44\u0e21\u0e48\u0e43\u0e19 dict \u2192 MISS
+   *
+   * \u0e40\u0e07\u0e37\u0e48\u0e2d\u0e19\u0e44\u0e02 "\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19": tokens[i].start === tokens[i-1].end (\u0e44\u0e21\u0e48\u0e21\u0e35 gap)
+   */
+  function mergeOrphanOneChar(tokens, trieAPI, trie) {
+    if (!Array.isArray(tokens) || tokens.length < 2) return tokens;
+
+    var result = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      var prev = result[result.length - 1];
+
+      // \u0e15\u0e23\u0e27\u0e08\u0e27\u0e48\u0e32 t \u0e40\u0e1b\u0e47\u0e19 "orphan 1-char" \u0e41\u0e25\u0e30\u0e15\u0e34\u0e14\u0e01\u0e31\u0e1a prev
+      var isOrphan = t.word && t.word.length === 1;
+      var adjacent = prev && prev.end === t.start;
+
+      if (isOrphan && adjacent) {
+        // \u0e25\u0e2d\u0e07 merge: prev.word + t.word
+        var mergedWord = prev.word + t.word;
+        var mergedInDict = trieAPI.trieHas(trie, mergedWord);
+        // \u0e41\u0e17\u0e19\u0e17\u0e35\u0e48 prev \u0e14\u0e49\u0e27\u0e22 merged token
+        result[result.length - 1] = {
+          word: mergedWord,
+          start: prev.start,
+          end: t.end,
+          inDict: mergedInDict
+        };
+      } else {
+        result.push(t);
+      }
+    }
+    return result;
   }
 
   /**
@@ -400,6 +450,46 @@
     return false;
   }
 
+  /**
+   * Fetch WordCorrection entries (M0106 "แก้ไขคำผิด" tab, Type=WordCorrection)
+   * คืน array ของ { findWord, replaceWord } เรียงจากยาวสุด (longest match priority)
+   */
+  function fetchWordCorrections() {
+    var origin = window.location.origin || "";
+    var path = WORD_CORRECTION_PATH.replace(/^\//, "");
+    var url = origin ? origin + "/" + path : "";
+    if (!url) return Promise.resolve([]);
+    return fetch(url, { method: "GET", headers: { "Content-Type": "application/json" }, credentials: "include" })
+      .then(function (r) {
+        if (!r || !r.ok) {
+          console.warn("[SpellCheckTHEN-V2] WordCorrection fetch failed:", r ? r.status : "no response");
+          return [];
+        }
+        return r.json();
+      })
+      .then(function (payload) {
+        var list = (payload && payload.data) || (payload && payload.Data) || payload;
+        if (!Array.isArray(list)) return [];
+        var corrections = [];
+        for (var i = 0; i < list.length; i++) {
+          var item = list[i] || {};
+          var findWord = String(item.word || item.Word || "").trim();
+          var replaceWord = String(item.fullWord || item.FullWord || "").trim();
+          if (!findWord || !replaceWord) continue;
+          if (findWord === replaceWord) continue;
+          corrections.push({ findWord: findWord, replaceWord: replaceWord });
+        }
+        // Sort by findWord length desc — longest match priority (ป้องกัน "บ้าง" match ก่อน "บ้างครั้ง")
+        corrections.sort(function (a, b) { return b.findWord.length - a.findWord.length; });
+        console.log("[SpellCheckTHEN-V2] WordCorrection loaded:", corrections.length, "entries");
+        return corrections;
+      })
+      .catch(function (err) {
+        console.warn("[SpellCheckTHEN-V2] WordCorrection error:", err);
+        return [];
+      });
+  }
+
   function fetchAllDictionaries() {
     return Promise.all([
       fetchBaseDictWordsJson(BASE_DICT_THAI_PATH),
@@ -408,7 +498,9 @@
       return Promise.all([
         fetchDictionary(DICT_THAI_PATH),
         fetchDictionary(DICT_ENGLISH_PATH),
+        fetchWordCorrections(),
       ]).then(function (apiResults) {
+        var wordCorrections = apiResults[2] || [];
         var thaiMerged = mergeDictResults([baseResults[0], apiResults[0]]);
         var englishMerged = mergeDictResults([baseResults[1], apiResults[1]]);
         console.log("[SpellCheckTHEN-V2] Thai dict:", Object.keys(thaiMerged.validWords).length, "words, EN dict:", Object.keys(englishMerged.validWords).length, "words");
@@ -459,6 +551,7 @@
           dictionaryByLengthEnglish: englishMerged.byLength,
           trieThai: trieThai,
           trieEnglish: trieEnglish,
+          wordCorrections: wordCorrections,
           words: thaiMerged.words.concat(englishMerged.words),
           byLength: thaiMerged.byLength,
           validWords: Object.assign(Object.create(null), thaiMerged.validWords, englishMerged.validWords),
@@ -522,6 +615,107 @@
   }
 
   /* ========== SPELL CHECK (phase 1: find unique misspelled words) ========== */
+
+  /* ========== WORD CORRECTION PRE-SCAN (M0106 "แก้ไขคำผิด" Find/Replace) ========== */
+
+  /**
+   * Escape regex special chars สำหรับ findWord
+   */
+  function escapeRegExp(s) {
+    return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  /**
+   * Pre-scan text หา exact phrase matches ใน state.wordCorrections
+   * คืน {
+   *   issues: [{ word, suggestions, source: "wordCorrection" }],         // unique
+   *   occurrences: [{ word, suggestions, start, end, source, occId, wordOccIndex }]
+   * }
+   *
+   * Strategy: scan text ทีละ correction (เรียงตามยาวสุดก่อน) → find all matches
+   *           overlap protection: mark ตำแหน่ง consumed → corrections อันถัดไปไม่ทับ
+   */
+  function scanWordCorrections(text) {
+    var corrections = state.wordCorrections || [];
+    if (!Array.isArray(corrections) || corrections.length === 0) {
+      return { issues: [], occurrences: [] };
+    }
+
+    var t = String(text || "");
+    var n = t.length;
+    if (!n) return { issues: [], occurrences: [] };
+
+    // Track consumed positions เพื่อกัน overlap
+    var consumed = new Array(n);
+
+    var occurrences = [];
+    var issuesByWord = Object.create(null);
+    var wordCount = Object.create(null);
+    var occId = 0;
+
+    for (var i = 0; i < corrections.length; i++) {
+      var c = corrections[i];
+      var findWord = c.findWord;
+      var replaceWord = c.replaceWord;
+      if (!findWord) continue;
+
+      // ทุก occurrence ของ findWord ใน text
+      var idx = 0;
+      while (idx < n) {
+        var hit = t.indexOf(findWord, idx);
+        if (hit < 0) break;
+        var hitEnd = hit + findWord.length;
+
+        // Check overlap กับ correction ก่อนหน้า
+        var overlaps = false;
+        for (var p = hit; p < hitEnd; p++) {
+          if (consumed[p]) { overlaps = true; break; }
+        }
+        if (overlaps) {
+          idx = hit + 1;
+          continue;
+        }
+
+        // Mark consumed
+        for (var q = hit; q < hitEnd; q++) consumed[q] = true;
+
+        // Track unique issue
+        var k = findWord.toLowerCase();
+        if (!issuesByWord[k]) {
+          issuesByWord[k] = {
+            word: findWord,
+            suggestions: [replaceWord],   // priority 1: WordCorrection mapping
+            source: "wordCorrection"
+          };
+        }
+        if (!wordCount[k]) wordCount[k] = 0;
+
+        if (state.ignoredWords[findWord]) {
+          idx = hitEnd;
+          continue;
+        }
+
+        occurrences.push({
+          word: findWord,
+          suggestions: [replaceWord],
+          start: hit,
+          end: hitEnd,
+          context: t,
+          occId: occId++,
+          wordOccIndex: wordCount[k]++,
+          source: "wordCorrection"
+        });
+        idx = hitEnd;
+      }
+    }
+
+    var issues = Object.keys(issuesByWord).map(function (k) { return issuesByWord[k]; });
+    if (issues.length > 0) {
+      console.log("[SpellCheckTHEN-V2][WordCorrection] matched", occurrences.length,
+                  "occurrences across", issues.length, "unique findWords");
+    }
+    return { issues: issues, occurrences: occurrences };
+  }
 
   function runSpellcheck(text) {
     var words = extractWordsFromText(text);
@@ -714,7 +908,12 @@
     for (var i = 0; i < active.length; i++) {
       var o = active[i];
       if (!groups[o.word]) {
-        groups[o.word] = { word: o.word, suggestions: o.suggestions, items: [] };
+        groups[o.word] = {
+          word: o.word,
+          suggestions: o.suggestions,
+          source: o.source || "dict",   // "wordCorrection" หรือ "dict"
+          items: []
+        };
         groupOrder.push(o.word);
       }
       groups[o.word].items.push(o);
@@ -726,18 +925,25 @@
       var word = grp.word;
       var sugs = grp.suggestions || [];
       var items = grp.items;
+      var isCorrection = grp.source === "wordCorrection";
       var chosen = state.selectedSuggestionByWord[word];
       if (!chosen && sugs.length) { chosen = String(sugs[0] || ""); state.selectedSuggestionByWord[word] = chosen; }
 
-      html += '<div class="tscIssue" data-word="' + escapeHtml(word) + '">';
+      html += '<div class="tscIssue' + (isCorrection ? ' tscIssueCorrection' : '') + '" data-word="' + escapeHtml(word) + '">';
 
       // Header
       html += '<div class="tscIssueTop">';
-      html += '<div class="tscWord">' + escapeHtml(word) +
+      var sourceLabel = isCorrection
+        ? '<span class="tscSourceBadge" title="จาก M0106 แก้ไขคำผิด">แก้ไขคำผิด</span> '
+        : '';
+      html += '<div class="tscWord">' + sourceLabel + escapeHtml(word) +
         ' <span class="tscCount">(' + items.length + ' ตำแหน่ง)</span></div>';
       html += '<div class="tscActions">';
       html += '<button class="tscSmallBtn" data-act="ignore" title="ข้ามคำนี้ทุกตำแหน่ง">Ignore All</button>';
-      html += '<button class="tscSmallBtn" data-act="add" title="เพิ่มคำนี้ลง Dictionary">Add word</button>';
+      if (!isCorrection) {
+        // WordCorrection ไม่ต้องมีปุ่ม Add word (เพราะคำนี้ตั้งใจให้แก้)
+        html += '<button class="tscSmallBtn" data-act="add" title="เพิ่มคำนี้ลง Dictionary">Add word</button>';
+      }
       if (items.length > 1) {
         html += '<button class="tscSmallBtn tscBtnDanger" data-act="all" title="แทนที่ทุกตำแหน่ง">Replace All</button>';
       }
@@ -1027,9 +1233,34 @@
           state.dictionaryByLengthEnglish = dictResult.dictionaryByLengthEnglish || null;
           state.trieThai = dictResult.trieThai || null;
           state.trieEnglish = dictResult.trieEnglish || null;
+          state.wordCorrections = dictResult.wordCorrections || [];
 
           setStatus("กำลังตรวจคำ (" + scopeLabel + ")...");
-          state.lastIssues = runSpellcheck(ct);
+
+          // Pre-scan: WordCorrection (M0106 "แก้ไขคำผิด") exact phrase matches
+          // ทำก่อน FMM tokenize เพื่อ:
+          //   - จับ collocation typos ที่ dict-based ตรวจไม่เจอ (เช่น "บ้างครั้ง" → "บางครั้ง")
+          //   - Mark ตำแหน่ง consumed → FMM phase 2 ไม่ flag ซ้ำ
+          var correctionScan = scanWordCorrections(ct);
+
+          // Phase: Vocabulary-based spellcheck (FMM + Levenshtein)
+          var dictIssues = runSpellcheck(ct);
+
+          // Merge: WordCorrection issues ก่อน (priority), แล้ว dict issues
+          // ห้าม duplicate by word
+          var allIssues = [];
+          var seenWord = Object.create(null);
+          for (var iC = 0; iC < correctionScan.issues.length; iC++) {
+            var ci = correctionScan.issues[iC];
+            seenWord[ci.word.toLowerCase()] = true;
+            allIssues.push(ci);
+          }
+          for (var iD = 0; iD < dictIssues.length; iD++) {
+            var di = dictIssues[iD];
+            if (seenWord[di.word.toLowerCase()]) continue;
+            allIssues.push(di);
+          }
+          state.lastIssues = allIssues;
 
           if (!state.lastIssues.length) {
             renderGroupedOccurrences();
@@ -1037,12 +1268,34 @@
             return;
           }
 
-          state.lastOccurrences = findOccurrencesInText(docText, state.lastIssues);
+          // Phase 2: occurrence finding
+          // Merge correction occurrences (มี start/end ตรง ๆ จาก scan) + FMM-based occurrences
+          var dictOccurrences = findOccurrencesInText(docText, dictIssues);
+          // Re-assign occId ให้ unique ทั่วทุก source
+          var allOccurrences = [];
+          var occId = 0;
+          for (var iCo = 0; iCo < correctionScan.occurrences.length; iCo++) {
+            var co = correctionScan.occurrences[iCo];
+            co.occId = occId++;
+            allOccurrences.push(co);
+          }
+          for (var iDo = 0; iDo < dictOccurrences.length; iDo++) {
+            var dco = dictOccurrences[iDo];
+            dco.occId = occId++;
+            allOccurrences.push(dco);
+          }
+          state.lastOccurrences = allOccurrences;
           renderGroupedOccurrences();
 
           var nWords = state.lastIssues.length;
           var nOccs = state.lastOccurrences.length;
-          setStatus("เสร็จ (" + scopeLabel + ") — " + nWords + " คำ, " + nOccs + " ตำแหน่ง (" + (Date.now() - t0) + " ms)");
+          var nCorrection = correctionScan.issues.length;
+          var statusMsg = "เสร็จ (" + scopeLabel + ") — " + nWords + " คำ, " + nOccs + " ตำแหน่ง";
+          if (nCorrection > 0) {
+            statusMsg += " (รวม " + nCorrection + " จากแก้ไขคำผิด)";
+          }
+          statusMsg += " (" + (Date.now() - t0) + " ms)";
+          setStatus(statusMsg);
         })
         .catch(function (e) {
           renderGroupedOccurrences();
