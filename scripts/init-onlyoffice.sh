@@ -175,7 +175,11 @@ fi
 # ============================================
 # 3. Sync Plugins (ทุกครั้งที่ start)
 # ============================================
-PLUGINS_DISABLED="comment-bridge thai-spellcheck spellcheck-then"
+# NOTE: spellcheck-then (v1) และ spellcheck-then-v2 enable คู่กันช่วง experiment
+#       - GUIDs ต่างกัน → DS โหลดทั้งคู่ได้ ไม่ conflict
+#       - Frontend เลือก URL ตัวใดตัวหนึ่งใน editorConfig.plugins.pluginsData (toggle)
+#       - หลัง v2 stable ให้เพิ่ม "spellcheck-then" กลับเข้า PLUGINS_DISABLED + ลบ folder
+PLUGINS_DISABLED="comment-bridge thai-spellcheck"
 
 echo "[KK] syncing plugins..."
 echo "[KK] Disabled plugins (ไม่ copy): $PLUGINS_DISABLED"
@@ -195,11 +199,11 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
     for item in "$PLUGINS_DST"/*; do
         [ -e "$item" ] || continue
         case "$(basename "$item")" in
-            document-office|dictionary-abbreviation|speech-to-text|spellcheck-then-v2|thai-autocomplete|insert-text-bridge)
+            document-office|dictionary-abbreviation|speech-to-text|spellcheck-then|spellcheck-then-v2|thai-autocomplete|thai-nbsp-space|insert-text-bridge)
                 ;;
             pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz|marketplace|v1)
                 ;;
-            comment-bridge|thai-spellcheck|spellcheck-then|typograf|doc2md|languagetool|deepl)
+            comment-bridge|thai-spellcheck|typograf|doc2md|languagetool|deepl)
                 [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; echo "[KK] Removed disabled: $(basename "$item")"; }
                 ;;
             *)
@@ -221,7 +225,7 @@ if [ -d "/opt/kk-plugins-src" ]; then
         cp -R "$p" "$PLUGINS_DST/" || { kk_warn "cp $name failed"; }
         echo "[KK] Copied $name"
     done
-    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then-v2 thai-autocomplete thai-nbsp-space insert-text-bridge; do
+    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then spellcheck-then-v2 thai-autocomplete thai-nbsp-space insert-text-bridge; do
         [ -d "$PLUGINS_DST/$p" ] && chown -R ds:ds "$PLUGINS_DST/$p" 2>/dev/null || true
         [ -d "$PLUGINS_DST/$p" ] && chmod -R a+rX "$PLUGINS_DST/$p" 2>/dev/null || true
     done
