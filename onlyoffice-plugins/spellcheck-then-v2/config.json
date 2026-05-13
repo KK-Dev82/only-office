@@ -1,11 +1,11 @@
 {
-  "name": "ตรวจคำผิด TH+EN (v2)",
+  "name": "SpellChecker TH+EN (v2)",
   "guid": "asc.{CDB85659-7EF1-4941-A393-0DEE4391D10D}",
   "version": "0.1.5",
   "baseUrl": "",
   "variations": [
     {
-      "description": "ตรวจคำผิด TH+EN (v2 - Trie FMM tokenizer)",
+      "description": "SpellChecker TH+EN (v2 - Trie FMM tokenizer)",
       "url": "index.html?v=0.1.5",
       "type": "panelRight",
       "isViewer": false,
