@@ -80,6 +80,8 @@ html, body {
   justify-content: space-between;
   gap: 8px;
   align-items: center;
+  /* รองรับ panel แคบ — ให้ actions wrap ลงบรรทัดใหม่ได้ */
+  flex-wrap: wrap;
   margin-bottom: 8px;
 }
 
@@ -92,18 +94,23 @@ html, body {
   display: flex;
   gap: 6px;
   align-items: center;
-  flex-shrink: 0;
+  /* ถ้า panel แคบ ให้ปุ่มเอง wrap ได้ ไม่ถูก clip */
+  flex-wrap: wrap;
 }
 
 .doSimpleRoot button {
   font-size: 12px;
   padding: 6px 8px;
+  /* กันข้อความปุ่มไม่ตัดบรรทัด */
+  white-space: nowrap;
 }
 
 .doSimpleRoot .doRow {
   display: flex;
   gap: 8px;
   align-items: center;
+  /* รองรับ panel แคบ — input + ปุ่ม "เพิ่ม" wrap ได้ */
+  flex-wrap: wrap;
   margin-bottom: 8px;
 }
 
@@ -112,6 +119,9 @@ html, body {
   padding: 6px 8px;
   border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 6px;
+  /* flex: 1 + min-width: 0 → ให้ input ย่อตัวได้ใน flex container แคบๆ */
+  flex: 1 1 140px;
+  min-width: 0;
   width: 100%;
 }
 
