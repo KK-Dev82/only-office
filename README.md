@@ -16,8 +16,36 @@
 ### Local development (developer compose มี init logic ในตัว)
 
 ```bash
-docker compose -f compose/developer.docker-compose.yml up -d
-# DocumentServer พร้อมที่ http://localhost:8082
+cd compose
+
+# 1) Copy env template (ใช้ชื่อ env.local เพื่อไม่ชน .env ของ tools อื่น)
+cp env.example env.local
+
+# 2) แก้ env.local
+#    DOCKER_PLATFORM=linux/arm64  (Mac M1/M4)  หรือ  linux/amd64  (server)
+#    OO_HTTP_PORT=8082
+#    JWT_SECRET=<random-secret>
+
+# 3) รัน Developer variant (มี init logic ในตัว)
+docker compose --env-file env.local -f developer.docker-compose.yml up -d
+
+# หรือ Community variant
+docker compose --env-file env.local -f community.docker-compose.yml up -d
+
+# 4) เปิดทดสอบที่ http://localhost:8082
+```
+
+**สิ่งที่ติดตั้งอัตโนมัติครั้งแรก** (idempotent via marker `/var/www/onlyoffice/Data/.kk_init_done`):
+
+- Fonts: `../THSarabunPSK` → `/usr/share/fonts/truetype/th-sarabun` + `fc-cache` + `documentserver-generate-allfonts.sh`
+- Plugins: `../onlyoffice-plugins` → `/var/www/onlyoffice/documentserver/sdkjs-plugins`
+- Thai dictionary (Hunspell): `../dict/th_TH/*` → `/var/www/onlyoffice/documentserver/dictionaries/th_TH` + สร้าง `th_TH.json` (LCID 1054) + รัน `update.py` (best-effort)
+
+**Re-init** (เปลี่ยน fonts/dicts/plugins แล้วต้องการให้ container apply ใหม่):
+
+```bash
+docker exec onlyoffice-documentserver rm -f /var/www/onlyoffice/Data/.kk_init_done
+docker compose --env-file env.local -f developer.docker-compose.yml restart
 ```
 
 ### Server deploy
@@ -140,6 +168,24 @@ cd scripts
 
 `comment-bridge` และ `thai-spellcheck` ถูกปิดการโหลด (ไม่ copy เข้า container)
 - แก้ได้ที่ตัวแปร `PLUGINS_DISABLED` ใน `init-onlyoffice.sh` และ `setup-onlyoffice-server.sh`
+
+---
+
+## Locale (`compose/locale/`)
+
+โฟลเดอร์ `compose/locale/` ถูก mount เข้า container + copy ไปยัง path ที่ serve locale files ตอน start
+เพื่อแก้ปัญหา **404** เมื่อเปิด Editor (ขอ `th.json` / `en.json` ไม่เจอ):
+
+- `en.json` — ภาษาอังกฤษ (จาก [ONLYOFFICE/web-apps](https://github.com/ONLYOFFICE/web-apps/tree/master/apps/documenteditor/main/locale) หรือ stub ขั้นต่ำ)
+- `th.json` — ภาษาไทย (ถ้าไม่มีใน upstream → copy จาก en.json หรือสร้างเอง)
+
+ถ้าต้องการ locale เต็มจาก OnlyOffice upstream:
+
+```bash
+cd compose/locale
+curl -sL -o en.json "https://raw.githubusercontent.com/ONLYOFFICE/web-apps/master/apps/documenteditor/main/locale/en.json"
+cp en.json th.json  # ใช้ en.json เป็นฐานสำหรับ th
+```
 
 ---
 
