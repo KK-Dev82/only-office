@@ -1,4 +1,10 @@
+# OS noise
 .DS_Store
 .DS
 
-plugin-sample
+# OnlyOffice public sample plugins mirror (dev reference only, 531MB)
+plugin-sample/
+
+# Local archive / scratch
+Archive.zip
+*.zip
