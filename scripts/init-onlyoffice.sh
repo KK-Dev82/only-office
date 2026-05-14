@@ -195,19 +195,21 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
             2>&1 | grep -E "(Remove plugin|OK|Error)" || true
     fi
     echo "[KK] Cleaning non-custom plugin folders + disabled plugins..."
+    # ลบ marketplace + v1 folder ด้วย — เป็นที่ที่ default OnlyOffice plugins อยู่
+    # (Photo Editor, OCR, Typograf, Doc2md, LanguageTool, Thesaurus, Speech Input, DeepL ฯลฯ)
     for item in "$PLUGINS_DST"/*; do
         [ -e "$item" ] || continue
         case "$(basename "$item")" in
+            # Custom plugins ของเรา — เก็บไว้
             document-office|dictionary-abbreviation|speech-to-text|spellcheck-then-v2|thai-autocomplete|thai-nbsp-space|insert-text-bridge)
                 ;;
-            pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz|marketplace|v1)
+            # System files ของ DS — เก็บไว้ (ห้ามลบ ไม่งั้น DS โหลด plugin menu ไม่ได้)
+            pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz)
                 ;;
-            spellcheck-then|comment-bridge|thai-spellcheck|typograf|doc2md|languagetool|deepl)
-                [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; echo "[KK] Removed disabled: $(basename "$item")"; }
-                ;;
+            # ทุกอย่างที่เหลือ (รวม marketplace, v1, default plugins) — ลบทิ้ง
             *)
-                [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; }
-                [ -f "$item" ] && { chmod u+w "$item" 2>/dev/null || true; rm -f "$item" 2>/dev/null || true; }
+                [ -d "$item" ] && { chmod -R u+w "$item" 2>/dev/null || true; rm -rf "$item" 2>/dev/null || true; echo "[KK] Removed: $(basename "$item")"; }
+                [ -f "$item" ] && { chmod u+w "$item" 2>/dev/null || true; rm -f "$item" 2>/dev/null || true; echo "[KK] Removed file: $(basename "$item")"; }
                 ;;
         esac
     done

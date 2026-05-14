@@ -138,7 +138,7 @@
   DO.remoteSync.syncDictionary = function () {
     // Use same endpoints as M0106 (dictionary is managed via /dictionary and /entries/Dictionary)
     // Prefer dictionary list endpoint for read.
-    var url = buildUrl("api/word-management/dictionary?language=thai&limit=2000&includeGlobal=true");
+    var url = buildUrl("api/word-management/dictionary?limit=2000&includeGlobal=true");
     return fetchJson(url)
       .then(function (payload) {
         var list = extractList(payload);
@@ -167,7 +167,9 @@
   };
 
   DO.remoteSync.syncAbbreviations = function () {
-    var url = buildUrl("api/word-management/entries?type=Abbreviation&includeGlobal=true&language=thai&limit=5000");
+    // ไม่กรองด้วย language: คำย่อ match แค่ลำดับตัวอักษร ไม่เกี่ยวกับ language tag
+    // (records เก่าที่ languages=[] เคยถูกกรองทิ้งจน lookup ไม่เจอ)
+    var url = buildUrl("api/word-management/entries?type=Abbreviation&includeGlobal=true&limit=5000");
     return fetchJson(url)
       .then(function (payload) {
         var list = extractList(payload);

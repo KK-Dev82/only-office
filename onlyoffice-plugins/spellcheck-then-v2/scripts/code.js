@@ -9,12 +9,16 @@
  */
 (function (window) {
   var STORAGE_KEY_IGNORED = "spellcheck-then-v2:ignoredWords";
-  var VERSION = "0.1.5";
+  var VERSION = "0.1.7";
 
   var BACKEND_ADD_WORDS_PATH = "api/word-management/spellcheck/add-words";
 
   var BASE_DICT_THAI_PATH = "onlyoffice-dict/th_TH/words.json";
   var BASE_DICT_ENGLISH_PATH = "onlyoffice-dict/en_US/words.json";
+
+  // Hunspell .aff REP rules — phonetic typo hints (10 rules ใน th_TH.aff)
+  var BASE_AFF_THAI_PATH = "onlyoffice-dict/th_TH/th_TH.aff";
+  var BASE_AFF_ENGLISH_PATH = "onlyoffice-dict/en_US/en_US.aff";
 
   // limit ชั่วคราว = 10000 (Sprint 2 จะเปลี่ยนเป็น unlimited ฝั่ง backend)
   var DICT_LIMIT = 10000;
@@ -54,6 +58,11 @@
     trieThai: null,                        // root node ของ Trie ภาษาไทย
     trieEnglish: null,                     // root node ของ Trie ภาษาอังกฤษ
     wordCorrections: [],                   // [{ findWord, replaceWord }] sorted desc by findWord.length
+    variantMap: Object.create(null),       // Phase 3A: typo → { correctWord, score }
+    wordMetaThai: Object.create(null),     // Phase 3C: word.lower → { confidence, frequency, usage }
+    wordMetaEnglish: Object.create(null),
+    repRulesThai: [],                      // Phase 3B: [{ from, to }] phonetic replacement
+    repRulesEnglish: [],
     sugCache: Object.create(null),
     inited: false,
   };
@@ -112,11 +121,18 @@
     return html
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-      .replace(/<[^>]+>/g, " ")
+      // Block-level tags → แทนด้วย space (เพื่อแยก paragraph/line)
+      .replace(/<\/?(?:p|div|br|h[1-6]|tr|td|th|li|hr|table|tbody|thead|tfoot|article|section|header|footer|main|aside|nav|blockquote|pre)[^>]*>/gi, " ")
+      // Inline tags (span, font, b, i, em, strong, u, sub, sup, a, ...) → แทนด้วย "" (empty)
+      // CRITICAL: OnlyOffice อาจ render คำไทยเป็น <span>อยู</span><span>้</span>
+      //          ถ้าแทน inline tag ด้วย space → ้ หลุดออกจาก อยู → FMM ตัด "อยู" เป็นคำผิด
+      .replace(/<[^>]+>/g, "")
       .replace(/&nbsp;/g, " ")
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, "\"")
+      .replace(/&#39;/g, "'")
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -387,22 +403,51 @@
     var origin = window.location.origin || "";
     var path = langPath.replace(/^\//, "");
     var url = origin ? origin + "/" + path : "";
-    if (!url) return Promise.resolve({ words: [], byLength: {} });
+    if (!url) return Promise.resolve({ words: [], byLength: {}, variants: [], wordMeta: {} });
     return fetch(url, { method: "GET", headers: { "Content-Type": "application/json" }, credentials: "include" })
       .then(function (r) {
-        if (!r || !r.ok) return { words: [], byLength: {} };
+        if (!r || !r.ok) return { words: [], byLength: {}, variants: [], wordMeta: {} };
         return r.json();
       })
       .then(function (payload) {
         var list = (payload && payload.data) || (payload && payload.Data) || payload;
-        if (!Array.isArray(list)) return { words: [], byLength: {} };
+        if (!Array.isArray(list)) return { words: [], byLength: {}, variants: [], wordMeta: {} };
         var words = [];
         var byLength = Object.create(null);
         var seen = Object.create(null);
+        var variants = [];                       // Phase 3A: typo → correct mapping
+        var wordMeta = Object.create(null);      // Phase 3C: word → { confidence, frequency, usage }
+
         for (var i = 0; i < list.length; i++) {
-          var w = String((list[i] && (list[i].word || list[i].Word)) || "").trim();
+          var item = list[i] || {};
+          var w = String((item.word || item.Word) || "").trim();
           if (!w) continue;
           var k = w.toLowerCase();
+
+          // Phase 3C: capture metadata for ranking
+          if (!wordMeta[k]) {
+            wordMeta[k] = {
+              confidence: Number(item.confidenceScore || item.ConfidenceScore || 0),
+              frequency: Number(item.frequencyScore || item.FrequencyScore || 0),
+              usage: Number(item.usageCount || item.UsageCount || 0),
+            };
+          }
+
+          // Phase 3A: extract variants — typo spellings of this word
+          var rawVariants = item.variants || item.Variants || [];
+          if (Array.isArray(rawVariants)) {
+            for (var v = 0; v < rawVariants.length; v++) {
+              var rv = rawVariants[v] || {};
+              var variantWord = String(rv.variantWord || rv.VariantWord || "").trim();
+              if (!variantWord || variantWord === w) continue;
+              variants.push({
+                variantWord: variantWord,
+                correctWord: w,
+                score: Number(rv.score || rv.Score || 1),
+              });
+            }
+          }
+
           if (seen[k]) continue;
           seen[k] = true;
           words.push(w);
@@ -410,9 +455,9 @@
           if (!byLength[len]) byLength[len] = [];
           byLength[len].push(w);
         }
-        return { words: words, byLength: byLength };
+        return { words: words, byLength: byLength, variants: variants, wordMeta: wordMeta };
       })
-      .catch(function () { return { words: [], byLength: {} }; });
+      .catch(function () { return { words: [], byLength: {}, variants: [], wordMeta: {} }; });
   }
 
   function mergeDictResults(results) {
@@ -448,6 +493,99 @@
       if (c >= 0x0e00 && c <= 0x0e7f) return true;
     }
     return false;
+  }
+
+  /**
+   * Phase 3B: Fetch + parse Hunspell .aff file → REP rules
+   * REP rule = "ถ้าเจอ string X ในคำผิด ลอง replace ด้วย Y แล้วเช็คใน dict"
+   * th_TH.aff มี 10 rules เน้น phonetic similarity (ทร↔ซ, ส↔ซ, รร↔ะ, ฎ↔ฏ ฯลฯ)
+   *
+   * Format ใน .aff:
+   *   REP <count>
+   *   REP <from> <to>
+   *   REP <from> <to>
+   *   ...
+   */
+  function fetchAffRules(affPath) {
+    var origin = getFetchOrigin();
+    var url = origin ? origin + "/" + affPath.replace(/^\//, "") : "";
+    if (!url) return Promise.resolve([]);
+    return fetch(url, { method: "GET", credentials: "include" })
+      .then(function (r) {
+        if (!r || !r.ok) {
+          console.warn("[SpellCheckTHEN-V2] .aff fetch failed:", affPath, "status=" + (r ? r.status : "no response"));
+          return "";
+        }
+        return r.text();
+      })
+      .then(function (txt) {
+        var t = String(txt || "");
+        var rules = [];
+        var lines = t.split(/\r?\n/);
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (!line || line.charAt(0) === "#") continue;
+          if (!/^REP\s+/.test(line)) continue;
+          var parts = line.split(/\s+/);
+          // "REP 10" header (count) — skip
+          if (parts.length === 2 && /^\d+$/.test(parts[1])) continue;
+          // "REP from to"
+          if (parts.length >= 3) {
+            var from = parts[1];
+            var to = parts.slice(2).join(" ");
+            if (from && to && from !== to) {
+              rules.push({ from: from, to: to });
+            }
+          }
+        }
+        console.log("[SpellCheckTHEN-V2] REP rules loaded:", affPath, rules.length);
+        return rules;
+      })
+      .catch(function (err) {
+        console.warn("[SpellCheckTHEN-V2] .aff error:", affPath, err);
+        return [];
+      });
+  }
+
+  /**
+   * Apply REP rules to generate candidate corrections
+   * Strategy: for each occurrence of `from` substring in misspelled word,
+   *           try replacing with `to`, check if result is in vocabulary
+   *
+   * Example: word="ซาย", REP "ซ"→"ทร"
+   *   "ซาย" replace "ซ" with "ทร" at pos 0 → "ทราย"
+   *   check "ทราย" in trie → if yes → suggest
+   *
+   * คืน array ของ candidate suggestions (verified ใน trie)
+   */
+  function applyRepRules(word, rules, trieAPI, trie) {
+    if (!word || !Array.isArray(rules) || rules.length === 0 || !trieAPI || !trie) return [];
+    var w = String(word || "");
+    var suggestions = [];
+    var seen = Object.create(null);
+
+    for (var r = 0; r < rules.length; r++) {
+      var rule = rules[r];
+      if (!rule || !rule.from) continue;
+      var from = rule.from;
+      var to = rule.to;
+
+      // หา all occurrences ของ from ใน w
+      var startIdx = 0;
+      while (startIdx < w.length) {
+        var hit = w.indexOf(from, startIdx);
+        if (hit < 0) break;
+        var candidate = w.substring(0, hit) + to + w.substring(hit + from.length);
+        if (candidate && candidate !== w && !seen[candidate]) {
+          if (trieAPI.trieHas(trie, candidate)) {
+            seen[candidate] = true;
+            suggestions.push(candidate);
+          }
+        }
+        startIdx = hit + 1; // เลื่อนเพื่อหา occurrence ถัดไป
+      }
+    }
+    return suggestions;
   }
 
   /**
@@ -494,13 +632,34 @@
     return Promise.all([
       fetchBaseDictWordsJson(BASE_DICT_THAI_PATH),
       fetchBaseDictWordsJson(BASE_DICT_ENGLISH_PATH),
+      fetchAffRules(BASE_AFF_THAI_PATH),         // Phase 3B
+      fetchAffRules(BASE_AFF_ENGLISH_PATH),      // Phase 3B
     ]).then(function (baseResults) {
+      var repRulesThai = baseResults[2] || [];
+      var repRulesEnglish = baseResults[3] || [];
       return Promise.all([
         fetchDictionary(DICT_THAI_PATH),
         fetchDictionary(DICT_ENGLISH_PATH),
         fetchWordCorrections(),
       ]).then(function (apiResults) {
         var wordCorrections = apiResults[2] || [];
+
+        // Phase 3A: build variantMap (typo → correctWord) จาก variants ที่ดึงมาจาก /dictionary
+        var variantMap = Object.create(null);
+        var thaiVariants = (apiResults[0] && apiResults[0].variants) || [];
+        var englishVariants = (apiResults[1] && apiResults[1].variants) || [];
+        var allVariants = thaiVariants.concat(englishVariants);
+        for (var iv = 0; iv < allVariants.length; iv++) {
+          var v = allVariants[iv];
+          if (!v || !v.variantWord) continue;
+          var key = v.variantWord.toLowerCase();
+          if (!variantMap[key]) {
+            variantMap[key] = { correctWord: v.correctWord, score: v.score || 1 };
+          }
+        }
+        if (allVariants.length > 0) {
+          console.log("[SpellCheckTHEN-V2] Variants loaded:", allVariants.length, "→ unique keys:", Object.keys(variantMap).length);
+        }
         var thaiMerged = mergeDictResults([baseResults[0], apiResults[0]]);
         var englishMerged = mergeDictResults([baseResults[1], apiResults[1]]);
         console.log("[SpellCheckTHEN-V2] Thai dict:", Object.keys(thaiMerged.validWords).length, "words, EN dict:", Object.keys(englishMerged.validWords).length, "words");
@@ -552,6 +711,11 @@
           trieThai: trieThai,
           trieEnglish: trieEnglish,
           wordCorrections: wordCorrections,
+          variantMap: variantMap,                            // Phase 3A
+          wordMetaThai: (apiResults[0] && apiResults[0].wordMeta) || {},  // Phase 3C
+          wordMetaEnglish: (apiResults[1] && apiResults[1].wordMeta) || {},
+          repRulesThai: repRulesThai,                        // Phase 3B
+          repRulesEnglish: repRulesEnglish,
           words: thaiMerged.words.concat(englishMerged.words),
           byLength: thaiMerged.byLength,
           validWords: Object.assign(Object.create(null), thaiMerged.validWords, englishMerged.validWords),
@@ -615,6 +779,79 @@
   }
 
   /* ========== SPELL CHECK (phase 1: find unique misspelled words) ========== */
+
+  /* ========== MULTI-SOURCE SUGGESTION RANKING (Phase 3A + 3B + 3C) ========== */
+
+  /**
+   * Build ranked suggestions from 3 sources + re-rank by metadata
+   * Priority (ลำดับการ append):
+   *   1. Variants exact match — typo→correct (highest confidence)
+   *   2. REP phonetic rules — verified by trie
+   *   3. Levenshtein fuzzy — character distance
+   *
+   * Then sort: prefer suggestion with higher wordMeta.confidence + frequency + usage
+   * (Phase 3C ranking — คำที่ใช้บ่อย/มี confidence สูงขึ้นก่อน)
+   */
+  function buildRankedSuggestions(word, isThai, dictWords, byLenDict) {
+    var k = String(word || "").toLowerCase();
+    var out = [];
+    var seen = Object.create(null);
+
+    function add(s, source) {
+      var clean = String(s || "").trim();
+      if (!clean || clean === word) return;
+      var lk = clean.toLowerCase();
+      if (seen[lk]) return;
+      seen[lk] = true;
+      out.push({ word: clean, source: source });
+    }
+
+    // Phase 3A: Variants exact match — typo มี mapping → correct
+    var variant = state.variantMap[k];
+    if (variant && variant.correctWord) {
+      add(variant.correctWord, "variant");
+    }
+
+    // Phase 3B: REP phonetic rules — verify ใน trie
+    var trieAPI = getTrieAPI();
+    var trie = isThai ? state.trieThai : state.trieEnglish;
+    var repRules = isThai ? state.repRulesThai : state.repRulesEnglish;
+    if (trieAPI && trie && repRules && repRules.length > 0) {
+      var repCandidates = applyRepRules(word, repRules, trieAPI, trie);
+      for (var ir = 0; ir < repCandidates.length; ir++) {
+        add(repCandidates[ir], "rep");
+      }
+    }
+
+    // Phase: Levenshtein fuzzy match (existing)
+    var fuzzySugs = fuzzyMatchDictionary(word, dictWords, Object.create(null), byLenDict);
+    for (var iL = 0; iL < fuzzySugs.length; iL++) {
+      add(fuzzySugs[iL], "fuzzy");
+    }
+
+    // Phase 3C: Re-rank by metadata (frequency/confidence/usage)
+    var wordMeta = isThai ? state.wordMetaThai : state.wordMetaEnglish;
+    out.sort(function (a, b) {
+      // 1. Source priority: variant > rep > fuzzy
+      var srcRank = { variant: 0, rep: 1, fuzzy: 2 };
+      var ds = (srcRank[a.source] || 99) - (srcRank[b.source] || 99);
+      if (ds !== 0) return ds;
+
+      // 2. Metadata score (higher = better)
+      var aMeta = wordMeta[a.word.toLowerCase()] || { confidence: 0, frequency: 0, usage: 0 };
+      var bMeta = wordMeta[b.word.toLowerCase()] || { confidence: 0, frequency: 0, usage: 0 };
+      var aScore = aMeta.confidence + aMeta.frequency + aMeta.usage * 0.1;
+      var bScore = bMeta.confidence + bMeta.frequency + bMeta.usage * 0.1;
+      if (bScore !== aScore) return bScore - aScore;
+
+      // 3. Shorter word ก่อน (heuristic)
+      return a.word.length - b.word.length;
+    });
+
+    // Trim to FUZZY_MAX_SUGGESTIONS + return strings only
+    var topN = out.slice(0, FUZZY_MAX_SUGGESTIONS);
+    return topN.map(function (x) { return x.word; });
+  }
 
   /* ========== WORD CORRECTION PRE-SCAN (M0106 "แก้ไขคำผิด" Find/Replace) ========== */
 
@@ -745,7 +982,14 @@
 
       var dictWords = isThai ? (state.dictionaryWordsThai || []) : (state.dictionaryWordsEnglish || []);
       var byLenDict = isThai ? (state.dictionaryByLengthThai || null) : (state.dictionaryByLengthEnglish || null);
-      var sugs = fuzzyMatchDictionary(w, dictWords, Object.create(null), byLenDict);
+
+      // Multi-source suggestion ranking — combine in priority order:
+      //   1. Variants exact match (Phase 3A) — highest confidence
+      //   2. REP phonetic rules (Phase 3B) — phonetic similarity verified by trie
+      //   3. Levenshtein fuzzy (existing) — character-distance-based
+      // ทุก suggest dedupe + re-rank ตาม wordMeta scores (Phase 3C)
+      var sugs = buildRankedSuggestions(w, isThai, dictWords, byLenDict);
+
       console.warn("[SpellCheckTHEN-V2][Check] MISS(" + (isThai ? "TH" : "EN") + "):", w,
         "→ suggestions:", sugs);
       state.sugCache[k] = sugs;
@@ -1234,6 +1478,11 @@
           state.trieThai = dictResult.trieThai || null;
           state.trieEnglish = dictResult.trieEnglish || null;
           state.wordCorrections = dictResult.wordCorrections || [];
+          state.variantMap = dictResult.variantMap || Object.create(null);
+          state.wordMetaThai = dictResult.wordMetaThai || Object.create(null);
+          state.wordMetaEnglish = dictResult.wordMetaEnglish || Object.create(null);
+          state.repRulesThai = dictResult.repRulesThai || [];
+          state.repRulesEnglish = dictResult.repRulesEnglish || [];
 
           setStatus("กำลังตรวจคำ (" + scopeLabel + ")...");
 

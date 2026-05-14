@@ -173,7 +173,8 @@ echo ""
 # 2. Setup Plugins
 # ============================================
 # Plugins ที่ปิดการโหลด (มีใน source แต่ไม่ copy เข้า container)
-PLUGINS_DISABLED="comment-bridge thai-spellcheck"
+# NOTE: ต้อง sync กับ init-onlyoffice.sh — V1 (spellcheck-then) ปิดแล้ว ใช้ V2 แทน
+PLUGINS_DISABLED="comment-bridge thai-spellcheck spellcheck-then"
 
 echo "📦 Setting up Plugins..."
 echo "----------------------------------------"
@@ -195,17 +196,48 @@ echo "   Disabled (ไม่ copy): $PLUGINS_DISABLED"
 PLUGIN_COUNT=$(find "$PLUGINS_SRC" -maxdepth 1 -type d ! -name "onlyoffice-plugins" | wc -l)
 echo "   Found $PLUGIN_COUNT plugin(s) in source"
 
-# ลบ default plugins (ถ้ามี plugin manager)
+# ลบ default plugins
+# ใช้ทั้ง pluginsmanager.sh (ถ้ามี) + filesystem cleanup (fallback ที่ทำงานเสมอ)
 echo "   Removing default plugins..."
+
+# รายการ default plugins ที่ต้องการลบ (จาก OnlyOffice image)
+DEFAULT_PLUGINS_TO_REMOVE="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus, typograf, doc2md, languagetool, deepl, draw.io, jitsi, telegram, wordpress, send"
+
+# Method 1: pluginsmanager.sh (ถ้ามีใน image)
 if docker exec "$CONTAINER_NAME" test -x "/usr/bin/documentserver-pluginsmanager.sh" 2>/dev/null; then
     docker exec "$CONTAINER_NAME" /usr/bin/documentserver-pluginsmanager.sh \
         --directory="$PLUGINS_DST" \
-        --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus" \
+        --remove="$DEFAULT_PLUGINS_TO_REMOVE" \
         2>&1 | grep -E "(Remove plugin|OK|Error)" || true
-    echo "   ✅ Default plugins removal attempted"
+    echo "   ✅ pluginsmanager.sh removal attempted"
 else
-    echo "   ⚠️  Plugin manager not found, skipping default plugin removal"
+    echo "   ⚠️  pluginsmanager.sh not found in image (will use filesystem cleanup only)"
 fi
+
+# Method 2: Filesystem cleanup (ทำเสมอ — กัน pluginsmanager.sh ลบไม่หมด)
+# ลบทุกอย่างใน sdkjs-plugins ยกเว้น whitelist
+echo "   Filesystem cleanup (keep only custom plugins + system files)..."
+docker exec -u root "$CONTAINER_NAME" bash -c '
+PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
+[ -d "$PLUGINS_DST" ] || exit 0
+chmod -R u+w "$PLUGINS_DST" 2>/dev/null || true
+for item in "$PLUGINS_DST"/*; do
+    [ -e "$item" ] || continue
+    case "$(basename "$item")" in
+        # Custom plugins ของเรา — เก็บไว้
+        document-office|dictionary-abbreviation|speech-to-text|spellcheck-then-v2|thai-autocomplete|thai-nbsp-space|insert-text-bridge)
+            ;;
+        # System files ของ DS — เก็บไว้
+        pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz)
+            ;;
+        # ทุกอย่างที่เหลือ — ลบทิ้ง (รวม marketplace, v1, default plugins ของ OO)
+        *)
+            [ -d "$item" ] && rm -rf "$item" 2>/dev/null && echo "   Removed dir: $(basename "$item")"
+            [ -f "$item" ] && rm -f "$item" 2>/dev/null && echo "   Removed file: $(basename "$item")"
+            ;;
+    esac
+done
+' 2>&1 | sed 's/^/      /' || true
 
 # ลบ disabled plugins จาก container (ถ้ามีจาก setup ครั้งก่อน)
 for d in $PLUGINS_DISABLED; do
