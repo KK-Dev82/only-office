@@ -321,6 +321,22 @@ if [ -d "/opt/kk-locale-src" ]; then
 fi
 
 # ============================================
+# 6.5 AutoFormat/AutoCorrect defaults — inject <script> ลงใน index.html
+# ============================================
+# Override default localStorage ของ DocumentEditor:
+#   - ปิด AutoCorrect (bullet/numbered/smart-quotes/hyphens/hyperlink/double-space/capitalize/math)
+#   - Default language = th-TH
+#   - Hide right settings panel
+# ดู /opt/kk-init/inject-autoformat-disable.sh สำหรับ list ของ keys และค่าที่ตั้ง
+# (Idempotent: marker /*kk-autoformat-disable*/ ใน index.html — รันซ้ำได้)
+if [ -f /opt/kk-init/inject-autoformat-disable.sh ]; then
+    echo "[KK] applying AutoFormat-disable defaults..."
+    bash /opt/kk-init/inject-autoformat-disable.sh || kk_warn "inject-autoformat-disable.sh failed (non-fatal)"
+else
+    echo "[KK] inject-autoformat-disable.sh not mounted — skip default override"
+fi
+
+# ============================================
 # Summary
 # ============================================
 if [ "$KK_ERRORS" -gt 0 ]; then

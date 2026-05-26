@@ -33,6 +33,20 @@
     return h;
   }
 
+  function getOwnerUserId() {
+    // NOTE: backend WordEntryFilterRequest.OwnerUserId เป็น `int?`
+    // แต่ frontend userId เป็น GUID string — ส่ง GUID จะทำให้ backend 400 Bad Request
+    // ดังนั้นส่งเฉพาะเมื่อเป็นเลขล้วน
+    try {
+      var uid = DO.pluginOptions && DO.pluginOptions.userId;
+      if (uid !== undefined && uid !== null && uid !== "") {
+        var raw = String(uid).trim();
+        if (/^\d+$/.test(raw)) return raw;
+      }
+    } catch (e) {}
+    return "";
+  }
+
   function safeJsonParse(text, fallback) {
     try {
       return JSON.parse(text);
@@ -138,7 +152,12 @@
   DO.remoteSync.syncDictionary = function () {
     // Use same endpoints as M0106 (dictionary is managed via /dictionary and /entries/Dictionary)
     // Prefer dictionary list endpoint for read.
-    var url = buildUrl("api/word-management/dictionary?limit=2000&includeGlobal=true");
+    // limit=-1 = ดึงทั้งหมด (เดิม 2000 อาจไม่พอเมื่อ DB ใหญ่ขึ้น)
+    // ownerUserId (ถ้ามี) = รวม Personal ของ user ปัจจุบันด้วย
+    var ownerUserId = getOwnerUserId();
+    var qs = "api/word-management/dictionary?limit=-1&includeGlobal=true";
+    if (ownerUserId) qs += "&ownerUserId=" + encodeURIComponent(ownerUserId);
+    var url = buildUrl(qs);
     return fetchJson(url)
       .then(function (payload) {
         var list = extractList(payload);
@@ -169,7 +188,12 @@
   DO.remoteSync.syncAbbreviations = function () {
     // ไม่กรองด้วย language: คำย่อ match แค่ลำดับตัวอักษร ไม่เกี่ยวกับ language tag
     // (records เก่าที่ languages=[] เคยถูกกรองทิ้งจน lookup ไม่เจอ)
-    var url = buildUrl("api/word-management/entries?type=Abbreviation&includeGlobal=true&limit=5000");
+    // limit=-1 = ดึงทั้งหมด (เดิม 5000)
+    // ownerUserId (ถ้ามี) = รวม Personal ของ user ปัจจุบันด้วย
+    var ownerUserId = getOwnerUserId();
+    var qs = "api/word-management/entries?type=Abbreviation&includeGlobal=true&limit=-1";
+    if (ownerUserId) qs += "&ownerUserId=" + encodeURIComponent(ownerUserId);
+    var url = buildUrl(qs);
     return fetchJson(url)
       .then(function (payload) {
         var list = extractList(payload);

@@ -9,22 +9,14 @@
 
 set -euo pipefail
 
-# Auto-detect container: ถ้าไม่ระบุ ให้ลอง onlyoffice-documentserver ก่อน แล้ว onlyoffice-docs-developer (legacy)
+# Canonical container name: onlyoffice-documentserver (ตรงกับ FileService production + developer compose)
 resolve_container() {
   local name="$1"
   if [ -n "$name" ]; then
     echo "$name"
     return
   fi
-  if docker ps --format "{{.Names}}" | grep -q "^onlyoffice-documentserver$"; then
-    echo "onlyoffice-documentserver"
-    return
-  fi
-  if docker ps --format "{{.Names}}" | grep -q "^onlyoffice-docs-developer$"; then
-    echo "onlyoffice-docs-developer"
-    return
-  fi
-  echo "onlyoffice-documentserver"  # default สำหรับ error message
+  echo "onlyoffice-documentserver"
 }
 
 CONTAINER_NAME="$(resolve_container "${1:-}")"

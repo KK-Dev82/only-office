@@ -2,17 +2,11 @@
 # Script สำหรับตรวจสอบสถานะ Only Office Plugins และ Dictionary
 # รองรับทั้ง local (developer.docker-compose) และ server
 # Usage: ./check-onlyoffice-status.sh [container-name]
-# Default: auto-detect (onlyoffice-documentserver หรือ onlyoffice-docs-developer)
+# Default: onlyoffice-documentserver (canonical — ตรงกับ FileService production)
 
 resolve_container() {
   local name="$1"
   if [ -n "$name" ]; then echo "$name"; return; fi
-  if docker ps --format "{{.Names}}" | grep -q "^onlyoffice-documentserver$"; then
-    echo "onlyoffice-documentserver"; return
-  fi
-  if docker ps --format "{{.Names}}" | grep -q "^onlyoffice-docs-developer$"; then
-    echo "onlyoffice-docs-developer"; return
-  fi
   echo "onlyoffice-documentserver"
 }
 

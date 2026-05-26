@@ -1,0 +1,15 @@
+{
+  "name": "Dictionary & Abbreviation Sync",
+  "guid": "asc.{F7A8B9C0-D1E2-4F3A-9B4C-5D6E7F8A9B0C}",
+  "version": "0.1.0",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Background sync: download dictionary + abbreviation list to localStorage (no UI)",
+      "url": "index.html",
+      "type": "background",
+      "isViewer": false,
+      "EditorsSupport": ["word"]
+    }
+  ]
+}

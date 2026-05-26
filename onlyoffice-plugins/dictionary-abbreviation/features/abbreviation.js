@@ -10,34 +10,67 @@
   var ABBR_MIN_CHARS = 1;
 
   // ---- HashMap cache สำหรับ O(1) lookup แทน O(n) loop ----
-  var _abbrMapCache = null; // { byExact: {shortFormLower: [abbr]}, byPrefix: {prefix: [abbr]}, version: number }
+  // - byExact:  shortForm (lower) → [abbr,...]   ใช้ตอน confirm match ขั้นสุดท้าย
+  // - byPrefix: 1/2-char prefix → [abbr,...]      ใช้ตอน live-suggest
+  // - tailSet:  Set ของ "ตัวอักษร 2 ตัวสุดท้าย" ของทุก shortForm
+  //             ใช้กรองเร็ว ๆ ก่อนเข้า suffix-match loop (gate)
+  //             → ถ้า paragraph ไม่ได้ลงท้ายด้วย tail ที่มีอยู่จริงใน DB ก็ skip
+  // - maxLen / minLen: ช่วงความยาว shortForm ใน DB ใช้กำหนดขอบเขต suffix loop
+  var _abbrMapCache = null;
 
   function getAbbrMap() {
     var list = (DO.store && DO.store.abbreviations) ? DO.store.abbreviations : [];
-    var ver = list.length + (list[0] && list[0].id || 0); // simple change detection
+
+    // Version key ใช้เป็น "snapshot signature" เพื่อ detect store เปลี่ยน:
+    // - length เปลี่ยน → rebuild (ปกติ)
+    // - first/last id เปลี่ยน → rebuild (handle re-order / replace ของ remote_sync)
+    // หมายเหตุ: ใช้ String() ครอบให้ชัด ป้องกัน + กลายเป็น concat โดยไม่ตั้งใจ
+    var first = list[0] || {};
+    var last = list[list.length - 1] || {};
+    var ver = String(list.length) + "|" + String(first.id || "") + "|" + String(last.id || "");
     if (_abbrMapCache && _abbrMapCache.version === ver) return _abbrMapCache;
 
-    var byExact = {};   // key = shortForm.toLowerCase() → [abbr, ...]
-    var byPrefix = {};  // key = prefix (1-char, 2-char) → [abbr, ...]
+    var byExact = {};
+    var byPrefix = {};
+    var tailSet = {};
+    var maxLen = 0;
+    var minLen = Infinity;
+
     for (var i = 0; i < list.length; i++) {
       var a = list[i] || {};
       var sf = String(a.shortForm || "").trim();
       var ff = String(a.fullForm || "").trim();
       if (!sf || !ff) continue;
       var lower = sf.toLowerCase();
+      var entry = { id: a.id, shortForm: sf, fullForm: ff };
 
-      // exact map
       if (!byExact[lower]) byExact[lower] = [];
-      byExact[lower].push({ id: a.id, shortForm: sf, fullForm: ff });
+      byExact[lower].push(entry);
 
-      // prefix map (first 1 and 2 chars)
       var p1 = lower.slice(0, 1);
       var p2 = lower.slice(0, 2);
-      if (p1) { if (!byPrefix[p1]) byPrefix[p1] = []; byPrefix[p1].push({ id: a.id, shortForm: sf, fullForm: ff }); }
-      if (p2 && p2.length === 2) { if (!byPrefix[p2]) byPrefix[p2] = []; byPrefix[p2].push({ id: a.id, shortForm: sf, fullForm: ff }); }
+      if (p1) { if (!byPrefix[p1]) byPrefix[p1] = []; byPrefix[p1].push(entry); }
+      if (p2 && p2.length === 2) { if (!byPrefix[p2]) byPrefix[p2] = []; byPrefix[p2].push(entry); }
+
+      // tail-2-char: ใช้เป็น sentinel ที่ derive จาก DB จริง
+      // shortForm ที่สั้นเกิน 2 ตัวก็เอาตัวเดียว — กันกรณีมีคำย่อสั้น
+      var tail = lower.length >= 2 ? lower.slice(-2) : lower.slice(-1);
+      if (tail) tailSet[tail] = true;
+
+      if (lower.length > maxLen) maxLen = lower.length;
+      if (lower.length < minLen) minLen = lower.length;
     }
 
-    _abbrMapCache = { byExact: byExact, byPrefix: byPrefix, version: ver };
+    if (!isFinite(minLen)) minLen = 0;
+
+    _abbrMapCache = {
+      byExact: byExact,
+      byPrefix: byPrefix,
+      tailSet: tailSet,
+      maxLen: maxLen,
+      minLen: minLen,
+      version: ver,
+    };
     return _abbrMapCache;
   }
 
@@ -575,39 +608,82 @@
         .replace(/\s+$/g, ""); // ตัดช่องว่าง/newline ท้ายสุดออก
       if (!s) return null;
 
-      // ดึง token สุดท้ายของย่อหน้า แล้วใช้ exact match จาก HashMap — O(1) แทน O(n)
       var map = getAbbrMap();
-      var m = s.match(/([A-Za-z0-9ก-๙._-]{1,})$/);
-      if (!m) return null;
-      var lastToken = String(m[1] || "").toLowerCase();
-      if (!lastToken || lastToken.length < ABBR_MIN_CHARS) return null;
+      if (!map.maxLen) return null;
 
-      // exact match: token ตรงกับ shortForm ทั้งตัว
-      var exactMatches = map.byExact[lastToken];
-      if (!exactMatches || !exactMatches.length) return null;
+      var sLower = s.toLowerCase();
 
-      var matches = [];
+      // ---- Gate 1: tailSet ----
+      // ภาษาไทยไม่มี space คั่นคำ → regex จับ "token สุดท้าย" จะ greedy
+      // (รวมคำหน้าเข้ามาด้วย เช่น "เรื่องกกตฝฝ" → token = "เรื่องกกตฝฝ" → exact match พลาด)
+      //
+      // วิธีใหม่: ไม่สนใจ token boundary — ดู "ตัวอักษร 2 ตัวสุดท้าย" ของย่อหน้า
+      // ถ้าไม่ใช่ tail ที่มีอยู่ใน DB → skip (กรอง 99% ของย่อหน้าที่ user ยังไม่พิมพ์ ฝฝ)
+      var paraTail = sLower.length >= 2 ? sLower.slice(-2) : sLower.slice(-1);
+      if (!paraTail || !map.tailSet[paraTail]) return null;
+
+      // ---- Gate 2: suffix match จากยาวสุดลงมา ----
+      // ลอง slice ท้ายของ paragraph ตั้งแต่ความยาว maxLen ลงมาถึง minLen
+      // ตัวอย่าง s = "เรื่องกกตฝฝ", maxLen=10:
+      //   - len=10..6: slice ไม่มีใน byExact
+      //   - len=5: "กกตฝฝ" → byExact["กกตฝฝ"] เจอ → return
+      var startLen = Math.min(map.maxLen, sLower.length);
+      var stopLen = Math.max(map.minLen, ABBR_MIN_CHARS);
+
+      var matches = null;
+      var matchedToken = "";
+      for (var len = startLen; len >= stopLen; len--) {
+        var suffix = sLower.slice(-len);
+        if (!suffix) continue;
+        var hit = map.byExact[suffix];
+        if (hit && hit.length) {
+          matches = hit;
+          matchedToken = suffix;
+          break;
+        }
+      }
+
+      if (!matches || !matches.length) return null;
+
+      // ---- Gate 3: boundary check ----
+      // กันกรณีที่ตัวอักษรก่อน matchedToken เป็น identifier ชัด ๆ (ASCII letters/digits)
+      // และ matchedToken เริ่มต้นด้วย ASCII เช่นกัน → reject (อาจเป็น token เดียวยาว)
+      // ภาษาไทยล้วน (เช่น "เรื่องกกตฝฝ") ปล่อยผ่าน (ไม่มี space คั่นคำ ถือเป็น valid case)
+      try {
+        var beforeIdx = sLower.length - matchedToken.length - 1;
+        if (beforeIdx >= 0) {
+          var charBefore = sLower.charAt(beforeIdx);
+          var firstCharOfMatch = matchedToken.charAt(0);
+          if (/[A-Za-z0-9]/.test(charBefore) && /[A-Za-z0-9]/.test(firstCharOfMatch)) {
+            try { if (DO.debugLog) DO.debugLog("abbr_boundary_reject", { tail: matchedToken, before: charBefore }); } catch (eLog0) {}
+            return null;
+          }
+        }
+      } catch (eB) {}
+
+      // dedup + sort ยาวสุดก่อน
       var seen = {};
-      for (var i = 0; i < exactMatches.length; i++) {
-        var a = exactMatches[i];
+      var out = [];
+      for (var i = 0; i < matches.length; i++) {
+        var a = matches[i];
         var key = a.shortForm.toLowerCase() + "|" + a.fullForm;
         if (seen[key]) continue;
         seen[key] = true;
-        matches.push(a);
+        out.push(a);
       }
-
-      if (!matches.length) return null;
-
-      // เรียงยาวสุดก่อน (สสฝฝ ก่อน สฝฝ)
       try {
-        matches.sort(function (a, b) { return (b.shortForm || "").length - (a.shortForm || "").length; });
+        out.sort(function (a, b) { return (b.shortForm || "").length - (a.shortForm || "").length; });
       } catch (eSort) {}
 
       try {
-        if (DO.debugLog) DO.debugLog("abbr_completed_detected", { text: s.slice(-40), matches: matches.length });
+        if (DO.debugLog) DO.debugLog("abbr_completed_detected", {
+          text: s.slice(-40),
+          matchedToken: matchedToken,
+          matches: out.length,
+        });
       } catch (eLog) {}
 
-      return { text: s, matches: matches };
+      return { text: s, matches: out, matchedToken: matchedToken };
     } catch (e) {
       return null;
     }

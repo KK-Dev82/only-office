@@ -47,6 +47,9 @@ services:
       # --- Document Editor locale (แก้ 404 web-apps/apps/documenteditor/main/locale/th.json, en.json) ---
       - ./locale:/opt/kk-locale-src:ro
 
+      # --- Init scripts (inject autoformat-disable, etc.) ---
+      - ../scripts:/opt/kk-scripts:ro
+
     command:
       - /bin/bash
       - -lc
@@ -160,6 +163,16 @@ services:
           # 3) fallback: path ไม่มีเวอร์ชัน
           sync_locale_to "/var/www/onlyoffice/documentserver/web-apps/apps/documenteditor/main/locale"
           echo "[KK] Locale (documenteditor/main/locale) synced."
+        fi
+
+        # AutoFormat as you type: ปิด "- + space → bullet" และ "1. + space → numbered" (force mode)
+        # ดู /opt/kk-scripts/inject-autoformat-disable.sh สำหรับรายละเอียดและตัวเลือก
+        # (Mount มาจาก only-office/scripts/ — แก้ logic ในไฟล์นั้นได้เลย ไม่ต้องแก้ YAML)
+        # หลัง container start: รันจาก host ด้วย scripts/restart-ds-dev.sh เป็น fallback (กรณี command: block ไม่รัน)
+        if [ -f /opt/kk-scripts/inject-autoformat-disable.sh ]; then
+          bash /opt/kk-scripts/inject-autoformat-disable.sh || true
+        else
+          echo "[KK] AutoFormat-disable: script not mounted (skip)"
         fi
 
         if [ -x /app/run-document-server.sh ]; then

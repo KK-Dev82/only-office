@@ -4,7 +4,7 @@
   window.DO = window.DO || {};
 
   // Sync version with config/index + host cache-busting
-  window.DO.VERSION = "0.1.71";
+  window.DO.VERSION = "0.1.73";
   // Alias DA to DO for compatibility
   window.DA = window.DO;
 

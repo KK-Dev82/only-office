@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dictionary & Abbreviation Sync</title>
+    <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
+    <!-- IMPORTANT: define Asc.plugin.init ก่อน sync.js โหลด — OnlyOffice เรียก init ทันทีที่ iframe โหลด -->
+    <script type="text/javascript">
+      (function () {
+        window.Asc = window.Asc || {};
+        window.Asc.plugin = window.Asc.plugin || {};
+        window.Asc.plugin.init = function () { try {} catch (e) {} };
+      })();
+    </script>
+    <script type="text/javascript" src="sync.js"></script>
+  </head>
+  <body></body>
+</html>
