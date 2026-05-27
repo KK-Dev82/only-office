@@ -150,11 +150,18 @@ docker exec onlyoffice-documentserver bash -c '
 
 ### L4. Browser — feature ทำงานจริง
 
-1. เปิดเอกสารผ่าน senate-vite → **Hard refresh** (Cmd+Shift+R)
+> **สำคัญ:** ก่อนทดสอบ ให้เปิด **incognito window** เสมอ
+> เพราะ browser ปกติของ dev อาจมี service worker cache จาก session เก่า
+> → เห็นผลแบบเก่าทั้งที่ server ติดตั้งใหม่สำเร็จแล้ว
+> ดู [Post-deploy: cache rollout](#post-deploy-cache-rollout) ด้านล่าง
+
+1. เปิด **incognito window** → เข้า senate-vite → เปิดเอกสาร
 2. F12 → Console — ต้องเห็น log:
-   ```
+
+   ```text
    [KK tab-hook] installed (Tab -> \t, no first-indent)
    ```
+
 3. ทดสอบ behavior:
 
 | ทำอะไร | ผลที่ควรเห็น | feature |
@@ -176,6 +183,84 @@ docker logs onlyoffice-documentserver 2>&1 | grep "\[KK\]"
 [KK] applying Tab-as-tabchar override...
 [KK] tab-as-tabchar injected: ...
 ```
+
+---
+
+## Post-deploy: cache rollout
+
+**สำคัญ:** L1-L3 ผ่าน = **server พร้อม** (deterministic, ตอบ 100%)
+แต่ user แต่ละคนอาจยังไม่เห็นการเปลี่ยนแปลงเพราะมี **cache 3 ชั้น** ที่ไม่ revalidate อัตโนมัติ
+
+### Cache layers ที่ block update
+
+| Layer | Cache อะไร | Strategy | ใครเจอ |
+|---|---|---|---|
+| **Service Worker** ของ DS | `index.html`, JS, fonts | cache-first (ไม่ตรวจ ETag) | user ที่เคยเปิด editor มาก่อน |
+| **Browser HTTP cache** | `index.html`, `.gz` | ตาม Cache-Control header | ทุก user |
+| **localStorage** | `de-settings-*` keys | persist จนกว่าจะ clear | user ที่เคย toggle setting เอง |
+
+Service Worker เป็นตัวร้ายที่สุด — แม้ user กด Cmd+Shift+R (hard refresh) ก็ไม่ผ่าน SW
+
+### Risk matrix
+
+| User type | จะเห็น update ทันทีไหม |
+|---|---|
+| ไม่เคยเปิดเอกสารใน senate-vite | ✓ เห็นทันที (no cache) |
+| เปิดครั้งแรกหลัง deploy | ✓ เห็นทันที |
+| **เคยเปิดเอกสารก่อน deploy + ใช้ต่อเนื่อง** | ✗ **ติด cache — ไม่เห็น** |
+| ใช้ incognito | ✓ เห็นทันที |
+
+### Strategy (เรียงจากเจ็บน้อย → เจ็บมาก)
+
+#### Option A: รอเอง (24-48 ชม.)
+
+Service Worker จะ revalidate ตาม max-age สุดท้าย — แต่ระหว่างรอ user เห็นพฤติกรรมเก่า
+
+- ✓ ไม่ต้องแจ้งใคร
+- ✗ user งงว่าทำไม Tab ยังทำงานแบบเก่า
+
+#### Option B: แจ้ง user แต่ละคนให้ clear cache (recommended สำหรับ active users)
+
+Template ข้อความที่ส่งให้ user (LINE / email):
+
+```text
+สวัสดีค่ะ ระบบเอกสารมีการอัปเดตเล็กน้อย
+ขอความร่วมมือทำตามนี้ครั้งเดียว (30 วินาที):
+
+1. เปิดหน้าเอกสารใน senate-vite
+2. กด F12 → คลิก tab "Application"
+3. เมนูซ้าย → "Storage" → กดปุ่ม "Clear site data"
+   → ติ๊กทุกช่อง → กด "Clear"
+4. ปิด tab แล้วเปิดใหม่
+```
+
+หรือถ้า user ไม่สะดวก:
+
+```text
+1. ปิด browser ทุก tab ของ senate-vite
+2. เปิดใน incognito (Cmd+Shift+N) → ทดสอบ 1 ครั้ง
+3. กลับมา tab ปกติ → กด Cmd+Shift+R
+```
+
+#### Option C: Auto-unregister Service Worker (advanced)
+
+เพิ่ม inject script ที่ unregister SW อัตโนมัติ — ทุก user ที่เปิดครั้งต่อไปจะ unregister แล้วโหลด fresh
+
+- ✓ ครอบคลุม user ทั้งระบบโดยไม่ต้องแจ้ง
+- ✗ ทำลาย offline capability ของ OnlyOffice
+- ✗ ต้อง deploy inject script ใหม่ — รอบหนึ่งใหญ่
+
+ตอนนี้ยังไม่ implement — ทำเมื่อมี deploy ใหญ่ในอนาคต ค่อยพิจารณา
+
+### วิธีตรวจว่า user เห็น update แล้ว
+
+ถาม user ให้เปิด F12 → Console — ถ้าเห็น log นี้แสดงว่า cache clear แล้ว:
+
+```text
+[KK tab-hook] installed (Tab -> \t, no first-indent)
+```
+
+ถ้าไม่เห็น → cache ยังค้าง → ทำ Option B ซ้ำ
 
 ---
 
