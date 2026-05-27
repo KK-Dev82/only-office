@@ -164,14 +164,18 @@ cd scripts
 ./check-onlyoffice-status.sh onlyoffice-documentserver
 ```
 
-### 4. `inject-autoformat-disable.sh` + `restart-ds-dev.sh`
+### 4. Inject scripts — override editor behavior
 
-Override default localStorage ของ Document Editor — ปิด AutoCorrect / ตั้ง default language / ซ่อน right panel โดย inject `<script>` ลง `index.html` ของ DS
+ทั้งคู่ inject `<script>` ลง `index.html` ของ DS ตอน startup (เรียกอัตโนมัติจาก `init-onlyoffice.sh`)
 
-- `inject-autoformat-disable.sh` — logic หลัก (แก้ list keys ที่นี่ที่เดียว) ถูกเรียกอัตโนมัติจาก `init-onlyoffice.sh`
-- `restart-ds-dev.sh` — wrapper สำหรับ `developer.docker-compose.yml` (recreate + exec inject)
+- **`inject-autoformat-disable.sh`** — override `localStorage` ปิด AutoCorrect / ตั้ง default language / ซ่อน right panel
+  - คำอธิบาย + วิธีหา localStorage key: [`docs/AUTOFORMAT_DISABLE.md`](docs/AUTOFORMAT_DISABLE.md)
+- **`inject-tab-as-tabchar.sh`** — บังคับให้ Tab key แทรก `\t` เสมอ (ไม่ปรับ first-line indent)
+  - คำอธิบาย + ความเสี่ยง: [`docs/TAB_OVERRIDE.md`](docs/TAB_OVERRIDE.md)
 
-รายละเอียดทั้งหมด + วิธีหา localStorage key + lesson learned: 👉 [`docs/AUTOFORMAT_DISABLE.md`](docs/AUTOFORMAT_DISABLE.md)
+`restart-ds-dev.sh` — wrapper สำหรับ `developer.docker-compose.yml` (recreate + exec inject ทั้ง 2 ตัว)
+
+**👉 วิธีติดตั้ง/อัปเดต/verify/rollback ทั้งหมด: [`docs/INSTALL.md`](docs/INSTALL.md)**
 
 ### Disabled plugins
 

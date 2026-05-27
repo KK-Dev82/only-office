@@ -1,6 +1,8 @@
-# OnlyOffice AutoFormat / AutoCorrect Override Hack
+# AutoFormat / AutoCorrect Override — Explanation
 
-เอกสารนี้บันทึกวิธีบังคับตั้งค่า default ของ Document Editor (DE) ผ่านการ inject `<script>` ลงใน `index.html` ของ DocumentServer (DS) เพื่อ override `localStorage` ก่อน editor JS จะ boot
+อธิบาย **ทำไมต้อง** บังคับตั้งค่า default ของ Document Editor (DE) ผ่านการ inject `<script>` + **กลไก** + **วิธีเพิ่ม setting**
+
+> เอกสารนี้เก็บเฉพาะ "เหตุผล + กลไก + วิธีเพิ่ม setting ใหม่" — สำหรับ **วิธีติดตั้ง / verify / rollback** ดู [INSTALL.md](INSTALL.md)
 
 ใช้ทำอะไรได้บ้าง:
 
@@ -21,7 +23,7 @@ OnlyOffice DocsAPI ไม่เปิดให้ตั้ง default ของ 
 
 ## ภาพรวมการทำงาน
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ DS Container start                                          │
 │   ├─ init-onlyoffice.sh                                     │
@@ -130,75 +132,9 @@ grep -rho "de-settings-math[a-zA-Z0-9_-]*" .../web-apps | sort -u
 
 ---
 
-## การ deploy ตาม environment
+## ติดตั้ง / verify / rollback
 
-### Developer (Mac local) — `only-office/compose/developer.docker-compose.yml`
-
-```bash
-cd /path/to/Code/only-office/scripts
-bash restart-ds-dev.sh                 # recreate + inject
-bash restart-ds-dev.sh --no-restart    # ใช้ container เดิม แค่ inject ใหม่
-```
-
-### Local file-service (Mac) — `file-service/FileService/docker-compose.local.yml`
-
-```bash
-cd /path/to/Code/file-service/FileService
-docker compose -f docker-compose.local.yml up -d --force-recreate onlyoffice-documentserver
-```
-
-inject ทำงานอัตโนมัติผ่าน `init-onlyoffice.sh`
-
-### Production server — `file-service/FileService/docker-compose.yml`
-
-```bash
-cd ~/deploy
-docker compose up -d --force-recreate onlyoffice-documentserver
-```
-
-ตรวจ log:
-
-```bash
-docker logs onlyoffice-documentserver 2>&1 | grep KK
-```
-
-ต้องเห็น:
-```
-[KK] applying AutoFormat-disable defaults...
-[KK] AutoFormat-disable injected (N keys): /var/www/.../index.html
-[KK] Settings applied:
-[KK]   de-settings-autoformat-bulleted=0
-...
-```
-
----
-
-## ทดสอบที่ browser
-
-หลัง deploy เสร็จ:
-
-1. **เปิด incognito window** (เพื่อให้ localStorage ว่าง)
-2. เข้า senate-vite → เปิดเอกสาร
-3. DevTools → Application → Local Storage → origin DS
-4. ✅ ต้องเห็น keys ทั้งหมดที่ override พร้อม value ตามที่ตั้ง
-5. ลองพิมพ์ `- ` ที่ต้นบรรทัด → ไม่ควรกลายเป็น bullet
-6. File → Advanced Settings → AutoCorrect Options → ทุก checkbox ที่ override ควรไม่ติ๊ก
-
-### หาก browser ยังไม่ทำงาน
-
-- เช็คว่า inject ลงไฟล์จริง:
-  ```bash
-  docker exec onlyoffice-documentserver bash -c \
-    'grep -c kk-autoformat-disable /var/www/onlyoffice/documentserver/web-apps/apps/documenteditor/main/index.html'
-  ```
-  ต้องได้ `1`
-- เช็คว่า `.gz` update ตาม:
-  ```bash
-  docker exec onlyoffice-documentserver bash -c \
-    'zcat /var/www/onlyoffice/documentserver/web-apps/apps/documenteditor/main/index.html.gz | grep -c kk-autoformat-disable'
-  ```
-  ต้องได้ `1` (ถ้า `0` แต่ `.html` ได้ `1` → `.gz` ไม่ update → nginx serve `.gz` เก่า → inject ไม่ถึง browser)
-- ลองล้าง localStorage + hard refresh (Cmd+Shift+R)
+ดู [INSTALL.md](INSTALL.md) — รวม steps ของทั้ง 3 environments (dev / local file-service / production)
 
 ---
 
