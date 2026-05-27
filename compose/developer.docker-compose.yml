@@ -175,6 +175,14 @@ services:
           echo "[KK] AutoFormat-disable: script not mounted (skip)"
         fi
 
+        # Tab key override: บังคับให้ Tab แทรก \t (ไม่ปรับ first-line indent)
+        # ดู /opt/kk-scripts/inject-tab-as-tabchar.sh
+        if [ -f /opt/kk-scripts/inject-tab-as-tabchar.sh ]; then
+          bash /opt/kk-scripts/inject-tab-as-tabchar.sh || true
+        else
+          echo "[KK] Tab-as-tabchar: script not mounted (skip)"
+        fi
+
         if [ -x /app/run-document-server.sh ]; then
           exec /app/run-document-server.sh
         elif [ -x /run-document-server.sh ]; then

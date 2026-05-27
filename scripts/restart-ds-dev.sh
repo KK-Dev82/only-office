@@ -39,6 +39,9 @@ fi
 echo "==> Running inject-autoformat-disable.sh inside container"
 docker exec "$CONTAINER_NAME" bash /opt/kk-scripts/inject-autoformat-disable.sh
 
+echo "==> Running inject-tab-as-tabchar.sh inside container"
+docker exec "$CONTAINER_NAME" bash /opt/kk-scripts/inject-tab-as-tabchar.sh
+
 echo ""
 echo "==> Done."
 echo "    หาก browser เคยเปิดเอกสารแล้ว ค่าใน localStorage จะค้างอยู่ (default-only mode)"

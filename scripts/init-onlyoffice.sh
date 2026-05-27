@@ -337,6 +337,19 @@ else
 fi
 
 # ============================================
+# 6.6 Tab key behavior — บังคับให้ Tab แทรก \t เสมอ (ไม่ปรับ first-line indent)
+# ============================================
+# OnlyOffice/Word ปกติ: Tab ในย่อหน้าที่มีข้อความ → ปรับ first-line indent (Ruler ขยับ)
+# Requirement สำนักงาน สว.: Tab ต้องแทรก tab character เสมอ ไม่ขยับ indent
+# ดู /opt/kk-init/inject-tab-as-tabchar.sh สำหรับรายละเอียดและ internal API ที่ใช้
+if [ -f /opt/kk-init/inject-tab-as-tabchar.sh ]; then
+    echo "[KK] applying Tab-as-tabchar override..."
+    bash /opt/kk-init/inject-tab-as-tabchar.sh || kk_warn "inject-tab-as-tabchar.sh failed (non-fatal)"
+else
+    echo "[KK] inject-tab-as-tabchar.sh not mounted — skip"
+fi
+
+# ============================================
 # Summary
 # ============================================
 if [ "$KK_ERRORS" -gt 0 ]; then
