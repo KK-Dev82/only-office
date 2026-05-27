@@ -164,6 +164,15 @@ cd scripts
 ./check-onlyoffice-status.sh onlyoffice-documentserver
 ```
 
+### 4. `inject-autoformat-disable.sh` + `restart-ds-dev.sh`
+
+Override default localStorage ของ Document Editor — ปิด AutoCorrect / ตั้ง default language / ซ่อน right panel โดย inject `<script>` ลง `index.html` ของ DS
+
+- `inject-autoformat-disable.sh` — logic หลัก (แก้ list keys ที่นี่ที่เดียว) ถูกเรียกอัตโนมัติจาก `init-onlyoffice.sh`
+- `restart-ds-dev.sh` — wrapper สำหรับ `developer.docker-compose.yml` (recreate + exec inject)
+
+รายละเอียดทั้งหมด + วิธีหา localStorage key + lesson learned: 👉 [`docs/AUTOFORMAT_DISABLE.md`](docs/AUTOFORMAT_DISABLE.md)
+
 ### Disabled plugins
 
 `comment-bridge` และ `thai-spellcheck` ถูกปิดการโหลด (ไม่ copy เข้า container)

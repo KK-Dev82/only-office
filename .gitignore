@@ -1,6 +1,7 @@
 # OS noise
 .DS_Store
 .DS
+**/.DS_Store
 
 # OnlyOffice public sample plugins mirror (dev reference only, 531MB)
 plugin-sample/
@@ -8,3 +9,15 @@ plugin-sample/
 # Local archive / scratch
 Archive.zip
 *.zip
+
+# Local env / credentials (ดู compose/env.example เป็น template)
+compose/.env.local
+compose/.env
+*.env.local
+
+# License file (อย่า commit license.lic เข้า repo public)
+license/license.lic
+
+# Logs / temp files จาก scripts
+scripts/*.log
+*.tmp
