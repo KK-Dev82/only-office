@@ -183,6 +183,14 @@ services:
           echo "[KK] Tab-as-tabchar: script not mounted (skip)"
         fi
 
+        # Pilcrow color: เปลี่ยนสีสัญลักษณ์ ¶ (Enter / paragraph mark) เป็นน้ำเงิน
+        # ดู /opt/kk-scripts/inject-pilcrow-color.sh
+        if [ -f /opt/kk-scripts/inject-pilcrow-color.sh ]; then
+          bash /opt/kk-scripts/inject-pilcrow-color.sh || true
+        else
+          echo "[KK] Pilcrow-color: script not mounted (skip)"
+        fi
+
         if [ -x /app/run-document-server.sh ]; then
           exec /app/run-document-server.sh
         elif [ -x /run-document-server.sh ]; then

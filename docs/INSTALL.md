@@ -6,6 +6,7 @@
 > สำหรับ **"ทำไมต้องทำ" (Explanation)** ของแต่ละ inject script ดู:
 > - [AUTOFORMAT_DISABLE.md](AUTOFORMAT_DISABLE.md) — ปิด AutoCorrect + default localStorage
 > - [TAB_OVERRIDE.md](TAB_OVERRIDE.md) — Tab key → `\t` แทน first-line indent
+> - [PILCROW_COLOR.md](PILCROW_COLOR.md) — เปลี่ยนสีสัญลักษณ์ ¶ (Enter) เป็นน้ำเงิน
 > - [TRIAL_LICENSE_CHECK.md](TRIAL_LICENSE_CHECK.md) — license verification
 
 ## 3 Environments
@@ -99,6 +100,7 @@ cd only-office/scripts
 # B/C. Local file-service / Server (รัน inject แบบ manual)
 docker exec onlyoffice-documentserver bash /opt/kk-init/inject-autoformat-disable.sh
 docker exec onlyoffice-documentserver bash /opt/kk-init/inject-tab-as-tabchar.sh
+docker exec onlyoffice-documentserver bash /opt/kk-init/inject-pilcrow-color.sh
 ```
 
 หลังรัน inject → **hard refresh browser** (Cmd+Shift+R) เพราะ `index.html` มี cache
@@ -273,6 +275,7 @@ docker exec onlyoffice-documentserver bash -c '
   find /var/www/onlyoffice/documentserver -name "index.html" -path "*documenteditor*" | while read f; do
     perl -i -pe "s|<script>/\*kk-tab-as-tabchar\*/.*?</script>||g" "$f"
     perl -i -pe "s|<script>/\*kk-autoformat-disable\*/.*?</script>||g" "$f"
+    perl -i -pe "s|<script>/\*kk-pilcrow-color\*/.*?</script>||g" "$f"
     [ -f "${f}.gz" ] && gzip -c -f "$f" > "${f}.gz"
   done
 '
@@ -337,6 +340,7 @@ docker exec onlyoffice-documentserver ls /var/www/onlyoffice/documentserver/sdkj
 | `init-onlyoffice.sh` | Container-side init — รันใน entrypoint | docker-compose |
 | `inject-autoformat-disable.sh` | Inject `<script>` ปิด AutoCorrect | `init-onlyoffice.sh` 6.5 |
 | `inject-tab-as-tabchar.sh` | Inject `<script>` Tab key override | `init-onlyoffice.sh` 6.6 |
+| `inject-pilcrow-color.sh` | Inject `<script>` เปลี่ยนสี ¶ (Enter) เป็นน้ำเงิน | `init-onlyoffice.sh` 6.7 |
 | `restart-ds-dev.sh` | Wrapper สำหรับ developer compose (recreate + run inject) | manual |
 | `check-onlyoffice-status.sh` | Verify plugins + dict + license | manual |
 | `seed-dictionary.js` | Bulk seed words ผ่าน backend API | manual |

@@ -350,6 +350,20 @@ else
 fi
 
 # ============================================
+# 6.7 Pilcrow color — เปลี่ยนสีสัญลักษณ์ ¶ (Enter / paragraph mark) เป็นน้ำเงิน
+# ============================================
+# OnlyOffice วาด ¶ เป็นสีดำ (auto color) และไม่มี config ให้เปลี่ยน
+# Requirement: ให้ ¶ เป็นสีน้ำเงิน เพื่อให้เห็นตำแหน่งกด Enter ชัดขึ้น
+# ดู /opt/kk-init/inject-pilcrow-color.sh — monkey-patch CRunParagraphMark.prototype.Draw
+# (Idempotent: marker /*kk-pilcrow-color*/ ใน index.html — รันซ้ำได้)
+if [ -f /opt/kk-init/inject-pilcrow-color.sh ]; then
+    echo "[KK] applying Pilcrow-color override..."
+    bash /opt/kk-init/inject-pilcrow-color.sh || kk_warn "inject-pilcrow-color.sh failed (non-fatal)"
+else
+    echo "[KK] inject-pilcrow-color.sh not mounted — skip"
+fi
+
+# ============================================
 # Summary
 # ============================================
 if [ "$KK_ERRORS" -gt 0 ]; then
