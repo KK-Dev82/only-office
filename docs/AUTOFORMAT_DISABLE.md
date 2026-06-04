@@ -68,7 +68,7 @@ SETTINGS=(
   # AutoCorrect off (Tab "AutoFormat as you type")
   "de-settings-autoformat-bulleted=0"          # "- + space" → bullet
   "de-settings-autoformat-numbered=0"          # "1. + space" → numbered list
-  "de-settings-autoformat-smart-quotes=0"      # " → smart quotes
+  "de-settings-autoformat-smart-quotes=1"      # " → ฟันหนูโค้ง “ ” (เปิดไว้ — ดูหมายเหตุด้านล่าง)
   "de-settings-autoformat-hyphens=0"           # -- → dash
   "de-settings-autoformat-hyperlink=0"         # URL → hyperlink
   "de-settings-autoformat-double-space=0"      # space space → period
@@ -146,6 +146,7 @@ grep -rho "de-settings-math[a-zA-Z0-9_-]*" .../web-apps | sort -u
 - **OnlyOffice เก็บ boolean เป็น `"0"`/`"1"`** ไม่ใช่ `"false"`/`"true"` — ระวังตอนเพิ่ม key ใหม่
 - **Idempotent ผ่าน marker `/*kk-autoformat-disable*/`** — รันซ้ำได้ ถ้ามี inject อยู่จะถูก auto-remove แล้วใส่ใหม่
 - **เปลี่ยน SETTINGS แล้วต้อง re-inject** — รัน wrapper หรือ recreate container อีกครั้ง
+- **`smart-quotes=1` เปิดไว้โดยตั้งใจ** — เพื่อให้พิมพ์ `"` แล้วได้ฟันหนูโค้ง `“ ”` (มาตรฐานเอกสารราชการ) ฝั่ง React paste pipeline ก็แปลงให้เช่นกัน (`straightToCurlyDoubleQuotes` ใน `senate-vite/src/utils/thaiPasteFormat.ts`) ผลข้างเคียง: ตัวเลขหน่วยนิ้ว เช่น `17"` จะกลายเป็นโค้งด้วย — ถ้าไม่ต้องการให้ตั้งกลับเป็น `=0`
 
 ---
 

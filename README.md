@@ -177,6 +177,8 @@ cd scripts
 
 **👉 วิธีติดตั้ง/อัปเดต/verify/rollback ทั้งหมด: [`docs/INSTALL.md`](docs/INSTALL.md)**
 
+**👉 รวม customization ทั้งหมด + checklist ตรวจหลังอัปเกรด DS version: [`docs/UPGRADE_CHECKLIST.md`](docs/UPGRADE_CHECKLIST.md)**
+
 ### Disabled plugins
 
 `comment-bridge` และ `thai-spellcheck` ถูกปิดการโหลด (ไม่ copy เข้า container)
