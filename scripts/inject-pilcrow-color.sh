@@ -42,40 +42,43 @@ function sameColor(tpr){
   }catch(e){}
   return false;
 }
-function getDoc(){
-  var ed=window.Asc&&window.Asc.editor;
-  if(!ed||typeof ed.GetDocument!=="function") return null;
-  var d; try{d=ed.GetDocument();}catch(e){return null;}
-  if(!d||typeof d.GetElementsCount!=="function"||d.GetElementsCount()<1) return null;
-  return d;
-}
+// applyAll: ครอบ try/catch ทั้งหมด -> ห้าม throw หลุดเด็ดขาด
+// คืน -1 = ยังไม่พร้อม (ระหว่างเปิดเอกสาร GetDocument อาจ wrap null -> GetElementsCount throw)
+// คืน >=0 = ทำสำเร็จ (จำนวน mark ที่เปลี่ยนสี)
 function applyAll(){
-  var d=getDoc(); if(!d) return -1;
-  var n=d.GetElementsCount(), done=0;
-  for(var i=0;i<n;i++){
-    try{
-      var el=d.GetElement(i);
-      if(el&&typeof el.GetParagraphMarkTextPr==="function"){
-        var tpr=el.GetParagraphMarkTextPr();
-        if(tpr&&typeof tpr.SetColor==="function"&&!sameColor(tpr)){
-          tpr.SetColor(RGB[0],RGB[1],RGB[2],false); done++;
+  try{
+    var ed=window.Asc&&window.Asc.editor;
+    if(!ed||typeof ed.GetDocument!=="function") return -1;
+    var d=ed.GetDocument();
+    if(!d||typeof d.GetElementsCount!=="function") return -1;
+    var n=d.GetElementsCount();
+    if(!(n>=1)) return -1;
+    var done=0;
+    for(var i=0;i<n;i++){
+      try{
+        var el=d.GetElement(i);
+        if(el&&typeof el.GetParagraphMarkTextPr==="function"){
+          var tpr=el.GetParagraphMarkTextPr();
+          if(tpr&&typeof tpr.SetColor==="function"&&!sameColor(tpr)){
+            tpr.SetColor(RGB[0],RGB[1],RGB[2],false); done++;
+          }
         }
-      }
-    }catch(e){}
-  }
-  return done;
+      }catch(e){}
+    }
+    return done;
+  }catch(e){ return -1; }
 }
 var tries=0, t=null;
-function sched(){ if(t)clearTimeout(t); t=setTimeout(function(){ var x=applyAll(); if(x>0)console.log("[KK pilcrow] +"+x+" new mark(s)"); },400); }
+function sched(){ if(t)clearTimeout(t); t=setTimeout(function(){ var x=applyAll(); if(x>0){try{console.log("[KK pilcrow] +"+x+" new mark(s)");}catch(e){}} },500); }
 function init(){
-  if(!getDoc()){ if(tries++<60){return setTimeout(init,1000);} console.warn("[KK pilcrow] editor API not ready, gave up"); return; }
   var r=applyAll();
-  console.log("[KK pilcrow] colored "+r+" paragraph mark(s) rgb("+RGB.join(",")+")");
+  if(r<0){ if(tries++<120){return setTimeout(init,1000);} try{console.warn("[KK pilcrow] gave up waiting for document");}catch(e){} return; }
+  try{console.log("[KK pilcrow] colored "+r+" paragraph mark(s) rgb("+RGB.join(",")+")");}catch(e){}
   // ย่อหน้าใหม่จากการกด Enter -> reapply (debounce, capture phase)
-  document.addEventListener("keydown",function(e){ if(e.keyCode===13){ sched(); } },true);
+  try{document.addEventListener("keydown",function(e){ if(e.keyCode===13){ sched(); } },true);}catch(e){}
 }
-if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",init);}
-else{init();}
+// หน่วง 1.5s ก่อนเริ่ม เพื่อให้ editor เปิดเอกสารเสร็จก่อน (กันชนช่วง open -> error -82)
+setTimeout(init,1500);
 })();</script>
 EOF
 
