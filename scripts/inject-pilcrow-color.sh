@@ -26,6 +26,19 @@
 # Idempotent: ใช้ marker /*kk-pilcrow-color*/ — รันซ้ำได้ ไม่ inject ซ้อน
 set -uo pipefail
 
+# ============================================================================
+# ⛔ DISABLED 2026-06-09 — builder approach ทำให้ "ข้อความที่พิมพ์กลายเป็นน้ำเงิน"
+# ============================================================================
+# tpr.SetColor() บน paragraph mark = แก้ run-properties ของ ¶ ซึ่ง "ข้อความใหม่
+# ที่พิมพ์ในย่อหน้านั้นสืบทอดสีมาด้วย" (paragraph-mark formatting inheritance)
+# -> ข้อความราชการกลายเป็นสี #0070C0 โดยไม่ตั้งใจ (ยืนยันแล้ว)
+# วิธี builder จึงใช้ไม่ได้ สำหรับ display-only ต้องไปทาง engine patch (sdk-all.js)
+# คงสคริปต์ + docs ไว้เป็น reference — แต่ปิดการทำงานทุก caller ด้วย exit ด้านล่าง
+# ดู docs/PILCROW_COLOR.md
+echo "[KK] pilcrow-color: DISABLED (builder approach tints typed text) — skip"
+exit 0
+# ============================================================================
+
 DS_ROOT="${DS_ROOT:-/var/www/onlyoffice/documentserver}"
 MARKER="kk-pilcrow-color"
 

@@ -1,5 +1,11 @@
 # Pilcrow Color — Explanation
 
+> ## ⛔ STATUS 2026-06-09: Builder approach DISABLED (ดู [#2026-06-09](#2026-06-09-builder-approach-พบว่าทำข้อความเป็นน้ำเงิน--ปิดการใช้งาน))
+> วิธี Builder API (`SetColor` บน paragraph mark) **ทำให้ข้อความที่พิมพ์กลายเป็นสีน้ำเงิน #0070C0**
+> (paragraph-mark formatting inheritance) — กระทบเอกสารราชการ จึง **ปิดด้วย early-exit ใน
+> `inject-pilcrow-color.sh`** กำลังย้ายไปทาง **engine patch (`sdk-all.js`)** ซึ่งเป็น display-only แท้
+> เนื้อหาด้านล่างเก็บไว้เป็น reference ของวิธี builder (ยังไม่ใช้)
+
 อธิบาย **ทำไมต้อง** เปลี่ยนสีสัญลักษณ์ ¶ (pilcrow / paragraph mark — ตำแหน่งกด Enter) + **กลไกที่ใช้ได้จริงบน OnlyOffice 9.2.x** + **ข้อจำกัด/ความเสี่ยง**
 
 > เอกสารนี้เก็บ "เหตุผล + กลไก + ข้อแลกเปลี่ยน" — สำหรับ **วิธีติดตั้ง / verify / rollback** ดู [INSTALL.md](INSTALL.md)
@@ -98,8 +104,17 @@ OnlyOffice มี service worker (`sdkjs/common/serviceworker/document_editor_se
   - object ที่เข้าถึงได้คือ "ตัวจริงที่ผูกกับเอกสาร" + **ไม่มี `.Copy`** → แก้สี = เขียนกลับลงไฟล์อยู่ดี (ไม่ใช่ display-only)
   - method สั่งวาดใหม่ที่ถูกคือ `ed.put_ShowParaMarks(bool)` (ไม่ใช่ `asc_setShowParaMarks`) — แต่ไม่ช่วยเพราะ recolor โดยไม่เขียนกลับทำไม่ได้
 - สรุป: display-only แท้ทำได้ทางเดียวคือ patch ไฟล์ engine `sdk-all.js` ตรง ๆ (เปราะ/ความพยายามสูง) — **ยังไม่ทำ**
-- **การตัดสินใจ:** ทีมเลือก **ยอมรับ Builder API** (สี ¶ ติดในไฟล์ + เอกสารกลายเป็น modified) แลกกับความเสถียร/ทำได้จริง
-  - ผลกระทบที่ยอมรับแล้ว: export .docx ไปเปิดที่อื่น **ไม่พัง/ไม่ corrupt** (¶ น้ำเงินเห็นเฉพาะตอนเปิด show-marks, ไม่กระทบข้อความ/การพิมพ์) แต่สีติดถาวร + อาจไป autosave ทับไฟล์
+- **การตัดสินใจ (ชั่วคราว):** ทีมเลือก **ยอมรับ Builder API** (สี ¶ ติดในไฟล์ + เอกสารกลายเป็น modified) แลกกับความเสถียร/ทำได้จริง
+
+### 2026-06-09: Builder approach พบว่าทำข้อความเป็นน้ำเงิน → ปิดการใช้งาน
+
+- **อาการ:** ข้อความที่พิมพ์กลายเป็นสีน้ำเงิน **#0070C0 (0,112,192)** — สีเดียวกับ pilcrow ที่เราตั้ง (ยืนยันด้วย Font color), เป็น "บางครั้ง"
+- **สาเหตุ (root):** `tpr.SetColor()` บน paragraph mark = แก้ run-properties ของ ¶ → **ข้อความใหม่ที่พิมพ์ในย่อหน้านั้นสืบทอดสีมาด้วย** (paragraph-mark formatting inheritance)
+  - "บางครั้ง" = เป็นเฉพาะตอนพิมพ์ในย่อหน้าว่าง/ย่อหน้าใหม่ (สืบทอดจาก ¶) ; พิมพ์แทรกกลางข้อความดำ → ไม่เป็น
+  - ผลพลอยได้: #0070C0 ค้างเป็นสีล่าสุดในจานสี (Standard Color)
+- **สรุป:** builder แก้ "การแสดงผล ¶" แยกจาก "สีข้อความ" ไม่ได้ — เลี่ยง side effect นี้ไม่ได้
+- **การแก้:** ใส่ early-exit (`exit 0`) ที่ต้น `inject-pilcrow-color.sh` → ทุก caller (init 6.7 / dev compose / restart) skip ; ถอด inject ออกจาก container ที่รันอยู่ (`perl -0777 ... s|<script>/*kk-pilcrow-color*/...||`)
+- **ทิศทางต่อไป:** display-only แท้ต้อง **patch ไฟล์ engine `sdk-all.js`** (เปลี่ยนวิธี "วาด" ¶ ไม่แตะ document model) — งานยาก/เปราะ (โค้ดถูก minify) แต่ไม่มี side effect กับข้อความ — กำลังดำเนินการ
 
 ## ติดตั้ง / verify / rollback
 
