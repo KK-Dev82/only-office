@@ -1,10 +1,13 @@
 # Pilcrow Color — Explanation
 
-> ## ⛔ STATUS 2026-06-09: Builder approach DISABLED (ดู [#2026-06-09](#2026-06-09-builder-approach-พบว่าทำข้อความเป็นน้ำเงิน--ปิดการใช้งาน))
-> วิธี Builder API (`SetColor` บน paragraph mark) **ทำให้ข้อความที่พิมพ์กลายเป็นสีน้ำเงิน #0070C0**
-> (paragraph-mark formatting inheritance) — กระทบเอกสารราชการ จึง **ปิดด้วย early-exit ใน
-> `inject-pilcrow-color.sh`** กำลังย้ายไปทาง **engine patch (`sdk-all.js`)** ซึ่งเป็น display-only แท้
-> เนื้อหาด้านล่างเก็บไว้เป็น reference ของวิธี builder (ยังไม่ใช้)
+> ## STATUS 2026-06-09: ใช้ Builder API ต่อ (ยอมรับ tradeoff)
+> ลองครบ 3 ทางแล้ว — display-only แท้ **ทำไม่ได้บน OnlyOffice 9.2.1 ตัวสำเร็จรูป**
+> (monkey-patch: คลาสไม่ถูก export / engine sed-patch: ไม่มี anchor เพราะ minify ย่อหมด)
+> ทีมจึง **ใช้ Builder API ต่อ** ทั้งที่มี side effect ที่ยืนยันแล้ว:
+> **ข้อความที่พิมพ์ในย่อหน้าว่าง/ใหม่ จะกลายเป็นสีน้ำเงิน #0070C0** (paragraph-mark inheritance)
+> - ทีม **จะแจ้ง tradeoff นี้กับ end-user เอง**
+> - แผนถัดไป: **เปิดเรื่องขอฟีเจอร์ display-only กับ OnlyOffice**
+> - ทางออก display-only แท้ที่เหลือทางเดียว = build sdkjs จาก source เอง (หนัก/ maintain สูง — ยังไม่ทำ)
 
 อธิบาย **ทำไมต้อง** เปลี่ยนสีสัญลักษณ์ ¶ (pilcrow / paragraph mark — ตำแหน่งกด Enter) + **กลไกที่ใช้ได้จริงบน OnlyOffice 9.2.x** + **ข้อจำกัด/ความเสี่ยง**
 

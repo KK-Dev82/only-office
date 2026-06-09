@@ -27,16 +27,12 @@
 set -uo pipefail
 
 # ============================================================================
-# ⛔ DISABLED 2026-06-09 — builder approach ทำให้ "ข้อความที่พิมพ์กลายเป็นน้ำเงิน"
+# ⚠️ KNOWN TRADEOFF (re-enabled 2026-06-09 ตามการตัดสินใจของทีม)
 # ============================================================================
-# tpr.SetColor() บน paragraph mark = แก้ run-properties ของ ¶ ซึ่ง "ข้อความใหม่
-# ที่พิมพ์ในย่อหน้านั้นสืบทอดสีมาด้วย" (paragraph-mark formatting inheritance)
-# -> ข้อความราชการกลายเป็นสี #0070C0 โดยไม่ตั้งใจ (ยืนยันแล้ว)
-# วิธี builder จึงใช้ไม่ได้ สำหรับ display-only ต้องไปทาง engine patch (sdk-all.js)
-# คงสคริปต์ + docs ไว้เป็น reference — แต่ปิดการทำงานทุก caller ด้วย exit ด้านล่าง
-# ดู docs/PILCROW_COLOR.md
-echo "[KK] pilcrow-color: DISABLED (builder approach tints typed text) — skip"
-exit 0
+# builder SetColor บน paragraph mark ทำให้ "ข้อความที่พิมพ์ในย่อหน้าว่าง/ย่อหน้าใหม่
+# สืบทอดสีน้ำเงิน #0070C0 มาด้วย" (paragraph-mark formatting inheritance) — เลี่ยงไม่ได้
+# ทีมยอมรับ tradeoff นี้ + จะแจ้ง end-user เอง + เปิดเรื่องขอฟีเจอร์ display-only กับ OnlyOffice
+# ดูรายละเอียด/ทางเลือกที่ลองแล้ว ใน docs/PILCROW_COLOR.md
 # ============================================================================
 
 DS_ROOT="${DS_ROOT:-/var/www/onlyoffice/documentserver}"
