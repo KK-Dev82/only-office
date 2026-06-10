@@ -296,6 +296,28 @@
       state.lastMatches = [];
 
       window.Asc.plugin.executeMethod("InputText", [insertWord, token]);
+
+      // Return keyboard focus to the editor after picking from the balloon, so the caret
+      // stays active and the user can keep typing — same approach the panel plugins use.
+      // The editor's keyboard input element (#area_id) lives in the editor frame, which is
+      // a parent of this plugin iframe (same origin). Done synchronously inside the click.
+      try {
+        var aw = window;
+        for (var fi = 0; fi < 8; fi++) {
+          var adoc = null;
+          try { adoc = aw.document; } catch (eD) { break; }
+          var ael = null;
+          try { ael = adoc.getElementById("area_id"); } catch (eG) {}
+          if (ael && typeof ael.focus === "function") {
+            try { if (aw.focus) aw.focus(); } catch (eW) {}
+            try { ael.focus({ preventScroll: true }); } catch (eF1) { try { ael.focus(); } catch (eF2) {} }
+            break;
+          }
+          if (!aw.parent || aw.parent === aw) break;
+          aw = aw.parent;
+        }
+      } catch (eFocus) {}
+      try { window.Asc.plugin.executeMethod("FocusEditor", []); } catch (eMfocus) {}
     } catch (e) {
       console.warn(LOG, "onSelectItem error:", e);
     }

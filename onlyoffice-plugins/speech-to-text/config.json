@@ -1,12 +1,12 @@
 {
   "name": "Speech To Text",
   "guid": "asc.{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "baseUrl": "",
   "variations": [
     {
-      "description": "Speech To Text (v0.3.5)",
-      "url": "index.html?v=0.3.5",
+      "description": "Speech To Text (v0.3.6)",
+      "url": "index.html?v=0.3.6",
       "isViewer": false,
       "isActivated": true,
       "EditorsSupport": ["word"],

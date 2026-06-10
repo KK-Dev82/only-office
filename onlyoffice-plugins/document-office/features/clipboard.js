@@ -124,7 +124,13 @@
         (function (textToCopy, itemId) {
           return function (ev) {
             try {
+              // Skip the row-copy when an action button was clicked. Match the button even
+              // when the click lands on its child <svg>/<path> icon (ev.target would be the
+              // icon, not the <button>). Otherwise the Insert button would also run
+              // navigator.clipboard.writeText(), which steals focus and breaks the caret
+              // return we set up after inserting.
               var target = ev && ev.target ? ev.target : null;
+              if (target && typeof target.closest === "function" && target.closest("button")) return;
               var tag = target && target.tagName ? String(target.tagName).toLowerCase() : "";
               if (tag === "button") return;
             } catch (e0) {}

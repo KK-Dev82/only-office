@@ -4,6 +4,51 @@
 
   DO.editor = DO.editor || {};
 
+  // Called right after inserting from a Panel. Two jobs:
+  //  1) Synchronously blur the panel control that was just clicked (the "Insert" button).
+  //     The Insert action is a real <button>, so after a mouse click it keeps keyboard
+  //     focus — then pressing SPACE/ENTER re-activates it and inserts the word again.
+  //     Blurring it kills that "insert repeats on space" bug immediately, with no
+  //     dependency on any async editor callback.
+  //  2) Ask the editor to take keyboard focus so the caret (already placed right after
+  //     the inserted text by PasteText) is active and the user can keep typing.
+  //     "FocusEditor" is the real OnlyOffice method (calls g_inputContext.HtmlArea.focus);
+  //     the old "SetFocusToEditor" name does not exist and silently did nothing.
+  //     Deferred so it runs after PasteText has finished (plugin message channel free).
+  DO.editor.focusEditor = function () {
+    // 1) Blur the clicked panel control so SPACE/ENTER doesn't re-fire it (no repeat insert).
+    try {
+      var ae = document.activeElement;
+      if (ae && ae !== document.body && typeof ae.blur === "function") ae.blur();
+    } catch (eB) {}
+    // 2) Return keyboard focus to the editor's input element (#area_id) in the editor frame.
+    //    Must be SYNCHRONOUS inside the click (user-activation) — executeMethod("FocusEditor")
+    //    goes over postMessage, loses the activation, and does not move focus across the
+    //    iframe boundary. All frames are same-origin so we can reach #area_id directly.
+    //    (#area_id is OnlyOffice's hidden keyboard <textarea>; the visible editor is a canvas.)
+    try {
+      var win = window;
+      for (var i = 0; i < 8; i++) {
+        var edoc = null;
+        try { edoc = win.document; } catch (eDoc) { break; }
+        var el = null;
+        try { el = edoc.getElementById("area_id"); } catch (eGet) {}
+        if (el && typeof el.focus === "function") {
+          try { if (win.focus) win.focus(); } catch (eWf) {}
+          try { el.focus({ preventScroll: true }); } catch (eFc) { try { el.focus(); } catch (eFc2) {} }
+          break;
+        }
+        if (!win.parent || win.parent === win) break;
+        win = win.parent;
+      }
+    } catch (eDom) {}
+    try {
+      if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+        window.Asc.plugin.executeMethod("FocusEditor", []);
+      }
+    } catch (eM) {}
+  };
+
   function exec(name, params, cb) {
     try {
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
@@ -133,6 +178,7 @@
           false,
           true
         );
+        DO.editor.focusEditor();
         try {
           DO.debugLog("insert_ok", { via: "callCommand", len: t.length });
         } catch (e0) {}
@@ -145,16 +191,15 @@
       }
     }
 
-    // Best-effort focus (helps in some builds)
-    try {
-      exec("SetFocusToEditor", []);
-    } catch (e3) {}
-
     // IMPORTANT: Do not call multiple insert methods in a row (will duplicate text).
     // Prefer PasteText; fallback to callCommand if executeMethod is not available.
+    // Focus is returned to the editor from PasteText's completion callback, so the
+    // plugin message channel is free (avoids the "previous method not finished" drop)
+    // and the caret lands right after the inserted text.
     if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
       try {
         exec("PasteText", [t]);
+        DO.editor.focusEditor();
         try {
           DO.debugLog("insert_ok", { via: "PasteText", len: t.length });
         } catch (e4) {}
@@ -174,6 +219,7 @@
       if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
         // Try InsertText method as last resort
         exec("InsertText", [t]);
+        DO.editor.focusEditor();
         try {
           DO.debugLog("insert_ok", { via: "InsertText", len: t.length });
         } catch (e8) {}

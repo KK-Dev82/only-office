@@ -3,6 +3,42 @@
   var ITB = (window.ITB = window.ITB || {});
   ITB.editor = ITB.editor || {};
 
+  // Return keyboard focus to the editor after an insert so the caret stays in the
+  // document. Blur any focused control first (defensive), then ask the editor to focus.
+  // "FocusEditor" is the real OnlyOffice method (g_inputContext.HtmlArea.focus); the old
+  // "SetFocusToEditor" name does not exist and silently did nothing. Deferred so it runs
+  // after the insert has finished (plugin message channel free).
+  ITB.editor.focusEditor = function () {
+    try {
+      var ae = document.activeElement;
+      if (ae && ae !== document.body && typeof ae.blur === "function") ae.blur();
+    } catch (eB) {}
+    // Synchronously focus the editor input element (#area_id) via same-origin DOM, inside
+    // the user-activation. The async executeMethod("FocusEditor") does not cross the iframe.
+    try {
+      var win = window;
+      for (var i = 0; i < 8; i++) {
+        var edoc = null;
+        try { edoc = win.document; } catch (eDoc) { edoc = null; }
+        if (edoc) {
+          var el = edoc.getElementById("area_id");
+          if (el && typeof el.focus === "function") {
+            try { if (win.focus) win.focus(); } catch (eWf) {}
+            try { el.focus({ preventScroll: true }); } catch (eFc) { try { el.focus(); } catch (eFc2) {} }
+            break;
+          }
+        }
+        if (!win.parent || win.parent === win) break;
+        win = win.parent;
+      }
+    } catch (eDom) {}
+    try {
+      if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+        window.Asc.plugin.executeMethod("FocusEditor", []);
+      }
+    } catch (eM) {}
+  };
+
   function exec(name, params, cb) {
     try {
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
@@ -192,19 +228,17 @@
           false,
           true
         );
+        ITB.editor.focusEditor();
         return true;
       } catch (e1) {
         return false;
       }
     }
 
-    try {
-      exec("SetFocusToEditor", []);
-    } catch (e3) {}
-
     if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
       try {
         exec("PasteText", [t]);
+        ITB.editor.focusEditor();
         return;
       } catch (e5) {}
     }
@@ -212,6 +246,7 @@
     try {
       if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
         exec("InsertText", [t]);
+        ITB.editor.focusEditor();
       }
     } catch (e9) {}
   };

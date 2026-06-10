@@ -4,6 +4,57 @@
 
   DO.editor = DO.editor || {};
 
+  // Called right after inserting from a Panel. Two jobs:
+  //  1) Synchronously blur the panel control that was just clicked (the "Insert" button).
+  //     The Insert action is a real <button>, so after a mouse click it keeps keyboard
+  //     focus — then pressing SPACE/ENTER re-activates it and inserts the word again.
+  //     Blurring it kills that "insert repeats on space" bug immediately, with no
+  //     dependency on any async editor callback.
+  //  2) Ask the editor to take keyboard focus so the caret (already placed right after
+  //     the inserted text by PasteText) is active and the user can keep typing.
+  //     "FocusEditor" is the real OnlyOffice method (calls g_inputContext.HtmlArea.focus);
+  //     the old "SetFocusToEditor" name does not exist and silently did nothing.
+  //     Deferred so it runs after PasteText has finished (plugin message channel free).
+  DO.editor.focusEditor = function () {
+    try {
+      var ae = document.activeElement;
+      if (ae && ae !== document.body && typeof ae.blur === "function") ae.blur();
+    } catch (eB) {}
+    // Synchronously move keyboard focus to the editor's input surface. This MUST run
+    // inside the click's user-activation, so reach the editor frame via same-origin DOM
+    // and focus it directly. The async executeMethod("FocusEditor") loses the activation
+    // across postMessage and does NOT move focus across the iframe boundary in this build.
+    // The editor's keyboard input element has id "area_id"; it lives in the editor frame,
+    // which is a parent of this plugin iframe (all served from the same origin).
+    try {
+      var win = window;
+      for (var i = 0; i < 8; i++) {
+        var edoc = null;
+        try { edoc = win.document; } catch (eDoc) { edoc = null; }
+        if (edoc) {
+          var el = edoc.getElementById("area_id");
+          if (el && typeof el.focus === "function") {
+            // Switch the browser's focused FRAME to the editor frame first (window.focus),
+            // THEN focus the input element inside it. Focusing only the element makes it
+            // the editor document's activeElement but does not move frame-focus out of
+            // this plugin iframe, so keystrokes never reach the editor.
+            try { if (win.focus) win.focus(); } catch (eWf) {}
+            try { el.focus({ preventScroll: true }); } catch (eFc) { try { el.focus(); } catch (eFc2) {} }
+            break;
+          }
+        }
+        if (!win.parent || win.parent === win) break;
+        win = win.parent;
+      }
+    } catch (eDom) {}
+    // Best-effort fallback for builds where #area_id is unavailable.
+    try {
+      if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+        window.Asc.plugin.executeMethod("FocusEditor", []);
+      }
+    } catch (eM) {}
+  };
+
   function exec(name, params, cb) {
     try {
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {
@@ -133,6 +184,7 @@
           false,
           true
         );
+        DO.editor.focusEditor();
         try {
           DO.debugLog("insert_ok", { via: "callCommand", len: t.length });
         } catch (e0) {}
@@ -145,16 +197,15 @@
       }
     }
 
-    // Best-effort focus (helps in some builds)
-    try {
-      exec("SetFocusToEditor", []);
-    } catch (e3) {}
-
     // IMPORTANT: Do not call multiple insert methods in a row (will duplicate text).
     // Prefer PasteText; fallback to callCommand if executeMethod is not available.
+    // Focus is returned to the editor from PasteText's completion callback, so the
+    // plugin message channel is free (avoids the "previous method not finished" drop)
+    // and the caret lands right after the inserted text.
     if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
       try {
         exec("PasteText", [t]);
+        DO.editor.focusEditor();
         try {
           DO.debugLog("insert_ok", { via: "PasteText", len: t.length });
         } catch (e4) {}
@@ -174,6 +225,7 @@
       if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
         // Try InsertText method as last resort
         exec("InsertText", [t]);
+        DO.editor.focusEditor();
         try {
           DO.debugLog("insert_ok", { via: "InsertText", len: t.length });
         } catch (e8) {}
@@ -408,6 +460,7 @@
           try {
             DO.debugLog("replace_range_done", result || {});
           } catch (e0) {}
+          DO.editor.focusEditor();
           try { cb && cb(result); } catch (e1) {}
         }
       );
@@ -609,6 +662,7 @@
           try {
             DO.debugLog("replace_token_done", result || {});
           } catch (e0) {}
+          DO.editor.focusEditor();
           try {
             if (typeof cb === "function") cb(result || {});
           } catch (eCb) {}
