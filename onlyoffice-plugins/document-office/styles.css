@@ -435,6 +435,32 @@ html, body {
   text-overflow: clip;
 }
 
+/* Clipboard items: ข้อความกินเต็มความกว้าง (wrap ครบทุกคำ),
+   ย้ายปุ่ม icon ลงไว้แถวล่างและย่อให้เล็กลง เพื่อเปิดพื้นที่ให้ข้อความ.
+   Scope เฉพาะ .doClipItem — ไม่กระทบ dictionary/abbreviation/redundant/macros */
+.doClipItem .doItemRow {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.doClipItem .doItemText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.45;
+}
+.doClipItem .doItemActions {
+  justify-content: flex-end;
+}
+.doClipItem .doIconBtn {
+  padding: 3px 6px;
+}
+.doClipItem .doIconBtn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .doItemTitleLine {
   display: flex;
   align-items: center;

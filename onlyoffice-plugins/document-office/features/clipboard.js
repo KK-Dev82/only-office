@@ -102,7 +102,7 @@
       }
 
       var div = document.createElement("div");
-      div.className = "doItem";
+      div.className = "doItem doClipItem";
       try {
         div.style.cursor = "copy";
         div.title = "คลิกเพื่อคัดลอก (Ctrl+C)";
