@@ -4,7 +4,7 @@
   window.DO = window.DO || {};
 
   // Sync version with config/index + host cache-busting
-  window.DO.VERSION = "0.1.25";
+  window.DO.VERSION = "0.1.27";
 
   // Toggle verbose logs (set true temporarily to diagnose white screen)
   window.DO.DEBUG = true;

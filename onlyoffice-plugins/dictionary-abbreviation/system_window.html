@@ -7,13 +7,16 @@
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.js"></script>
     <script type="text/javascript" src="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins-ui.js"></script>
     <link rel="stylesheet" href="https://onlyoffice.github.io/sdkjs-plugins/v1/plugins.css" />
-    <link rel="stylesheet" href="core/styles.css?v=0.1.77" />
+    <link rel="stylesheet" href="core/styles.css?v=0.1.78" />
     <style>
       /* System window: allow scrolling for large lists */
       .doMain { overflow: auto !important; }
       #sysWinList {
-        overflow: auto;
-        max-height: calc(100vh - 210px);
+        overflow-y: auto;
+        /* non-modal window: 100vh may resolve to the whole editor (not the
+           window), making the old calc() too tall to ever scroll. Cap with a
+           fixed ceiling so the list stays scrollable when items are many. */
+        max-height: min(440px, calc(100vh - 200px));
         padding-right: 2px; /* avoid scrollbar overlap on content */
       }
       /* Let long text wrap in list items (dictionary desc can be long) */
@@ -25,12 +28,12 @@
       }
     </style>
 
-    <script type="text/javascript" src="core/ns.js?v=0.1.77"></script>
-    <script type="text/javascript" src="core/util.js?v=0.1.77"></script>
-    <script type="text/javascript" src="core/storage.js?v=0.1.77"></script>
-    <script type="text/javascript" src="core/editor.js?v=0.1.77"></script>
-    <script type="text/javascript" src="core/system_window.js?v=0.1.77"></script>
-    <script type="text/javascript" src="system_window_bootstrap.js?v=0.1.77"></script>
+    <script type="text/javascript" src="core/ns.js?v=0.1.78"></script>
+    <script type="text/javascript" src="core/util.js?v=0.1.78"></script>
+    <script type="text/javascript" src="core/storage.js?v=0.1.78"></script>
+    <script type="text/javascript" src="core/editor.js?v=0.1.78"></script>
+    <script type="text/javascript" src="core/system_window.js?v=0.1.78"></script>
+    <script type="text/javascript" src="system_window_bootstrap.js?v=0.1.78"></script>
   </head>
   <body>
     <div class="doRoot">

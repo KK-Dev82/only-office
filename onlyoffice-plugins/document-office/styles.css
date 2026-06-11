@@ -2,6 +2,7 @@
 html, body {
   margin: 0;
   padding: 0;
+  height: 100%;
   background: #ffffff;
 }
 
@@ -27,6 +28,11 @@ html, body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   padding: 10px;
   color: #1f2937;
+  /* Panel fills the iframe and scrolls internally when items overflow
+     (without this the panelRight content is clipped and can't be scrolled). */
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .doSimpleHeader {
