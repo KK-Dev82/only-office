@@ -28,6 +28,20 @@
     debugOpen: OLD_PREFIX + "debugOpen",
   };
 
+  // แยกคำ "Local" (user เพิ่มเอง) ออกจากคำ "Global/Personal" (มาจาก Backend)
+  // คำจาก DB จะมี marker อย่างใดอย่างหนึ่ง: source==="DB" / id ขึ้นต้น "db:" / scope เป็น DB|Global|Personal
+  // คำ user เพิ่มเองมี scope==="Local" (ดู abbreviation.js addFromUi)
+  // ใช้กันคำจาก DB ค้างใน localStorage ข้ามรอบ (stale) — Global จะถูกดึงสดจาก Backend ทุกครั้งแทน
+  function isLocalEntry(a) {
+    if (!a || typeof a !== "object") return false;
+    if (String(a.source || "") === "DB") return false;
+    if (String(a.id || "").indexOf("db:") === 0) return false;
+    var scp = String(a.scope || "");
+    if (scp === "DB" || scp === "Global" || scp === "Personal") return false;
+    return true;
+  }
+  DO.isLocalEntry = isLocalEntry;
+
   function safeJsonParse(text, fallback) {
     try {
       return JSON.parse(text);
@@ -107,11 +121,12 @@
     try {
       var abbr = DO.storageLoad(DO.STORAGE_KEYS.abbreviations, null);
       if (abbr == null) abbr = DO.storageLoad(OLD_KEYS.abbreviations, []);
-      DO.store.abbreviations = Array.isArray(abbr) ? abbr : [];
+      // โหลดเฉพาะคำ Local — ทิ้งคำ Global/DB (จะถูกดึงสดจาก Backend โดย remote_sync แทน)
+      DO.store.abbreviations = (Array.isArray(abbr) ? abbr : []).filter(isLocalEntry);
 
       var dict = DO.storageLoad(DO.STORAGE_KEYS.dictionary, null);
       if (dict == null) dict = DO.storageLoad(OLD_KEYS.dictionary, []);
-      DO.store.dictionary = Array.isArray(dict) ? dict : [];
+      DO.store.dictionary = (Array.isArray(dict) ? dict : []).filter(isLocalEntry);
 
       DO.store.clipboard = [];
       DO.store.macros = [];

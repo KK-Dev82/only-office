@@ -15,6 +15,18 @@
   var KEY_API_BASE_URL = STORAGE_PREFIX + "apiBaseUrl";
   var KEY_ACCESS_TOKEN = STORAGE_PREFIX + "accessToken";
 
+  // เก็บเฉพาะคำ "Local" (user เพิ่มเอง) — ทิ้งคำ Global/DB เก่าก่อน merge ของใหม่จาก Backend
+  // กัน stale: คำที่ถูกลบใน DB จะไม่ค้างใน localStorage ข้ามรอบ
+  // (marker เดียวกับ dictionary-abbreviation/core/storage.js: source==="DB" / id "db:" / scope DB|Global|Personal)
+  function isLocalEntry(a) {
+    if (!a || typeof a !== "object") return false;
+    if (String(a.source || "") === "DB") return false;
+    if (String(a.id || "").indexOf("db:") === 0) return false;
+    var scp = String(a.scope || "");
+    if (scp === "DB" || scp === "Global" || scp === "Personal") return false;
+    return true;
+  }
+
   var state = {
     inited: false,
     lastSyncAt: 0,
@@ -186,7 +198,8 @@
             scope: "DB",
           });
         }
-        var merged = mergeDictionary(readStorage(KEY_DICTIONARY), mapped);
+        var existingLocal = readStorage(KEY_DICTIONARY).filter(isLocalEntry);
+        var merged = mergeDictionary(existingLocal, mapped);
         writeStorage(KEY_DICTIONARY, merged);
         try { console.info("[da-sync] dictionary synced:", mapped.length, "items"); } catch (e0) {}
         return mapped.length;
@@ -219,7 +232,8 @@
             source: "DB",
           });
         }
-        var merged = mergeAbbreviations(readStorage(KEY_ABBREVIATIONS), mapped);
+        var existingLocal = readStorage(KEY_ABBREVIATIONS).filter(isLocalEntry);
+        var merged = mergeAbbreviations(existingLocal, mapped);
         writeStorage(KEY_ABBREVIATIONS, merged);
         try { console.info("[da-sync] abbreviations synced:", mapped.length, "items"); } catch (e0) {}
         return mapped.length;

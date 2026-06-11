@@ -201,7 +201,7 @@ if [ -d "$PLUGINS_DST" ] && [ "$PLUGINS_DST" = "/var/www/onlyoffice/documentserv
         [ -e "$item" ] || continue
         case "$(basename "$item")" in
             # Custom plugins ของเรา — เก็บไว้
-            document-office|dictionary-abbreviation|speech-to-text|spellcheck-then-v2|thai-autocomplete|thai-nbsp-space|insert-text-bridge)
+            document-office|dictionary-abbreviation|dictionary-abbreviation-sync|speech-to-text|spellcheck-then-v2|thai-autocomplete|thai-nbsp-space|insert-text-bridge)
                 ;;
             # System files ของ DS — เก็บไว้ (ห้ามลบ ไม่งั้น DS โหลด plugin menu ไม่ได้)
             pluginBase.js|pluginBase.js.gz|plugin-list-default.json|plugin-list-default.json.gz|plugins.css|plugins.css.gz)
@@ -226,12 +226,12 @@ if [ -d "/opt/kk-plugins-src" ]; then
         cp -R "$p" "$PLUGINS_DST/" || { kk_warn "cp $name failed"; }
         echo "[KK] Copied $name"
     done
-    for p in document-office dictionary-abbreviation speech-to-text spellcheck-then-v2 thai-autocomplete thai-nbsp-space insert-text-bridge; do
+    for p in document-office dictionary-abbreviation dictionary-abbreviation-sync speech-to-text spellcheck-then-v2 thai-autocomplete thai-nbsp-space insert-text-bridge; do
         [ -d "$PLUGINS_DST/$p" ] && chown -R ds:ds "$PLUGINS_DST/$p" 2>/dev/null || true
         [ -d "$PLUGINS_DST/$p" ] && chmod -R a+rX "$PLUGINS_DST/$p" 2>/dev/null || true
     done
     echo "[KK] checking plugins..."
-    for plugin in document-office dictionary-abbreviation speech-to-text spellcheck-then-v2 thai-autocomplete thai-nbsp-space insert-text-bridge; do
+    for plugin in document-office dictionary-abbreviation dictionary-abbreviation-sync speech-to-text spellcheck-then-v2 thai-autocomplete thai-nbsp-space insert-text-bridge; do
         if [ -d "$PLUGINS_DST/$plugin" ] && [ -f "$PLUGINS_DST/$plugin/config.json" ]; then
             echo "[KK]   ✅ $plugin"
         else

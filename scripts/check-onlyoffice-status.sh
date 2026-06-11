@@ -93,7 +93,7 @@ echo "----------------------------------------"
 PLUGINS_DIR="/var/www/onlyoffice/documentserver/sdkjs-plugins"
 
 # ตรวจสอบ Custom Plugins (ชื่อ directory)
-EXPECTED_PLUGINS=("document-office" "dictionary-abbreviation" "speech-to-text" "spellcheck-then-v2" "thai-autocomplete" "insert-text-bridge")
+EXPECTED_PLUGINS=("document-office" "dictionary-abbreviation" "dictionary-abbreviation-sync" "speech-to-text" "spellcheck-then-v2" "thai-autocomplete" "insert-text-bridge")
 
 echo "🔍 Custom Plugins (by name):"
 FOUND_COUNT=0

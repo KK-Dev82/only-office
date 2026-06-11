@@ -7,6 +7,18 @@
   var DO = (window.DO = window.DO || {});
   DO.remoteSync = DO.remoteSync || {};
 
+  // เก็บเฉพาะคำ Local (user เพิ่มเอง) — กันคำ Global/DB เก่าค้างใน store แล้วถูก persist ซ้ำ (stale)
+  // ใช้ DO.isLocalEntry จาก storage.js ถ้ามี ไม่งั้น fallback ตรรกะเดียวกัน
+  function isLocalEntry(a) {
+    if (typeof DO.isLocalEntry === "function") return DO.isLocalEntry(a);
+    if (!a || typeof a !== "object") return false;
+    if (String(a.source || "") === "DB") return false;
+    if (String(a.id || "").indexOf("db:") === 0) return false;
+    var scp = String(a.scope || "");
+    if (scp === "DB" || scp === "Global" || scp === "Personal") return false;
+    return true;
+  }
+
   function baseUrl() {
     try {
       var b = (DO.pluginOptions && DO.pluginOptions.apiBaseUrl) ? String(DO.pluginOptions.apiBaseUrl) : "";
@@ -95,7 +107,7 @@
 
   function mergeDictionary(dbItems) {
     ensureStore();
-    var local = DO.store.dictionary || [];
+    var local = (DO.store.dictionary || []).filter(isLocalEntry);
     // Merge: DB items first (have englishWord/description), then local.
     // If both have same word, DB version wins (has richer data from API).
     var seen = {};
@@ -121,7 +133,7 @@
 
   function mergeAbbreviations(dbItems) {
     ensureStore();
-    var local = DO.store.abbreviations || [];
+    var local = (DO.store.abbreviations || []).filter(isLocalEntry);
     // Dedup by shortForm|fullForm
     var seen = {};
     var out = [];
