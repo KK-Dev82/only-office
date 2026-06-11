@@ -9,7 +9,7 @@
  */
 (function (window) {
   var STORAGE_KEY_IGNORED = "spellcheck-then-v2:ignoredWords";
-  var VERSION = "0.1.7";
+  var VERSION = "0.4.0";
 
   var BACKEND_ADD_WORDS_PATH = "api/word-management/spellcheck/add-words";
 
@@ -30,11 +30,23 @@
   // ใช้ใน pre-scan ก่อน FMM tokenize — flag เป็น MISS พร้อม suggest = replaceWord
   var WORD_CORRECTION_PATH = "api/word-management/entries?type=WordCorrection&includeGlobal=true";
 
+  // คำแนะนำใช้ "ระยะถ่วงน้ำหนักแบบไทย" (weightedThaiDistance) เป็นตัวจัดอันดับ:
+  //   - เก็บ candidate จาก Levenshtein ดิบ ≤ FUZZY_MAX_DISTANCE (ตาข่ายกว้าง)
+  //   - กรองเหลือเฉพาะ weighted ≤ FUZZY_MAX_WEIGHTED_DISTANCE (ตัด noise พยัญชนะ)
+  //   เหตุผล: typo ไทยส่วนใหญ่คือ "ตก/เกินวรรณยุกต์-สระ" → คำที่ถูกมักยาวกว่า typo
+  //   Levenshtein ดิบ + เรียงคำสั้นก่อน จะดันคำที่ถูกตกท้าย เช่น พืน→ควรแนะ "พื้น" แต่หาย
+  //   weighted ให้ เติม/ตกวรรณยุกต์-สระ = ถูก (0.3), สลับพยัญชนะ = แพง (1.0)
   var FUZZY_MAX_DISTANCE = 2;
+  var FUZZY_MAX_WEIGHTED_DISTANCE = 1.0;
   var FUZZY_MAX_SUGGESTIONS = 5;
   var FUZZY_MAX_LENGTH_DIFF = 2;
 
   var MIN_WORD_LENGTH = 2;
+  // ความยาวสูงสุดของ token เดี่ยวที่จะ flag เป็นคำผิด
+  //   token ไทย/อังกฤษคำเดียวที่ยาวเกินนี้ = ตัวตัดคำเพี้ยน (มักรวมหลายคำติดกันเป็นก้อน)
+  //   ข้ามไม่ flag เพื่อกันอาการ "มองทั้งประโยคยาว ๆ เป็นคำผิดก้อนเดียว"
+  //   (ปรับค่าได้ — คำไทยจริงคำเดียวแทบไม่เกิน ~14 ตัวอักษร)
+  var MAX_OOV_TOKEN_LENGTH = 16;
   // ข้ามตัวเลข (ไทย+อาหรับ) รวมเลขที่มี . - : , / เช่น ๐๔.๐๐, 3.14, 12:30
   var SKIP_NUMERIC = /^[\d\u0E50-\u0E59][.\-:,/\d\u0E50-\u0E59]*$/;
   var SKIP_PUNCTUATION = /^[\s\u200B-\u200D\uFEFF]*$/;
@@ -202,15 +214,13 @@
       var chunk = chunks[i];
       if (chunk.type === "thai") {
         if (state.trieThai) {
-          var thaiTokens = trieAPI.forwardMaxMatch(chunk.text, state.trieThai, chunk.start);
-          // Post-process: merge "orphan 1-char" \u0e15\u0e34\u0e14\u0e01\u0e31\u0e1a token \u0e01\u0e48\u0e2d\u0e19\u0e2b\u0e19\u0e49\u0e32 \u2192 MISS chunk
-          //   \u0e40\u0e04\u0e2a "\u0e01\u0e47\u0e0c": FMM \u2192 [\u0e01\u0e47[OK], \u0e0c[MISS-1char]] \u2192 MIN_WORD_LENGTH=2 filter \u0e0c \u0e17\u0e34\u0e49\u0e07
-          //   \u0e17\u0e32\u0e07\u0e41\u0e01\u0e49: merge \u0e0c \u0e40\u0e02\u0e49\u0e32\u0e01\u0e31\u0e1a \u0e01\u0e47 \u2192 \u0e01\u0e47\u0e0c[MISS] \u0e40\u0e1e\u0e23\u0e32\u0e30 \u0e01\u0e47\u0e0c \u0e44\u0e21\u0e48\u0e43\u0e19 dict
-          //   \u0e2b\u0e25\u0e35\u0e01\u0e40\u0e25\u0e35\u0e48\u0e22\u0e07 false positive: merge \u0e40\u0e09\u0e1e\u0e32\u0e30 token \u0e17\u0e35\u0e48 "\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19" (start == prev.end) \u2014 \u0e43\u0e19 chunk \u0e40\u0e14\u0e35\u0e22\u0e27\u0e01\u0e31\u0e19
-          var merged = mergeOrphanOneChar(thaiTokens, trieAPI, state.trieThai);
-          for (var j = 0; j < merged.length; j++) {
-            merged[j].lang = "th";
-            out.push(merged[j]);
+          // DP Maximum Matching \u2014 \u0e15\u0e31\u0e14\u0e04\u0e33\u0e17\u0e31\u0e49\u0e07 chunk \u0e1e\u0e23\u0e49\u0e2d\u0e21\u0e01\u0e31\u0e19 (\u0e41\u0e17\u0e19 FMM \u0e07\u0e31\u0e1a\u0e0b\u0e49\u0e32\u0e22)
+          //   \u0e41\u0e01\u0e49\u0e1b\u0e31\u0e0d\u0e2b\u0e32 FMM \u0e07\u0e31\u0e1a\u0e04\u0e33\u0e02\u0e22\u0e30 \u0e40\u0e0a\u0e48\u0e19 "\u0e2d\u0e19\u0e38\u0e01\u0e23" \u0e01\u0e48\u0e2d\u0e19 \u0e17\u0e33\u0e43\u0e2b\u0e49 "\u0e2d\u0e19\u0e38\u0e01\u0e23\u0e23\u0e21\u0e32\u0e18\u0e34\u0e01\u0e32\u0e23" \u0e40\u0e1e\u0e35\u0e49\u0e22\u0e19
+          //   DP \u0e08\u0e31\u0e14\u0e01\u0e25\u0e38\u0e48\u0e21\u0e15\u0e31\u0e27\u0e2d\u0e31\u0e01\u0e29\u0e23 unknown \u0e17\u0e35\u0e48\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19\u0e43\u0e2b\u0e49\u0e41\u0e25\u0e49\u0e27 \u0e44\u0e21\u0e48\u0e15\u0e49\u0e2d\u0e07 mergeOrphanOneChar
+          var thaiTokens = trieAPI.dpMaxMatch(chunk.text, state.trieThai, chunk.start);
+          for (var j = 0; j < thaiTokens.length; j++) {
+            thaiTokens[j].lang = "th";
+            out.push(thaiTokens[j]);
           }
         } else {
           out.push({
@@ -240,45 +250,6 @@
   }
 
   /**
-   * Merge "orphan 1-char tokens" \u0e40\u0e02\u0e49\u0e32\u0e01\u0e31\u0e1a token \u0e01\u0e48\u0e2d\u0e19\u0e2b\u0e19\u0e49\u0e32\u0e2b\u0e23\u0e37\u0e2d\u0e16\u0e31\u0e14\u0e44\u0e1b
-   * \u0e40\u0e04\u0e2a\u0e17\u0e35\u0e48\u0e40\u0e01\u0e34\u0e14: FMM \u0e15\u0e31\u0e14 "\u0e01\u0e47\u0e0c" \u0e40\u0e1b\u0e47\u0e19 [\u0e01\u0e47(OK), \u0e0c(MISS-1char)] \u0e40\u0e1e\u0e23\u0e32\u0e30 "\u0e01\u0e47" \u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19 dict
-   *             \u0e41\u0e15\u0e48 "\u0e0c" 1-char \u0e16\u0e39\u0e01 MIN_WORD_LENGTH filter \u0e17\u0e34\u0e49\u0e07 \u2192 user \u0e44\u0e21\u0e48\u0e40\u0e2b\u0e47\u0e19 typo
-   * \u0e27\u0e34\u0e18\u0e35\u0e41\u0e01\u0e49: \u0e16\u0e49\u0e32 token \u0e04\u0e27\u0e32\u0e21\u0e22\u0e32\u0e27 1 + "\u0e15\u0e34\u0e14\u0e01\u0e31\u0e1a" token \u0e02\u0e49\u0e32\u0e07 \u0e46 (no space) \u2192 merge \u0e40\u0e1b\u0e47\u0e19 token \u0e43\u0e2b\u0e21\u0e48
-   *         \u0e41\u0e25\u0e49\u0e27\u0e40\u0e0a\u0e47\u0e04 trie \u0e2d\u0e35\u0e01\u0e04\u0e23\u0e31\u0e49\u0e07 \u2014 \u0e16\u0e49\u0e32 merged form \u0e44\u0e21\u0e48\u0e43\u0e19 dict \u2192 MISS
-   *
-   * \u0e40\u0e07\u0e37\u0e48\u0e2d\u0e19\u0e44\u0e02 "\u0e15\u0e34\u0e14\u0e01\u0e31\u0e19": tokens[i].start === tokens[i-1].end (\u0e44\u0e21\u0e48\u0e21\u0e35 gap)
-   */
-  function mergeOrphanOneChar(tokens, trieAPI, trie) {
-    if (!Array.isArray(tokens) || tokens.length < 2) return tokens;
-
-    var result = [];
-    for (var i = 0; i < tokens.length; i++) {
-      var t = tokens[i];
-      var prev = result[result.length - 1];
-
-      // \u0e15\u0e23\u0e27\u0e08\u0e27\u0e48\u0e32 t \u0e40\u0e1b\u0e47\u0e19 "orphan 1-char" \u0e41\u0e25\u0e30\u0e15\u0e34\u0e14\u0e01\u0e31\u0e1a prev
-      var isOrphan = t.word && t.word.length === 1;
-      var adjacent = prev && prev.end === t.start;
-
-      if (isOrphan && adjacent) {
-        // \u0e25\u0e2d\u0e07 merge: prev.word + t.word
-        var mergedWord = prev.word + t.word;
-        var mergedInDict = trieAPI.trieHas(trie, mergedWord);
-        // \u0e41\u0e17\u0e19\u0e17\u0e35\u0e48 prev \u0e14\u0e49\u0e27\u0e22 merged token
-        result[result.length - 1] = {
-          word: mergedWord,
-          start: prev.start,
-          end: t.end,
-          inDict: mergedInDict
-        };
-      } else {
-        result.push(t);
-      }
-    }
-    return result;
-  }
-
-  /**
    * Phase 1 (legacy compat): \u0E04\u0E37\u0E19 unique word list \u0E08\u0E32\u0E01 tokens \u0E17\u0E35\u0E48 inDict=false
    * \u0E40\u0E01\u0E47\u0E1A signature \u0E40\u0E14\u0E34\u0E21\u0E44\u0E27\u0E49\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E43\u0E2B\u0E49 runSpellcheck \u0E17\u0E33\u0E07\u0E32\u0E19\u0E15\u0E48\u0E2D\u0E44\u0E14\u0E49
    */
@@ -292,6 +263,7 @@
     function addWord(w) {
       var ww = String(w || "").trim();
       if (!ww || ww.length < MIN_WORD_LENGTH) return;
+      if (ww.length > MAX_OOV_TOKEN_LENGTH) return; // blob guard: ตัดคำเพี้ยน → ไม่ flag
       if (SKIP_NUMERIC.test(ww) || SKIP_PUNCTUATION.test(ww)) return;
       var k = ww.toLowerCase();
       if (seen[k]) return;
@@ -746,6 +718,40 @@
     return row0[an];
   }
 
+  // วรรณยุกต์ + สระบน/ล่าง (0E30-0E3A, 0E47-0E4E) — เติม/ตกตัวพวกนี้ "ราคาถูก"
+  function isThaiDiacritic(ch) {
+    if (!ch) return false;
+    var c = ch.charCodeAt(0);
+    return (c >= 0x0e30 && c <= 0x0e3a) || (c >= 0x0e47 && c <= 0x0e4e);
+  }
+
+  /**
+   * Weighted edit distance แบบเข้าใจภาษาไทย — ใช้จัดอันดับคำแนะนำ
+   *   - insert/delete วรรณยุกต์-สระ = 0.3 (typo ไทยที่พบบ่อยสุด: ตก/เกินวรรณยุกต์)
+   *   - insert/delete พยัญชนะ = 1.0
+   *   - substitute ตัวต่างกัน = 1.0
+   * ทำให้ "พืน"→"พื้น" (เติม ้ = 0.3) ชนะ "พืน"→"ขืน" (สลับพยัญชนะ = 1.0)
+   */
+  var DIA_COST = 0.3;
+  function weightedThaiDistance(a, b) {
+    a = String(a || ""); b = String(b || "");
+    var m = a.length, n = b.length;
+    var prev = new Array(n + 1), cur = new Array(n + 1);
+    prev[0] = 0;
+    for (var j = 1; j <= n; j++) prev[j] = prev[j - 1] + (isThaiDiacritic(b.charAt(j - 1)) ? DIA_COST : 1);
+    for (var i = 1; i <= m; i++) {
+      cur[0] = prev[0] + (isThaiDiacritic(a.charAt(i - 1)) ? DIA_COST : 1);
+      for (var k = 1; k <= n; k++) {
+        var sub = prev[k - 1] + (a.charAt(i - 1) === b.charAt(k - 1) ? 0 : 1);
+        var del = prev[k] + (isThaiDiacritic(a.charAt(i - 1)) ? DIA_COST : 1);
+        var ins = cur[k - 1] + (isThaiDiacritic(b.charAt(k - 1)) ? DIA_COST : 1);
+        cur[k] = Math.min(sub, del, ins);
+      }
+      var t = prev; prev = cur; cur = t;
+    }
+    return prev[n];
+  }
+
   function fuzzyMatchDictionary(word, dictWords, existingSet, byLength) {
     var w = String(word || "").trim();
     if (!w) return [];
@@ -769,10 +775,13 @@
       var d = String(listToCheck[i] || "").trim();
       if (!d || d === w || existing[d]) continue;
       var dist = levenshtein(w, d);
-      if (dist > FUZZY_MAX_DISTANCE) continue;
-      candidates.push({ word: d, distance: dist });
+      if (dist > FUZZY_MAX_DISTANCE) continue;          // ตาข่ายกว้าง (ดิบ ≤2)
+      var wdist = weightedThaiDistance(w, d);
+      if (wdist > FUZZY_MAX_WEIGHTED_DISTANCE) continue; // กรอง noise (เก็บ ≤1.0)
+      candidates.push({ word: d, wdist: wdist });
     }
-    candidates.sort(function (x, y) { return x.distance - y.distance || x.word.length - y.word.length; });
+    // เรียงตามระยะถ่วงน้ำหนัก (น้อย=ใกล้เคียงที่สุด) แล้วคำสั้นก่อน
+    candidates.sort(function (x, y) { return x.wdist - y.wdist || x.word.length - y.word.length; });
     var out = [];
     for (var j = 0; j < candidates.length && out.length < FUZZY_MAX_SUGGESTIONS; j++) out.push(candidates[j].word);
     return out;
@@ -797,13 +806,14 @@
     var out = [];
     var seen = Object.create(null);
 
+    var addOrder = 0;
     function add(s, source) {
       var clean = String(s || "").trim();
       if (!clean || clean === word) return;
       var lk = clean.toLowerCase();
       if (seen[lk]) return;
       seen[lk] = true;
-      out.push({ word: clean, source: source });
+      out.push({ word: clean, source: source, order: addOrder++ });
     }
 
     // Phase 3A: Variants exact match — typo มี mapping → correct
@@ -844,8 +854,8 @@
       var bScore = bMeta.confidence + bMeta.frequency + bMeta.usage * 0.1;
       if (bScore !== aScore) return bScore - aScore;
 
-      // 3. Shorter word ก่อน (heuristic)
-      return a.word.length - b.word.length;
+      // 3. คงลำดับการเพิ่ม — fuzzy ถูกจัดมาแล้วด้วยระยะถ่วงน้ำหนัก (ห้ามเรียงคำสั้นก่อนซ้ำ)
+      return a.order - b.order;
     });
 
     // Trim to FUZZY_MAX_SUGGESTIONS + return strings only
@@ -1028,6 +1038,7 @@
         if (tok.inDict) continue;
         var w = String(tok.word || "").trim();
         if (!w || w.length < MIN_WORD_LENGTH) continue;
+        if (w.length > MAX_OOV_TOKEN_LENGTH) continue; // blob guard (ให้ตรงกับ phase 1)
         if (SKIP_NUMERIC.test(w) || SKIP_PUNCTUATION.test(w)) continue;
         var k = w.toLowerCase();
         var issue = issueMap[k];
@@ -1059,6 +1070,7 @@
           if (!seg.isWordLike) continue;
           var w = String(seg.segment || "").trim();
           if (!w || w.length < MIN_WORD_LENGTH) continue;
+          if (w.length > MAX_OOV_TOKEN_LENGTH) continue; // blob guard
           if (SKIP_NUMERIC.test(w) || SKIP_PUNCTUATION.test(w)) continue;
           var k = w.toLowerCase();
           var issue = issueMap[k];

@@ -280,6 +280,82 @@
     return bmmScore < fmmScore ? bmm : fmm;
   }
 
+  /**
+   * DP Maximum Matching — ตัดคำทั้งสตริงพร้อมกันด้วย dynamic programming
+   *
+   * ปัญหาของ FMM (งับคำยาวสุดจากซ้าย): ถ้า dict มีคำขยะ เช่น "อนุกร"
+   *   FMM งับ "อนุกร" ก่อน → "อนุกรรมาธิการ" เพี้ยนเป็น อนุกร|รมาธิ|การ
+   * DP มองทั้งสตริง หา segmentation ที่ "ครอบคลุม dict มากสุด (unknown น้อยสุด)
+   *   แล้วจำนวน token น้อยสุด" → ได้ อนุ|กรรมาธิการ โดยไม่ติดกับดัก
+   *
+   * Objective (lexicographic, น้อย=ดี): (1) จำนวนตัวอักษร unknown  (2) จำนวน token
+   *   เข้ารหัสเป็น cost เดียว: unknownChar = BIG+1, word = 1 ต่อ token
+   *
+   * Complexity: O(n × ความยาวคำสูงสุด) — เร็วกว่า bidirectional (O(n³)) มาก
+   *
+   * @returns {Array<{word, start, end, inDict}>} (unknown ติดกัน merge เป็น token เดียว)
+   */
+  function dpMaxMatch(text, trie, baseOffset) {
+    var t = String(text || "");
+    var n = t.length;
+    if (!n || !trie) return [];
+    baseOffset = baseOffset || 0;
+    var BIG = 100000;
+
+    var dp = new Array(n + 1);
+    var back = new Array(n + 1);
+    for (var i = 0; i <= n; i++) { dp[i] = Infinity; back[i] = null; }
+    dp[0] = 0;
+
+    for (var j = 0; j < n; j++) {
+      if (dp[j] === Infinity) continue;
+      // 1) ลองทุกคำใน trie ที่เริ่มต้นที่ตำแหน่ง j
+      var node = trie;
+      for (var k = j; k < n; k++) {
+        node = node[t.charAt(k)];
+        if (!node) break;
+        if (node[END_FLAG] === true) {
+          // boundary: char ถัดไปต้องไม่ใช่ vowel/tone mark (กันตัดกลางพยางค์)
+          var after = k + 1;
+          if (after >= n || !isFollowingMark(t.charAt(after))) {
+            var wc = dp[j] + 1;
+            if (wc < dp[k + 1]) { dp[k + 1] = wc; back[k + 1] = { from: j, word: true }; }
+          }
+        }
+      }
+      // 2) unknown 1 ตัวอักษร (fallback เสมอ — ให้ dp ถึงปลายทางได้แน่นอน)
+      var uc = dp[j] + BIG + 1;
+      if (uc < dp[j + 1]) { dp[j + 1] = uc; back[j + 1] = { from: j, word: false }; }
+    }
+
+    // reconstruct segments จากท้ายไปหน้า
+    var segs = [];
+    for (var p = n; p > 0;) {
+      var b = back[p];
+      segs.unshift({ s: b.from, e: p, word: b.word });
+      p = b.from;
+    }
+
+    // merge ตัวอักษร unknown ที่ติดกัน → token เดียว (เป็นคำผิดก้อนเดียว)
+    var out = [];
+    for (var x = 0; x < segs.length; x++) {
+      var sg = segs[x];
+      var prev = out[out.length - 1];
+      if (!sg.word && prev && !prev.inDict && prev.end === baseOffset + sg.s) {
+        prev.end = baseOffset + sg.e;
+        prev.word = t.substring(prev.start - baseOffset, sg.e);
+      } else {
+        out.push({
+          word: t.substring(sg.s, sg.e),
+          start: baseOffset + sg.s,
+          end: baseOffset + sg.e,
+          inDict: sg.word
+        });
+      }
+    }
+    return out;
+  }
+
   // Export
   window.SpellcheckTrieV2 = {
     buildTrie: buildTrie,
@@ -289,6 +365,7 @@
     forwardMaxMatch: forwardMaxMatch,
     backwardMaxMatch: backwardMaxMatch,
     bidirectionalMaxMatch: bidirectionalMaxMatch,
+    dpMaxMatch: dpMaxMatch,
     scoreTokens: scoreTokens,
     isWordStartChar: isWordStartChar
   };

@@ -1,12 +1,12 @@
 {
   "name": "SpellChecker TH+EN (v2)",
   "guid": "asc.{CDB85659-7EF1-4941-A393-0DEE4391D10D}",
-  "version": "0.1.7",
+  "version": "0.4.0",
   "baseUrl": "",
   "variations": [
     {
       "description": "SpellChecker TH+EN (v2 - Trie FMM tokenizer)",
-      "url": "index.html?v=0.1.7",
+      "url": "index.html?v=0.4.0",
       "type": "panelRight",
       "isViewer": false,
       "isActivated": true,
