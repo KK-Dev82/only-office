@@ -85,6 +85,38 @@
     } catch (e) {}
   }
 
+  // Panel-side relay: the global ShowWindow windows can't insert into the editor
+  // themselves (ShowWindow child frames have no working editor command channel on
+  // this DocumentServer), so they write the text to a shared localStorage key and
+  // the panelRight frame — which inserts reliably — performs the insert here.
+  function attachInsertRelay() {
+    if (DA.state.__insertRelayBound) return;
+    DA.state.__insertRelayBound = true;
+    var KEY = (DA.STORAGE_PREFIX || "") + "insertRelay";
+    try {
+      var cur = localStorage.getItem(KEY);
+      if (cur) { var c = JSON.parse(cur); DA.state.__lastInsertNonce = c && c.nonce; }
+    } catch (e0) {}
+    function process() {
+      try {
+        var raw = localStorage.getItem(KEY);
+        if (!raw) return;
+        var req = JSON.parse(raw);
+        if (!req || !req.text || !req.nonce) return;
+        if (DA.state.__lastInsertNonce === req.nonce) return;
+        DA.state.__lastInsertNonce = req.nonce;
+        if (DA.editor && DA.editor.insertText) DA.editor.insertText(String(req.text));
+        try { DA.debugLog("relay_insert", { len: String(req.text).length }); } catch (e1) {}
+      } catch (e2) {}
+    }
+    try {
+      window.addEventListener("storage", function (e) {
+        if (e && e.key && e.key.indexOf("insertRelay") !== -1) process();
+      });
+    } catch (e3) {}
+    try { setInterval(process, 500); } catch (e4) {}
+  }
+
   function softInitForUiAndLocalData() {
     try {
       // Always bind UI (safe even without bridge)
@@ -266,7 +298,10 @@
                 url: winUrl,
                 description: "System Dictionary",
                 isVisual: true,
-                isModal: true,
+                // non-modal: modal windows block editor commands (Insert ไม่เข้าเอกสาร).
+                // เหมือน speech-to-text — non-modal ให้ insert ส่งถึง editor ได้
+                isModal: false,
+                isInsideMode: false,
                 EditorsSupport: ["word"],
                 size: [900, 680],
                 buttons: [{ text: "Close", primary: false }]
@@ -297,7 +332,10 @@
                 url: winUrl,
                 description: "System Abbreviation",
                 isVisual: true,
-                isModal: true,
+                // non-modal: modal windows block editor commands (Insert ไม่เข้าเอกสาร).
+                // เหมือน speech-to-text — non-modal ให้ insert ส่งถึง editor ได้
+                isModal: false,
+                isInsideMode: false,
                 EditorsSupport: ["word"],
                 size: [900, 680],
                 buttons: [{ text: "Close", primary: false }]
@@ -310,6 +348,9 @@
           });
         }
       } catch (eSys) {}
+
+      // Insert relay from global ShowWindow windows → panel performs the insert
+      try { attachInsertRelay(); } catch (eRelay) {}
 
       // Manual Sync button (DB -> LocalStorage)
       try {

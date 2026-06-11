@@ -172,6 +172,79 @@
     return buildUrl(u2);
   }
 
+  function flashStatus(msg) {
+    try {
+      if (!DO.setStatus) return;
+      DO.setStatus(msg);
+      setTimeout(function () { try { DO.setStatus("ready"); } catch (e0) {} }, 800);
+    } catch (e1) {}
+  }
+
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = String(text || "");
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand && document.execCommand("copy"); } catch (e1) { ok = false; }
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function copyText(text) {
+    var t = String(text || "");
+    if (!t) return;
+    try {
+      if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        navigator.clipboard.writeText(t)
+          .then(function () { flashStatus("copied"); })
+          .catch(function () { flashStatus(fallbackCopy(t) ? "copied" : "copy failed"); });
+        return;
+      }
+    } catch (e0) {}
+    flashStatus(fallbackCopy(t) ? "copied" : "copy failed");
+  }
+
+  // ShowWindow child windows cannot run editor commands on this DocumentServer
+  // (neither callCommand nor PasteText reach the editor, modal or not). So the
+  // window writes the request to a shared localStorage key; the panelRight frame
+  // (which CAN insert) listens for it and performs the insert. See bootstrap.js.
+  function relayInsert(value) {
+    var t = String(value || "").trim();
+    if (!t) return false;
+    try {
+      var key = (DO.STORAGE_PREFIX || "") + "insertRelay";
+      localStorage.setItem(key, JSON.stringify({ text: t, nonce: String(Date.now()) + "_" + Math.random() }));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function makeInsertButton(value) {
+    var b = document.createElement("button");
+    b.textContent = "Insert";
+    b.addEventListener("click", function () {
+      var ok = relayInsert(value);
+      flashStatus(ok ? "inserted" : "insert failed");
+    });
+    return b;
+  }
+
+  function makeCopyButton(value) {
+    var b = document.createElement("button");
+    b.textContent = "Copy";
+    b.addEventListener("click", function () { copyText(value); });
+    return b;
+  }
+
   function renderList(items) {
     var root = $("sysWinList");
     if (!root) return;
@@ -200,26 +273,11 @@
       var actions = document.createElement("div");
       actions.className = "doItemActions";
 
-      var btnInsert = document.createElement("button");
-      btnInsert.textContent = "Insert";
-      btnInsert.addEventListener(
-        "click",
-        (function (data) {
-          return function () {
-            try {
-              if (!DO.editor || !DO.editor.insertText) return;
-              if (state.__sysWin.mode === "abbreviation") {
-                var ff = String(data.fullWord || data.FullWord || data.word || data.Word || "").trim();
-                if (ff) DO.editor.insertText(ff);
-              } else {
-                var ww = String(data.word || data.Word || "").trim();
-                if (ww) DO.editor.insertText(ww);
-              }
-            } catch (e0) {}
-          };
-        })(it)
-      );
-      actions.appendChild(btnInsert);
+      var insVal = (state.__sysWin.mode === "abbreviation")
+        ? String(it.fullWord || it.FullWord || it.word || it.Word || "").trim()
+        : String(it.word || it.Word || "").trim();
+      actions.appendChild(makeInsertButton(insVal));
+      actions.appendChild(makeCopyButton(insVal));
 
       row.appendChild(text);
       row.appendChild(actions);

@@ -49,6 +49,51 @@
     } catch (eM) {}
   };
 
+  // Insert text into the document from a plugin WINDOW (ShowWindow modal).
+  // executeMethod("PasteText") does NOT reach the editor from a modal window on
+  // several DocumentServer builds (the panelRight frame works, the window frame
+  // does not), so the global windows' "Insert" silently did nothing. callCommand
+  // operates on the document model and works from windows, so use it as the
+  // primary path and fall back to PasteText only if callCommand is unavailable.
+  DO.editor.insertFromWindow = function (text) {
+    var t = String(text || "");
+    if (!t) return false;
+    try {
+      if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.callCommand === "function") {
+        window.Asc.scope = window.Asc.scope || {};
+        window.Asc.scope.__do_win_insert = t;
+        window.Asc.plugin.callCommand(
+          function () {
+            try {
+              var s = Asc.scope.__do_win_insert || "";
+              var doc = Api.GetDocument();
+              if (doc && typeof doc.InsertText === "function") { doc.InsertText(s); return; }
+              var p = Api.CreateParagraph();
+              p.AddText(s);
+              doc.InsertContent([p]);
+            } catch (e) {}
+          },
+          false,
+          true
+        );
+        try { DO.debugLog && DO.debugLog("win_insert_ok", { via: "callCommand", len: t.length }); } catch (e0) {}
+        return true;
+      }
+    } catch (e1) {
+      try { DO.debugLog && DO.debugLog("win_insert_callcmd_failed", { error: String(e1) }); } catch (e2) {}
+    }
+    try {
+      if (window.Asc && window.Asc.plugin && typeof window.Asc.plugin.executeMethod === "function") {
+        window.Asc.plugin.executeMethod("PasteText", [t]);
+        try { DO.debugLog && DO.debugLog("win_insert_ok", { via: "PasteText", len: t.length }); } catch (e3) {}
+        return true;
+      }
+    } catch (e4) {
+      try { DO.debugLog && DO.debugLog("win_insert_paste_failed", { error: String(e4) }); } catch (e5) {}
+    }
+    return false;
+  };
+
   function exec(name, params, cb) {
     try {
       if (window.Asc && window.Asc.plugin && window.Asc.plugin.executeMethod) {

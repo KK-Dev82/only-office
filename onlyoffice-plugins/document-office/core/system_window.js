@@ -227,6 +227,79 @@
     return String(m.name || m.Name || "");
   }
 
+  function flashStatus(msg) {
+    try {
+      if (!DO.setStatus) return;
+      DO.setStatus(msg);
+      setTimeout(function () { try { DO.setStatus("ready"); } catch (e0) {} }, 800);
+    } catch (e1) {}
+  }
+
+  function copyText(text) {
+    var t = String(text || "");
+    if (!t) return;
+    try {
+      if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        navigator.clipboard.writeText(t)
+          .then(function () { flashStatus("copied"); })
+          .catch(function () { if (fallbackCopy(t)) flashStatus("copied"); else flashStatus("copy failed"); });
+        return;
+      }
+    } catch (e0) {}
+    flashStatus(fallbackCopy(t) ? "copied" : "copy failed");
+  }
+
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = String(text || "");
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand && document.execCommand("copy"); } catch (e1) { ok = false; }
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ShowWindow child windows cannot run editor commands on this DocumentServer
+  // (neither callCommand nor PasteText reach the editor, modal or not). So the
+  // window writes the request to a shared localStorage key; the panelRight frame
+  // (which CAN insert) listens for it and performs the insert. See bootstrap.js.
+  function relayInsert(value) {
+    var t = String(value || "").trim();
+    if (!t) return false;
+    try {
+      var key = (DO.STORAGE_PREFIX || "") + "insertRelay";
+      localStorage.setItem(key, JSON.stringify({ text: t, nonce: String(Date.now()) + "_" + Math.random() }));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function makeInsertButton(value) {
+    var b = document.createElement("button");
+    b.textContent = "Insert";
+    b.addEventListener("click", function () {
+      var ok = relayInsert(value);
+      flashStatus(ok ? "inserted" : "insert failed");
+    });
+    return b;
+  }
+
+  function makeCopyButton(value) {
+    var b = document.createElement("button");
+    b.textContent = "Copy";
+    b.addEventListener("click", function () { copyText(value); });
+    return b;
+  }
+
   function renderClipboardItem(it) {
     var div = document.createElement("div");
     div.className = "doItem";
@@ -238,18 +311,11 @@
     var d = String(it.entryDescription || it.EntryDescription || it.description || it.Description || "").trim();
     text.textContent = w + (d ? "  —  " + d : "");
 
+    var insVal = String(it.word || it.Word || "").trim();
     var actions = document.createElement("div");
     actions.className = "doItemActions";
-    var btnInsert = document.createElement("button");
-    btnInsert.textContent = "Insert";
-    btnInsert.addEventListener("click", function () {
-      try {
-        if (!DO.editor || !DO.editor.insertText) return;
-        var ww = String(it.word || it.Word || "").trim();
-        if (ww) DO.editor.insertText(ww);
-      } catch (e) {}
-    });
-    actions.appendChild(btnInsert);
+    actions.appendChild(makeInsertButton(insVal));
+    actions.appendChild(makeCopyButton(insVal));
 
     row.appendChild(text);
     row.appendChild(actions);
@@ -276,18 +342,11 @@
       text.textContent = name;
     }
 
+    var macroVal = compileMacroText(m);
     var actions = document.createElement("div");
     actions.className = "doItemActions";
-    var btnInsert = document.createElement("button");
-    btnInsert.textContent = "Insert";
-    btnInsert.addEventListener("click", function () {
-      try {
-        if (!DO.editor || !DO.editor.insertText) return;
-        var t = compileMacroText(m);
-        if (t) DO.editor.insertText(t);
-      } catch (e) {}
-    });
-    actions.appendChild(btnInsert);
+    actions.appendChild(makeInsertButton(macroVal));
+    actions.appendChild(makeCopyButton(macroVal));
 
     row.appendChild(text);
     row.appendChild(actions);
