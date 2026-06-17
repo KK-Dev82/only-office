@@ -9,7 +9,7 @@
  */
 (function (window) {
   var STORAGE_KEY_IGNORED = "spellcheck-then-v2:ignoredWords";
-  var VERSION = "0.4.0";
+  var VERSION = "0.4.1";
 
   var BACKEND_ADD_WORDS_PATH = "api/word-management/spellcheck/add-words";
 
@@ -96,6 +96,26 @@
   function setStatus(text) {
     var el = $("tscStatus");
     if (el) el.textContent = String(text || "");
+  }
+
+  // Loading state ของปุ่ม "ตรวจคำผิด": ระหว่างตรวจให้ปุ่ม disabled + เปลี่ยนข้อความบนปุ่ม
+  // (ย้าย indicator จากข้อความข้างล่างปุ่มมาที่ตัวปุ่มแทน) เสร็จแล้วคืนค่าเดิม
+  function setCheckLoading(loading) {
+    var btn = $("tscBtnCheck");
+    if (btn) {
+      if (loading) {
+        if (!btn.getAttribute("data-label")) {
+          btn.setAttribute("data-label", btn.textContent || "ตรวจคำผิด");
+        }
+        btn.disabled = true;
+        btn.textContent = "กำลังตรวจคำผิด...";
+      } else {
+        btn.disabled = false;
+        btn.textContent = btn.getAttribute("data-label") || "ตรวจคำผิด";
+      }
+    }
+    // ล้างข้อความสถานะระหว่างโหลด — indicator อยู่บนปุ่มแล้ว
+    if (loading) setStatus("");
   }
 
   function escapeHtml(s) {
@@ -1466,16 +1486,16 @@
     renderGroupedOccurrences();
 
     var t0 = Date.now();
-    setStatus("กำลังอ่าน" + scopeLabel + "...");
+    setCheckLoading(true);
     textGetter(function (docText) {
       state.lastDocText = docText;
       var ct = String(docText || "").trim();
       if (!ct) {
+        setCheckLoading(false);
         setStatus(scopeLabel + "ว่างเปล่า — กรุณาเลือกข้อความก่อน");
         return;
       }
 
-      setStatus("กำลังโหลด Dictionary...");
       fetchAllDictionaries()
         .then(function (dictResult) {
           state.dictionaryWords = dictResult.words || [];
@@ -1495,8 +1515,6 @@
           state.wordMetaEnglish = dictResult.wordMetaEnglish || Object.create(null);
           state.repRulesThai = dictResult.repRulesThai || [];
           state.repRulesEnglish = dictResult.repRulesEnglish || [];
-
-          setStatus("กำลังตรวจคำ (" + scopeLabel + ")...");
 
           // Pre-scan: WordCorrection (M0106 "แก้ไขคำผิด") exact phrase matches
           // ทำก่อน FMM tokenize เพื่อ:
@@ -1525,6 +1543,7 @@
 
           if (!state.lastIssues.length) {
             renderGroupedOccurrences();
+            setCheckLoading(false);
             setStatus("เสร็จแล้ว — ไม่พบคำผิดใน" + scopeLabel + " (" + (Date.now() - t0) + " ms)");
             return;
           }
@@ -1556,10 +1575,12 @@
             statusMsg += " (รวม " + nCorrection + " จากแก้ไขคำผิด)";
           }
           statusMsg += " (" + (Date.now() - t0) + " ms)";
+          setCheckLoading(false);
           setStatus(statusMsg);
         })
         .catch(function (e) {
           renderGroupedOccurrences();
+          setCheckLoading(false);
           setStatus("โหลด Dictionary ไม่สำเร็จ: " + String(e && e.message ? e.message : e));
         });
     });

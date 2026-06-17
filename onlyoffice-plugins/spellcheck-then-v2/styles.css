@@ -105,6 +105,12 @@ body {
   font-weight: 700;
 }
 
+/* ระหว่างตรวจคำผิด: ปุ่ม disabled — แสดงให้เห็นชัดว่ากำลังทำงาน กดซ้ำไม่ได้ */
+.tscBtn:disabled, .tscBtnPrimary:disabled, .tscBtnGhost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .tscBtnGhost {
   background: transparent;
   width: 34px;
