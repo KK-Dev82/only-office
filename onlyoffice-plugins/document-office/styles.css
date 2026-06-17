@@ -106,7 +106,14 @@ html, body {
 
 .doSimpleRoot button {
   font-size: 12px;
-  padding: 6px 8px;
+  /* ความสูงคงที่ + จัดข้อความกึ่งกลาง → ทุกปุ่มสูงเท่ากันไม่ว่าจะเป็นข้อความไทย
+     (มีสระบน/ล่างทำให้บรรทัดสูง) หรืออังกฤษล้วน */
+  height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   /* กันข้อความปุ่มไม่ตัดบรรทัด */
   white-space: nowrap;
 }

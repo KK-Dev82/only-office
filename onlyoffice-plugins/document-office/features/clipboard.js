@@ -178,14 +178,15 @@
                   next = "";
                 }
                 if (next === null) return; // cancel
-                next = String(next || "").trim();
-                if (!next) {
+                // เก็บตามที่พิมพ์จริง ไม่ตัด space (เช็คว่าว่างเปล่าด้วย trim เท่านั้น)
+                if (!String(next || "").trim()) {
                   try {
                     DO.setStatus("ต้องมีข้อความ");
                     setTimeout(function () { DO.setStatus("ready"); }, 800);
                   } catch (e1) {}
                   return;
                 }
+                next = String(next || "");
                 DO.store.clipboard = (DO.store.clipboard || []).map(function (x) {
                   if (!x) return x;
                   if (String(x.id) !== String(id)) return x;
@@ -237,8 +238,10 @@
 
   function addFromUi() {
     var el = DO.$("clipText");
-    var t = el ? String(el.value || "").trim() : "";
-    if (!t) {
+    // เก็บข้อความตามที่พิมพ์จริง — ไม่ตัด space หน้า/ท้าย (เอกสารทางการ สว. ใช้เว้นวรรค
+    // ต่อท้ายเป็นความตั้งใจ) ใช้ trim เฉพาะตอนเช็คว่าว่างเปล่าเท่านั้น
+    var raw = el ? String(el.value || "") : "";
+    if (!raw.trim()) {
       DO.debugLog("clipAdd_empty");
       DO.setStatus("กรอกข้อความก่อน");
       setTimeout(function () {
@@ -246,6 +249,7 @@
       }, 800);
       return;
     }
+    var t = raw;
 
     DO.store.clipboard = DO.store.clipboard || [];
     var id = DO.newId("clip");
@@ -272,7 +276,8 @@
     if (clipText) {
       clipText.addEventListener("keydown", function (e) {
         try {
-          if (e && e.key === "Enter") {
+          // Enter = เพิ่ม (เก็บพฤติกรรมเดิม), Shift+Enter = ขึ้นบรรทัดใหม่ใน textarea
+          if (e && e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             addFromUi();
           }
