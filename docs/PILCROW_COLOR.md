@@ -1,13 +1,14 @@
 # Pilcrow Color — Explanation
 
-> ## STATUS 2026-06-09: ใช้ Builder API ต่อ (ยอมรับ tradeoff)
+> ## STATUS 2026-06-09: ปิดไว้ก่อน (OFF by default via env switch)
 > ลองครบ 3 ทางแล้ว — display-only แท้ **ทำไม่ได้บน OnlyOffice 9.2.1 ตัวสำเร็จรูป**
 > (monkey-patch: คลาสไม่ถูก export / engine sed-patch: ไม่มี anchor เพราะ minify ย่อหมด)
-> ทีมจึง **ใช้ Builder API ต่อ** ทั้งที่มี side effect ที่ยืนยันแล้ว:
-> **ข้อความที่พิมพ์ในย่อหน้าว่าง/ใหม่ จะกลายเป็นสีน้ำเงิน #0070C0** (paragraph-mark inheritance)
-> - ทีม **จะแจ้ง tradeoff นี้กับ end-user เอง**
-> - แผนถัดไป: **เปิดเรื่องขอฟีเจอร์ display-only กับ OnlyOffice**
-> - ทางออก display-only แท้ที่เหลือทางเดียว = build sdkjs จาก source เอง (หนัก/ maintain สูง — ยังไม่ทำ)
+> Builder API ทำได้แต่มี side effect: **ข้อความที่พิมพ์ในย่อหน้าว่าง/ใหม่กลายเป็นน้ำเงิน #0070C0** (paragraph-mark inheritance)
+>
+> จึง **ปิดเป็น default** — `inject-pilcrow-color.sh` มีสวิตช์ env `KK_PILCROW_ENABLED` (default `0`=ปิด)
+> - **เปิด:** ตั้ง `KK_PILCROW_ENABLED=1` (ใน compose `environment:` แล้ว recreate / หรือ `docker exec -e KK_PILCROW_ENABLED=1 ... bash .../inject-pilcrow-color.sh`)
+> - **ถอดออกจาก container ที่รันอยู่:** `perl -0777 -i -pe 's|<script>/\*kk-pilcrow-color\*/.*?</script>||sg'` ที่ index.html(+gz)
+> - แผนถัดไป: คุย tradeoff กับ user / เปิดเรื่องขอฟีเจอร์ display-only กับ OnlyOffice / (ทางเลือกหนัก) build sdkjs จาก source
 
 อธิบาย **ทำไมต้อง** เปลี่ยนสีสัญลักษณ์ ¶ (pilcrow / paragraph mark — ตำแหน่งกด Enter) + **กลไกที่ใช้ได้จริงบน OnlyOffice 9.2.x** + **ข้อจำกัด/ความเสี่ยง**
 

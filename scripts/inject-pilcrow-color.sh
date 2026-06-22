@@ -27,12 +27,20 @@
 set -uo pipefail
 
 # ============================================================================
-# ⚠️ KNOWN TRADEOFF (re-enabled 2026-06-09 ตามการตัดสินใจของทีม)
+# 🔀 สวิตช์เปิด/ปิด — DEFAULT = ปิด (off)
 # ============================================================================
-# builder SetColor บน paragraph mark ทำให้ "ข้อความที่พิมพ์ในย่อหน้าว่าง/ย่อหน้าใหม่
-# สืบทอดสีน้ำเงิน #0070C0 มาด้วย" (paragraph-mark formatting inheritance) — เลี่ยงไม่ได้
-# ทีมยอมรับ tradeoff นี้ + จะแจ้ง end-user เอง + เปิดเรื่องขอฟีเจอร์ display-only กับ OnlyOffice
-# ดูรายละเอียด/ทางเลือกที่ลองแล้ว ใน docs/PILCROW_COLOR.md
+# ⚠️ KNOWN TRADEOFF: builder SetColor บน paragraph mark ทำให้ "ข้อความที่พิมพ์ใน
+# ย่อหน้าว่าง/ย่อหน้าใหม่ สืบทอดสีน้ำเงิน #0070C0 มาด้วย" (paragraph-mark inheritance)
+# เลี่ยงไม่ได้บน OnlyOffice 9.2.x สำเร็จรูป — ดู docs/PILCROW_COLOR.md
+#
+# จึงปิดเป็น default. จะ "เปิด" ต้องตั้ง env KK_PILCROW_ENABLED=1 (ไม่ต้องแก้โค้ด):
+#   - ใน compose:  environment: [ "KK_PILCROW_ENABLED=1" ]   แล้ว recreate
+#   - หรือรันมือ:  docker exec -e KK_PILCROW_ENABLED=1 onlyoffice-documentserver \
+#                    bash /opt/kk-init/inject-pilcrow-color.sh
+if [ "${KK_PILCROW_ENABLED:-0}" != "1" ]; then
+  echo "[KK] pilcrow-color: OFF (default). ตั้ง KK_PILCROW_ENABLED=1 เพื่อเปิด — skip"
+  exit 0
+fi
 # ============================================================================
 
 DS_ROOT="${DS_ROOT:-/var/www/onlyoffice/documentserver}"
