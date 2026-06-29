@@ -605,7 +605,18 @@
     try {
       var s = String(paraText || "")
         .replace(/\u00A0/g, " ")
-        .replace(/\s+$/g, ""); // ตัดช่องว่าง/newline ท้ายสุดออก
+        .replace(/[\r\n]+$/g, ""); // ตัด newline/CR ท้าย (ParaSeparator จาก GetText) — ห้ามตัด space
+
+      // โหมดยืนยันด้วย spacebar:
+      // แปลงคำย่อ "เฉพาะเมื่อ" ผู้ใช้พิมพ์เว้นวรรค (space/tab) ต่อท้ายแล้วเท่านั้น
+      //   "กกฝฝ"  → ยังไม่แปลง (ผู้ใช้อาจยังพิมพ์ไม่จบ)
+      //   "กกฝฝ " → แปลงเป็น "กรรมาการ " (เว้นวรรคถูกคงไว้)
+      if (!/[ \t]$/.test(s)) return null;
+
+      // ตัด space/tab ท้ายออกเพื่อจับ shortForm ที่ลงท้าย
+      // (space ตัวจริงยังอยู่ในเอกสาร — replaceLastTokenInParagraph ลบเฉพาะช่วงของ token
+      //  โดยไม่แตะ space ที่อยู่หลัง token จึงคงเว้นวรรคไว้ให้เอง)
+      s = s.replace(/[ \t]+$/g, "");
       if (!s) return null;
 
       var map = getAbbrMap();
