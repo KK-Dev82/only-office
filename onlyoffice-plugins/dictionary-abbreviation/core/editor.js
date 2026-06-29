@@ -592,6 +592,24 @@
               return { ok: false, didReplace: false, verified: false, reason: "no_para_range" };
             }
 
+            // ย้าย caret ไปท้ายย่อหน้า (หลัง space ที่คงไว้) หลังแทนที่คำย่อสำเร็จ
+            // ที่ต้องทำเอง: เราลบ token แล้ว AddText ผ่าน ApiRange ซึ่งไม่ย้าย caret ให้
+            // → caret ค้างที่ต้น range (ถ้า token อยู่ต้นบรรทัด caret จะเด้งไปหน้าสุด)
+            // GetText ของย่อหน้าจะแถม "\n" (ParaSeparator) → ตัดทิ้งก่อนคิดความยาว
+            var __doMoveCaretToParaEnd = function (para) {
+              try {
+                var ft = String(
+                  para.GetRange().GetText({
+                    Numbering: false, Math: false,
+                    ParaSeparator: "\n", TableRowSeparator: "\n", NewLineSeparator: "\n",
+                  }) || ""
+                ).replace(/[\r\n]+$/g, "");
+                var pos = ft.length;
+                var caret = para.GetRange(pos, pos);
+                if (caret && caret.Select) caret.Select();
+              } catch (eCaret) {}
+            };
+
             var fullRange = p.GetRange();
             var txt = "";
             try {
@@ -651,10 +669,12 @@
                   }
                   var afterTrim = String(after || "").replace(/[\s\u00A0]+$/g, "");
                   if (afterTrim && afterTrim.slice(-replNow.length) === replNow && afterTrim.indexOf(expected) !== -1) {
+                    __doMoveCaretToParaEnd(p);
                     return { ok: true, didReplace: true, verified: true, token: tokenNow, replLen: replNow.length };
                   }
                 } catch (eV1) {}
               } else {
+                __doMoveCaretToParaEnd(p);
                 return { ok: true, didReplace: true, verified: true, token: tokenNow, replLen: replNow.length };
               }
 
@@ -688,6 +708,7 @@
                   }
                   var after2Trim = String(after2 || "").replace(/[\s\u00A0]+$/g, "");
                   if (after2Trim && after2Trim.indexOf(expected) !== -1) {
+                    __doMoveCaretToParaEnd(p);
                     return { ok: true, didReplace: true, verified: true, token: tokenNow, replLen: replNow.length, fallback: "rewrite" };
                   }
                 } catch (eV3) {}
