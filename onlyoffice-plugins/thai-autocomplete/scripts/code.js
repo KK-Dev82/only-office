@@ -248,6 +248,33 @@
     } catch (e) {}
   }
 
+  // Return keyboard focus to the editor.
+  // On this DocumentServer build, showing the InputHelper balloon pulls the
+  // keyboard "input context" away from the editor even when isKeyboardTake=false,
+  // so characters typed right after the balloon appears get lost until the user
+  // clicks back into the document. Re-focusing the editor's hidden input element
+  // (#area_id, which lives in a parent frame, same origin) right after show()
+  // keeps the caret active so typing continues uninterrupted.
+  function returnFocusToEditor() {
+    try {
+      var aw = window;
+      for (var fi = 0; fi < 8; fi++) {
+        var adoc = null;
+        try { adoc = aw.document; } catch (eD) { break; }
+        var ael = null;
+        try { ael = adoc.getElementById("area_id"); } catch (eG) {}
+        if (ael && typeof ael.focus === "function") {
+          try { if (aw.focus) aw.focus(); } catch (eW) {}
+          try { ael.focus({ preventScroll: true }); } catch (eF1) { try { ael.focus(); } catch (eF2) {} }
+          break;
+        }
+        if (!aw.parent || aw.parent === aw) break;
+        aw = aw.parent;
+      }
+    } catch (eFocus) {}
+    try { window.Asc.plugin.executeMethod("FocusEditor", []); } catch (eMfocus) {}
+  }
+
   window.Asc = window.Asc || {};
   window.Asc.plugin = window.Asc.plugin || {};
 
@@ -297,27 +324,9 @@
 
       window.Asc.plugin.executeMethod("InputText", [insertWord, token]);
 
-      // Return keyboard focus to the editor after picking from the balloon, so the caret
-      // stays active and the user can keep typing — same approach the panel plugins use.
-      // The editor's keyboard input element (#area_id) lives in the editor frame, which is
-      // a parent of this plugin iframe (same origin). Done synchronously inside the click.
-      try {
-        var aw = window;
-        for (var fi = 0; fi < 8; fi++) {
-          var adoc = null;
-          try { adoc = aw.document; } catch (eD) { break; }
-          var ael = null;
-          try { ael = adoc.getElementById("area_id"); } catch (eG) {}
-          if (ael && typeof ael.focus === "function") {
-            try { if (aw.focus) aw.focus(); } catch (eW) {}
-            try { ael.focus({ preventScroll: true }); } catch (eF1) { try { ael.focus(); } catch (eF2) {} }
-            break;
-          }
-          if (!aw.parent || aw.parent === aw) break;
-          aw = aw.parent;
-        }
-      } catch (eFocus) {}
-      try { window.Asc.plugin.executeMethod("FocusEditor", []); } catch (eMfocus) {}
+      // Return keyboard focus to the editor after picking from the balloon, so the
+      // caret stays active and the user can keep typing.
+      returnFocusToEditor();
     } catch (e) {
       console.warn(LOG, "onSelectItem error:", e);
     }
@@ -392,6 +401,12 @@
       var sz = getInputHelperSize();
       // isKeyboardTake=false: let user continue typing while balloon is visible
       ih.show(sz.w, sz.h, false);
+      // Showing the balloon steals focus on this build → typing right after it
+      // appears gets dropped until the user clicks back into the document.
+      // Hand focus straight back to the editor so typing continues uninterrupted;
+      // the balloon stays visible as a hint (pick with mouse/Down+Enter, or just
+      // keep typing past it).
+      returnFocusToEditor();
     } catch (e) {
       console.warn(LOG, "onInputHelperInput error:", e);
       unShow();

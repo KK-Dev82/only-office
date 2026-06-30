@@ -1,12 +1,12 @@
 {
   "name": "Thai Autocomplete",
   "guid": "asc.{D4B3C2A1-7E6F-4A5B-9C8D-1E2F3A4B5C6D}",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "baseUrl": "",
   "variations": [
     {
-      "description": "Thai autocomplete (v0.0.3)",
-      "url": "index.html?v=0.0.3",
+      "description": "Thai autocomplete (v0.0.4)",
+      "url": "index.html?v=0.0.4",
       "icons": ["resources/icon.svg"],
       "isViewer": false,
       "EditorsSupport": ["word"],
