@@ -635,19 +635,31 @@
               var start = Math.max(0, end - tokenNow.length);
               var prefix = trimmed.slice(0, start);
               var expected = prefix + replNow;
+              // Replace the token with the full word.
+              // Preferred path: select the token, then let the editor's own InsertText
+              // replace the selection — InsertText leaves the caret right AFTER the inserted
+              // text natively, so we don't compute a caret position ourselves (a collapsed
+              // GetRange(N, N).Select() lands off-by-one at the paragraph end on this build).
+              var didNativeReplace = false;
               try {
-                var tr = p.GetRange(start, end);
-                tr.Delete();
-              } catch (e1) {}
-              try {
-                // Insert replacement at the original start position.
-                var ins = p.GetRange(start, start);
-                var ok0 = ins.AddText(replNow, "before");
-                // Do NOT fallback to doc.InsertText here; that can insert at cursor and leave token intact.
-                // We'll verify and then fallback to paragraph rewrite if needed.
-                void ok0;
-              } catch (e2) {
-                // ignore; will verify and possibly fallback below
+                var selTok = p.GetRange(start, end);
+                if (selTok && typeof selTok.Select === "function" && doc && typeof doc.InsertText === "function") {
+                  selTok.Select();
+                  doc.InsertText(replNow);
+                  didNativeReplace = true;
+                }
+              } catch (eNat) {}
+
+              if (!didNativeReplace) {
+                // Fallback: manual delete + AddText (text stays correct; caret may be off).
+                try {
+                  var tr = p.GetRange(start, end);
+                  tr.Delete();
+                } catch (e1) {}
+                try {
+                  var ins = p.GetRange(start, start);
+                  ins.AddText(replNow, "before");
+                } catch (e2) {}
               }
 
               // Verify replacement actually happened (some builds silently fail Delete/AddText)
@@ -669,12 +681,14 @@
                   }
                   var afterTrim = String(after || "").replace(/[\s\u00A0]+$/g, "");
                   if (afterTrim && afterTrim.slice(-replNow.length) === replNow && afterTrim.indexOf(expected) !== -1) {
-                    __doMoveCaretToParaEnd(p);
+                    // native InsertText already parks the caret after the word; nudge only for
+                    // the manual-fallback path (which otherwise leaves the caret at range start)
+                    if (!didNativeReplace) __doMoveCaretToParaEnd(p);
                     return { ok: true, didReplace: true, verified: true, token: tokenNow, replLen: replNow.length };
                   }
                 } catch (eV1) {}
               } else {
-                __doMoveCaretToParaEnd(p);
+                if (!didNativeReplace) __doMoveCaretToParaEnd(p);
                 return { ok: true, didReplace: true, verified: true, token: tokenNow, replLen: replNow.length };
               }
 
