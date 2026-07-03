@@ -635,17 +635,23 @@
               var start = Math.max(0, end - tokenNow.length);
               var prefix = trimmed.slice(0, start);
               var expected = prefix + replNow;
-              // Replace the token with the full word.
-              // Preferred path: select the token, then let the editor's own InsertText
-              // replace the selection — InsertText leaves the caret right AFTER the inserted
-              // text natively, so we don't compute a caret position ourselves (a collapsed
-              // GetRange(N, N).Select() lands off-by-one at the paragraph end on this build).
+              // whitespace ที่อยู่หลัง token จนถึงท้ายย่อหน้า (เก็บ space ท้ายไว้ ถ้ามี — สำคัญกับ space-confirm)
+              var tailWs = String(norm.slice(end) || "").replace(/[\r\n]+$/g, "");
+
+              // Replace by rewriting the WHOLE paragraph via the editor's own InsertText.
+              // Why whole-paragraph (not just the token): on this build, InsertText after a
+              // PARTIAL selection parks the caret one char before the paragraph end, while a
+              // FULL-paragraph replace lands the caret correctly at the very end. We rebuild
+              // "prefix + fullWord + trailingSpaces" so the caret always ends up after
+              // everything. Tradeoff: run-level formatting inside the paragraph is flattened
+              // (same behaviour as the existing rewrite fallback below).
+              var wholeText = prefix + replNow + tailWs;
               var didNativeReplace = false;
               try {
-                var selTok = p.GetRange(start, end);
-                if (selTok && typeof selTok.Select === "function" && doc && typeof doc.InsertText === "function") {
-                  selTok.Select();
-                  doc.InsertText(replNow);
+                var whole = p.GetRange();
+                if (whole && typeof whole.Select === "function" && doc && typeof doc.InsertText === "function") {
+                  whole.Select();
+                  doc.InsertText(wholeText);
                   didNativeReplace = true;
                 }
               } catch (eNat) {}
