@@ -191,6 +191,14 @@ services:
           echo "[KK] Pilcrow-color: script not mounted (skip)"
         fi
 
+        # Thai underline position: เลื่อนเส้นใต้ให้ชิด baseline แบบ Word (default เผื่อใต้สระล่างมากเกิน)
+        # ดู /opt/kk-scripts/inject-thai-underline.sh
+        if [ -f /opt/kk-scripts/inject-thai-underline.sh ]; then
+          bash /opt/kk-scripts/inject-thai-underline.sh || true
+        else
+          echo "[KK] thai-underline: script not mounted (skip)"
+        fi
+
         if [ -x /app/run-document-server.sh ]; then
           exec /app/run-document-server.sh
         elif [ -x /run-document-server.sh ]; then

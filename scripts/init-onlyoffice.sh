@@ -363,6 +363,19 @@ else
     echo "[KK] inject-pilcrow-color.sh not mounted — skip"
 fi
 
+# --------------------------------------------
+# 6.7 Thai underline position — เลื่อนเส้นใต้ให้ชิด baseline แบบ Word
+# --------------------------------------------
+# OnlyOffice วางเส้นใต้ = Baseline + TextDescent*0.4 (เผื่อใต้สระล่างไทย → เส้นตกต่ำกว่า Word)
+# ลดตัวคูณเป็น KK_UNDERLINE_FACTOR (default 0.1) ให้เส้นขึ้นชิด baseline
+# ดู /opt/kk-init/inject-thai-underline.sh (patch sdk-all.js + regen .gz, idempotent)
+if [ -f /opt/kk-init/inject-thai-underline.sh ]; then
+    echo "[KK] applying Thai-underline position patch..."
+    bash /opt/kk-init/inject-thai-underline.sh || kk_warn "inject-thai-underline.sh failed (non-fatal)"
+else
+    echo "[KK] inject-thai-underline.sh not mounted — skip"
+fi
+
 # ============================================
 # Summary
 # ============================================

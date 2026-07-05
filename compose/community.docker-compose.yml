@@ -35,6 +35,9 @@ services:
       # --- OnlyOffice local config (siteUrl + JWT settings) ---
       - ./local.json:/etc/onlyoffice/documentserver/local.json:ro
 
+      # --- Thai underline position patch (เส้นใต้ชิด baseline แบบ Word) ---
+      - ../scripts/inject-thai-underline.sh:/opt/kk-init/inject-thai-underline.sh:ro
+
     # Run init (fonts/plugins/dicts) then start DocumentServer.
     # We keep it idempotent using a marker file in /var/www/onlyoffice/Data
     command:
@@ -148,6 +151,12 @@ services:
           done
           sync_locale_to "/var/www/onlyoffice/documentserver/web-apps/apps/documenteditor/main/locale"
           echo "[KK] Locale (documenteditor/main/locale) synced."
+        fi
+
+        # Thai underline position patch (รันทุก boot — sdk-all.js อยู่ใน image รีเซ็ตตอน recreate)
+        # เลื่อนตำแหน่งเส้นใต้ให้ชิด baseline แบบ Word (default OnlyOffice เผื่อใต้สระล่างไทยมากเกิน)
+        if [ -f /opt/kk-init/inject-thai-underline.sh ]; then
+          bash /opt/kk-init/inject-thai-underline.sh || echo "[KK] inject-thai-underline failed (non-fatal)"
         fi
 
         # Start DocumentServer (path differs across images; try common locations)
