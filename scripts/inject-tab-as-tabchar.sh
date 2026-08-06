@@ -27,6 +27,8 @@ set -uo pipefail
 
 DS_ROOT="${DS_ROOT:-/var/www/onlyoffice/documentserver}"
 MARKER="kk-tab-as-tabchar"
+# hook เก่าที่เคยทดลอง (Tab+Tab = ย่อหน้า 1 นิ้ว) — ยกเลิกไปแล้ว แต่ยังถอดทิ้งเผื่อค้างใน container
+OLD_EXPERIMENT_MARKER="kk-tab-double-indent"
 
 # Script ที่จะ inject — ใส่ลง <head> ของ documenteditor/main/index.html
 # Loop รอจนกว่า Asc.editor + #area_id โหลดเสร็จ (polling 500ms)
@@ -56,15 +58,19 @@ injected=0
 not_found=0
 
 for f in $(find "$DS_ROOT" -type f -path "*/documenteditor/main/index.html" 2>/dev/null); do
-  # ลบ inject เก่า (ถ้ามี) — ให้ re-inject ตัวใหม่
-  if grep -q "$MARKER" "$f" 2>/dev/null; then
-    if command -v perl >/dev/null 2>&1; then
-      perl -i -pe 's|<script>/\*'"$MARKER"'\*/[^<]*(?:<[^/][^<]*)*</script>||g' "$f"
-    else
-      sed -i "/${MARKER}/d" "$f"
+  # ลบ inject เก่าของตัวเอง + hook คู่แข่ง (ถ้ามี) — ให้เหลือ hook เดียวเสมอ
+  for m in "$MARKER" "$OLD_EXPERIMENT_MARKER"; do
+    if grep -q "$m" "$f" 2>/dev/null; then
+      # ต้องใช้ perl -0777 (อ่านทั้งไฟล์รวดเดียว) เพราะบล็อก <script> กินหลายบรรทัด
+      # ถ้าใช้ -pe เฉยๆ regex จะ match ไม่เจอ -> hook เก่าค้างและซ้อนเพิ่มทุกครั้งที่รันซ้ำ
+      if command -v perl >/dev/null 2>&1; then
+        perl -0777 -i -pe 's|<script>/\*\Q'"$m"'\E\*/.*?</script>\n?||gs' "$f"
+      else
+        sed -i "/${m}/,/<\/script>/d" "$f"
+      fi
+      echo "[KK] tab-as-tabchar: removed old inject ($m) from $f"
     fi
-    echo "[KK] tab-as-tabchar: removed old inject from $f"
-  fi
+  done
 
   if ! grep -q "</head>" "$f" 2>/dev/null; then
     not_found=$((not_found+1))
