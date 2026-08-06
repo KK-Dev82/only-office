@@ -1,0 +1,171 @@
+# Experiment OnlyOffice DocumentServer — ทดลองเวอร์ชันใหม่แบบไม่แตะตัวที่ใช้งานอยู่
+#
+# ต่างจาก developer.docker-compose.yml อย่างไร:
+#   - image  : pin เวอร์ชันทดลอง (${OO_EXP_IMAGE}) — default 9.4.1.2 (ตัวที่ใช้อยู่คือ 9.2.1)
+#   - name   : onlyoffice-ds-exp   (คนละ container กับ onlyoffice-documentserver)
+#   - port   : 8092                (ตัวเดิมใช้ 8082)
+#   - volume : onlyoffice_exp_*    (คนละ volume — ลบทิ้งได้โดยไม่กระทบตัวเดิม)
+#   - mount  : fonts/plugins/dict/locale/scripts อ่านจากที่เดียวกับตัวเดิม (read-only)
+#
+# วิธีใช้ (รันจากโฟลเดอร์ only-office/):
+#   docker compose -p oo-exp -f compose/experiment.docker-compose.yml up -d
+#   docker compose -p oo-exp -f compose/experiment.docker-compose.yml logs -f | grep '\[KK\]'
+#   เปิด http://localhost:8092/example/  (ต้องรัน enable-admin-example.sh ก่อนถ้ายังไม่เปิด)
+#
+# ลบทิ้งเมื่อทดลองเสร็จ:
+#   docker compose -p oo-exp -f compose/experiment.docker-compose.yml down -v
+services:
+  onlyoffice-documentserver-exp:
+    image: ${OO_EXP_IMAGE:-onlyoffice/documentserver-de:9.4.1.2}
+    container_name: onlyoffice-ds-exp
+    restart: unless-stopped
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      # ใช้เลขพอร์ตเดียวกันทั้งฝั่ง host และใน container โดยตั้งใจ:
+      # หน้า /example/ ต้องใช้ URL เดียวกันได้ทั้งจาก browser และจากใน container
+      # (setup-experiment.sh จะสั่ง nginx ให้ listen พอร์ตนี้เพิ่ม)
+      - "${OO_EXP_HTTP_PORT:-8092}:${OO_EXP_HTTP_PORT:-8092}"
+      - "${OO_EXP_HTTP_ALT_PORT:-8093}:80"
+    environment:
+      JWT_ENABLED: ${JWT_ENABLED:-true}
+      JWT_SECRET: ${JWT_SECRET:-change_me_super_secret}
+    volumes:
+      - onlyoffice_exp_data:/var/www/onlyoffice/Data
+      - onlyoffice_exp_logs:/var/log/onlyoffice
+
+      # License (Developer Edition) — ตัวเดียวกับ dev; ถ้า activate ไม่ผ่านจะเห็นใน log
+      - ../license/license.lic:/var/www/onlyoffice/Data/license.lic:ro
+
+      # Custom Fonts (TH Sarabun New)
+      - ../THSarabunNew-13:/usr/share/fonts/truetype/th-sarabun:ro
+
+      # Plugins / dictionaries / example / locale / scripts — แหล่งเดียวกับ dev (read-only)
+      - ../onlyoffice-plugins:/opt/kk-plugins-src:ro
+      - ../dict:/opt/kk-dict-src:ro
+      - ../dict/th_TH:/var/www/onlyoffice/documentserver/dictionaries/th_TH:ro
+      - ../dict/en_US:/var/www/onlyoffice/documentserver/dictionaries/en_US:ro
+      - ../example:/opt/kk-example-src:ro
+      - ./locale:/opt/kk-locale-src:ro
+      - ../scripts:/opt/kk-scripts:ro
+
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -uo pipefail
+
+        echo "[KK-EXP] ================= EXPERIMENT CONTAINER ================="
+        echo "[KK-EXP] DS version dirs:"
+        ls -d /var/www/onlyoffice/documentserver/[0-9]* 2>/dev/null || echo "[KK-EXP]   (ไม่มีโฟลเดอร์แบบมีเวอร์ชัน)"
+
+        INIT_MARK="/var/www/onlyoffice/Data/.kk_init_done"
+        if [ ! -f "$$INIT_MARK" ]; then
+          echo "[KK] init: installing fonts/plugins/dicts..."
+          (fc-cache -fv || true)
+          (/usr/bin/documentserver-generate-allfonts.sh || true)
+
+          DICS_DST="/var/www/onlyoffice/documentserver/dictionaries/th_TH"
+          if [ ! -f "$$DICS_DST/th_TH.dic" ]; then
+            (mkdir -p "$$DICS_DST" 2>/dev/null || true)
+            (cp "/opt/kk-dict-src/th_TH/th_TH.dic" "$$DICS_DST/th_TH.dic" 2>/dev/null || true)
+            (cp "/opt/kk-dict-src/th_TH/th_TH.aff" "$$DICS_DST/th_TH.aff" 2>/dev/null || true)
+            if [ -f "/opt/kk-dict-src/th_TH/th_TH.json" ]; then
+              (cp "/opt/kk-dict-src/th_TH/th_TH.json" "$$DICS_DST/th_TH.json" 2>/dev/null || true)
+            else
+              (printf '{ "codes": [1054] }\n' > "$$DICS_DST/th_TH.json") 2>/dev/null || true
+            fi
+            if [ -f "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" ]; then
+              (cp "/opt/kk-dict-src/th_TH/hyph_th_TH.dic" "$$DICS_DST/hyph_th_TH.dic" 2>/dev/null || true)
+            fi
+          fi
+          (python3 "/var/www/onlyoffice/documentserver/server/dictionaries/update.py" || true)
+          date > "$$INIT_MARK"
+          echo "[KK] init: done."
+        else
+          echo "[KK] init: already done ($$INIT_MARK)."
+        fi
+
+        (python3 "/var/www/onlyoffice/documentserver/server/dictionaries/update.py" || true)
+
+        # Plugins: sync ทุก boot
+        PLUGINS_DST="/var/www/onlyoffice/documentserver/sdkjs-plugins"
+        mkdir -p "$$PLUGINS_DST"
+        if [ -d "$$PLUGINS_DST" ] && [ "$$PLUGINS_DST" = "/var/www/onlyoffice/documentserver/sdkjs-plugins" ]; then
+          echo "[KK] Removing default plugins using documentserver-pluginsmanager.sh..."
+          if [ -x /usr/bin/documentserver-pluginsmanager.sh ]; then
+            /usr/bin/documentserver-pluginsmanager.sh \
+              --directory="$$PLUGINS_DST" \
+              --remove="highlight code, speech input, youtube, mendeley, zotero, photo editor, ocr, translator, ai, speech, thesaurus, typograf, doc2md, languagetool, deepl, draw.io, jitsi, telegram, wordpress, send" \
+              2>&1 | grep -E "(Remove plugin|OK|Error)" || true
+            echo "[KK] Plugin removal completed."
+          else
+            echo "[KK-EXP] WARNING: documentserver-pluginsmanager.sh หายไปในเวอร์ชันนี้ (ใช้ fallback)"
+            find "$$PLUGINS_DST" -mindepth 1 -maxdepth 1 -type d ! -name "document-office" ! -name "dictionary-abbreviation" ! -name "speech-to-text" ! -name "spellcheck-then-v2" ! -name "thai-autocomplete" ! -name "insert-text-bridge" -exec sh -c 'chmod -R u+w "$$1" 2>/dev/null || true; rm -rf "$$1" 2>/dev/null || true' _ {} \; || true
+            find "$$PLUGINS_DST" -maxdepth 1 -type f ! -name "*.md" -exec sh -c 'chmod u+w "$$1" 2>/dev/null || true; rm -f "$$1" 2>/dev/null || true' _ {} \; || true
+          fi
+        fi
+
+        if [ -d "/opt/kk-plugins-src" ]; then
+          echo "[KK] syncing custom plugins..."
+          cp -R /opt/kk-plugins-src/* "$$PLUGINS_DST"/
+          for d in spellcheck-then comment-bridge thai-spellcheck; do
+            [ -d "$$PLUGINS_DST/$$d" ] && { chmod -R u+w "$$PLUGINS_DST/$$d" 2>/dev/null || true; rm -rf "$$PLUGINS_DST/$$d" 2>/dev/null || true; }
+          done
+          chown -R ds:ds "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/spellcheck-then-v2 "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/insert-text-bridge 2>/dev/null || true
+          chmod -R a+rX "$$PLUGINS_DST"/document-office "$$PLUGINS_DST"/dictionary-abbreviation "$$PLUGINS_DST"/speech-to-text "$$PLUGINS_DST"/spellcheck-then-v2 "$$PLUGINS_DST"/thai-autocomplete "$$PLUGINS_DST"/insert-text-bridge 2>/dev/null || true
+        fi
+
+        EXAMPLE_DST="/var/www/onlyoffice/documentserver-example/example/files"
+        mkdir -p "$$EXAMPLE_DST"
+        if [ -d "/opt/kk-example-src/files" ]; then
+          cp -R /opt/kk-example-src/files/* "$$EXAMPLE_DST"/ 2>/dev/null || true
+        fi
+
+        if [ -d "/opt/kk-locale-src" ]; then
+          sync_locale_to() {
+            local d="$$1"
+            [ -n "$$d" ] || return 0
+            mkdir -p "$$d"
+            for f in /opt/kk-locale-src/*.json; do
+              [ -f "$$f" ] && cp "$$f" "$$d/" 2>/dev/null || true
+            done
+          }
+          for LOCALE_DST in $(find /var/www/onlyoffice/documentserver -type d -path "*/documenteditor/main/locale" 2>/dev/null); do
+            sync_locale_to "$$LOCALE_DST"
+          done
+          for vdir in /var/www/onlyoffice/documentserver/[0-9]*; do
+            [ -d "$$vdir" ] || continue
+            sync_locale_to "$$vdir/web-apps/apps/documenteditor/main/locale"
+          done
+          sync_locale_to "/var/www/onlyoffice/documentserver/web-apps/apps/documenteditor/main/locale"
+          echo "[KK] Locale synced."
+        fi
+
+        # ---- Inject scripts: ตัวชี้วัดว่า customization ยังใช้ได้กับเวอร์ชันนี้ไหม ----
+        echo "[KK-EXP] ---- inject scripts (ดูบรรทัด WARNING/ERROR เป็นสำคัญ) ----"
+        for s in inject-autoformat-disable.sh inject-tab-as-tabchar.sh inject-pilcrow-color.sh inject-thai-underline.sh; do
+          if [ -f "/opt/kk-scripts/$$s" ]; then
+            echo "[KK-EXP] >>> $$s"
+            bash "/opt/kk-scripts/$$s" || echo "[KK-EXP] <<< $$s FAILED (exit != 0)"
+          else
+            echo "[KK-EXP] >>> $$s NOT MOUNTED (skip)"
+          fi
+        done
+        echo "[KK-EXP] ---- inject scripts done ----"
+
+        if [ -x /app/run-document-server.sh ]; then
+          exec /app/run-document-server.sh
+        elif [ -x /run-document-server.sh ]; then
+          exec /run-document-server.sh
+        elif command -v run-document-server.sh >/dev/null 2>&1; then
+          exec run-document-server.sh
+        else
+          echo "Cannot find run-document-server.sh" >&2
+          exit 1
+        fi
+
+volumes:
+  onlyoffice_exp_data:
+  onlyoffice_exp_logs:
