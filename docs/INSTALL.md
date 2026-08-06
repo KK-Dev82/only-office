@@ -87,23 +87,67 @@ docker exec onlyoffice-documentserver rm -f /var/www/onlyoffice/Data/.kk_init_do
 docker compose restart onlyoffice-documentserver
 ```
 
-### Update inject scripts (autoformat-disable / tab-as-tabchar)
+### Update inject scripts (autoformat-disable / tab-as-tabchar / pilcrow / thai-underline)
 
-Scripts mount เป็น volume → file system update ทันที **ไม่ต้อง recreate container** — แค่ run inject อีกครั้ง:
+Inject script ไม่ใช่ process ที่รันค้าง — เป็นชุดคำสั่งที่ **แก้ไฟล์ `index.html` ข้างใน container**
+ครั้งเดียวตอน container start (เรียกจาก `init-onlyoffice.sh`) ดังนั้น pull โค้ดใหม่อย่างเดียวไม่พอ
+ต้อง **รัน inject ซ้ำ** เสมอ
+
+> ⚠️ **กับดัก: prod/staging mount สคริปต์ "ทีละไฟล์" ไม่ใช่ทั้งโฟลเดอร์**
+>
+> - `compose/developer.docker-compose.yml` (dev) → `../scripts:/opt/kk-scripts:ro` = **ทั้งโฟลเดอร์**
+>   git pull แล้ว container เห็นไฟล์ใหม่ทันที
+> - `docker-compose.production.yml` / `.staging.yml` (file-service) → mount ทีละไฟล์
+>   `./only-office/scripts/inject-tab-as-tabchar.sh:/opt/kk-init/inject-tab-as-tabchar.sh:ro`
+>   **bind mount ไฟล์เดี่ยวผูกกับ inode** — `git pull` เขียนไฟล์ใหม่ (temp + rename = inode ใหม่)
+>   container จึง **ยังเห็นไฟล์เก่า** จนกว่าจะ recreate
+>
+> วิธีเลี่ยงทั้งหมด: ป้อนสคริปต์จาก host ผ่าน stdin (ไม่พึ่ง mount เลย) — ดู B/C ด้านล่าง
 
 ```bash
-# A. Developer (มี wrapper)
+# A. Developer (มี wrapper — mount ทั้งโฟลเดอร์ ไม่มีปัญหา inode)
 cd only-office/scripts
 ./restart-ds-dev.sh --no-restart        # รัน inject ใหม่ (ไม่ recreate)
 ./restart-ds-dev.sh                     # recreate + inject (ถ้า YAML เปลี่ยน)
 
-# B/C. Local file-service / Server (รัน inject แบบ manual)
-docker exec onlyoffice-documentserver bash /opt/kk-init/inject-autoformat-disable.sh
-docker exec onlyoffice-documentserver bash /opt/kk-init/inject-tab-as-tabchar.sh
-docker exec onlyoffice-documentserver bash /opt/kk-init/inject-pilcrow-color.sh
+# B/C. Local file-service / Server — รันจากโฟลเดอร์ deploy (ที่มี only-office/ อยู่ข้างใน)
+git -C only-office pull origin main
+
+#   วิธีที่แนะนำ: ป้อนผ่าน stdin — ได้โค้ดใหม่ชัวร์ ไม่ต้องปิดบริการ ไม่ตัดผู้ใช้
+docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-autoformat-disable.sh
+docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-tab-as-tabchar.sh
+docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-pilcrow-color.sh
+docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-thai-underline.sh
+
+#   หรือ recreate ให้ Docker ผูก mount ใหม่ (ผู้ใช้ที่เปิดเอกสารค้างจะหลุด ~1-3 นาที)
+docker compose -f docker-compose.production.yml up -d --force-recreate onlyoffice-documentserver
+```
+
+> สคริปต์ที่ส่งผ่าน stdin ปรับค่าด้วย env ได้ตามปกติ เช่น
+> `docker exec -i -e KK_UNDERLINE_FACTOR=0.15 onlyoffice-documentserver bash -s < .../inject-thai-underline.sh`
+
+**เช็คว่า container เห็นโค้ดใหม่จริงไหม** (กรณีสงสัยว่า mount ค้าง inode เก่า):
+
+```bash
+# เทียบไฟล์ host กับไฟล์ที่ container มองเห็น — ต้องได้ hash เดียวกัน
+md5sum only-office/scripts/inject-tab-as-tabchar.sh
+docker exec onlyoffice-documentserver md5sum /opt/kk-init/inject-tab-as-tabchar.sh
 ```
 
 หลังรัน inject → **hard refresh browser** (Cmd+Shift+R) เพราะ `index.html` มี cache
+(ถ้ายังเห็นของเก่า: DevTools → Application → Service Workers → ติ๊ก **Bypass for network** — ดู [Post-deploy: cache rollout](#post-deploy-cache-rollout))
+
+**ผลลัพธ์ที่ควรเห็น** (ตัวอย่าง tab-as-tabchar):
+
+```
+[KK] tab-as-tabchar: removed old inject (kk-tab-as-tabchar) from .../index.html
+[KK] tab-as-tabchar injected: .../index.html
+[KK]   -> regenerated .../index.html.gz
+[KK] tab-as-tabchar: injected=1 no-head=0
+```
+
+`injected=1` = สำเร็จ · ถ้าไม่เห็นบรรทัด `regenerated ....gz` แปลว่า nginx จะยังเสิร์ฟไฟล์ .gz เก่า
+(ดู [L2 + L3](#l2--l3-inject-สำเร็จใน-html--gz))
 
 ### Update fonts
 
