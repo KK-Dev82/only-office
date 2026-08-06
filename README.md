@@ -166,14 +166,20 @@ cd scripts
 
 ### 4. Inject scripts — override editor behavior
 
-ทั้งคู่ inject `<script>` ลง `index.html` ของ DS ตอน startup (เรียกอัตโนมัติจาก `init-onlyoffice.sh`)
+ทุกตัว inject `<script>` ลง `index.html` ของ DS (หรือ patch `sdk-all.js`) ตอน startup
+เรียกอัตโนมัติจาก `init-onlyoffice.sh` — **รันซ้ำได้ ไม่ซ้อน** (ถอดของเดิมออกก่อนเสมอ)
 
 - **`inject-autoformat-disable.sh`** — override `localStorage` ปิด AutoCorrect / ตั้ง default language / ซ่อน right panel
   - คำอธิบาย + วิธีหา localStorage key: [`docs/AUTOFORMAT_DISABLE.md`](docs/AUTOFORMAT_DISABLE.md)
 - **`inject-tab-as-tabchar.sh`** — บังคับให้ Tab key แทรก `\t` เสมอ (ไม่ปรับ first-line indent)
   - คำอธิบาย + ความเสี่ยง: [`docs/TAB_OVERRIDE.md`](docs/TAB_OVERRIDE.md)
+- **`inject-pilcrow-color.sh`** — เปลี่ยนสีสัญลักษณ์ ¶ (ปิดไว้ default — เปิดด้วย `KK_PILCROW_ENABLED=1`)
+  - คำอธิบาย: [`docs/PILCROW_COLOR.md`](docs/PILCROW_COLOR.md)
+- **`inject-thai-underline.sh`** — เลื่อนเส้นใต้ให้ชิด baseline แบบ Word (patch token ใน `sdk-all.js` + regen `.gz`)
+  - ⚠️ token ผูกกับ build 9.2.x — อัป DS แล้วต้อง re-derive (สคริปต์จะเตือนแล้วข้ามให้เอง)
 
-`restart-ds-dev.sh` — wrapper สำหรับ `developer.docker-compose.yml` (recreate + exec inject ทั้ง 2 ตัว)
+`restart-ds-dev.sh` — wrapper สำหรับ `developer.docker-compose.yml` (recreate + exec inject)
+`setup-experiment.sh` + `compose/experiment.docker-compose.yml` — ชุดทดลอง DS เวอร์ชันใหม่แบบแยก container/port/volume
 
 **👉 วิธีติดตั้ง/อัปเดต/verify/rollback ทั้งหมด: [`docs/INSTALL.md`](docs/INSTALL.md)**
 
