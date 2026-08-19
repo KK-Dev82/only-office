@@ -199,14 +199,6 @@ services:
           echo "[KK] thai-underline: script not mounted (skip)"
         fi
 
-        # No-break hyphen: ขีดกลาง "-" ที่พิมพ์สดไม่เป็นจุดตัดบรรทัด (เลขช่วง "๑-๕" ไม่ถูกหักคนละบรรทัด)
-        # ดู /opt/kk-scripts/inject-nobreak-hyphen.sh
-        if [ -f /opt/kk-scripts/inject-nobreak-hyphen.sh ]; then
-          bash /opt/kk-scripts/inject-nobreak-hyphen.sh || true
-        else
-          echo "[KK] nobreak-hyphen: script not mounted (skip)"
-        fi
-
         if [ -x /app/run-document-server.sh ]; then
           exec /app/run-document-server.sh
         elif [ -x /run-document-server.sh ]; then

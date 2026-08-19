@@ -145,7 +145,7 @@ services:
 
         # ---- Inject scripts: ตัวชี้วัดว่า customization ยังใช้ได้กับเวอร์ชันนี้ไหม ----
         echo "[KK-EXP] ---- inject scripts (ดูบรรทัด WARNING/ERROR เป็นสำคัญ) ----"
-        for s in inject-autoformat-disable.sh inject-tab-as-tabchar.sh inject-pilcrow-color.sh inject-thai-underline.sh inject-nobreak-hyphen.sh; do
+        for s in inject-autoformat-disable.sh inject-tab-as-tabchar.sh inject-pilcrow-color.sh inject-thai-underline.sh; do
           if [ -f "/opt/kk-scripts/$$s" ]; then
             echo "[KK-EXP] >>> $$s"
             bash "/opt/kk-scripts/$$s" || echo "[KK-EXP] <<< $$s FAILED (exit != 0)"
