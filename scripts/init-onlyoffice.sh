@@ -376,6 +376,21 @@ else
     echo "[KK] inject-thai-underline.sh not mounted — skip"
 fi
 
+# --------------------------------------------
+# 6.8 No-break hyphen — ขีดกลาง "-" ไม่เป็นจุดตัดบรรทัด
+# --------------------------------------------
+# ขีดกลางเป็นอักขระคลาส HY ตาม UAX #14 (= ตัดบรรทัดหลังตัวนี้ได้) พอทุกเคาะเป็น NBSP
+# + ตัววาดตัดคำไทยไม่ได้ → ขีดกลางเหลือเป็นจุดตัดจุดเดียวทั้งบรรทัด เลขช่วง "๑-๕" จึงถูกหักคนละบรรทัด
+# ดู /opt/kk-init/inject-nobreak-hyphen.sh (patch sdk-all.js 3 token + regen .gz, idempotent)
+#   [1] ตอนสร้างอักขระ [2] ตอนอ่านกลับจากแคช [3] ห้ามเขียน <w:noBreakHyphen/> ลงไฟล์
+# ปิดได้ด้วย env KK_NOBREAK_HYPHEN_ENABLED=0
+if [ -f /opt/kk-init/inject-nobreak-hyphen.sh ]; then
+    echo "[KK] applying no-break-hyphen patch..."
+    bash /opt/kk-init/inject-nobreak-hyphen.sh || kk_warn "inject-nobreak-hyphen.sh failed (non-fatal)"
+else
+    echo "[KK] inject-nobreak-hyphen.sh not mounted — skip"
+fi
+
 # ============================================
 # Summary
 # ============================================
