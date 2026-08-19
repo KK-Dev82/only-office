@@ -177,9 +177,6 @@ cd scripts
   - คำอธิบาย: [`docs/PILCROW_COLOR.md`](docs/PILCROW_COLOR.md)
 - **`inject-thai-underline.sh`** — เลื่อนเส้นใต้ให้ชิด baseline แบบ Word (patch token ใน `sdk-all.js` + regen `.gz`)
   - ⚠️ token ผูกกับ build 9.2.x — อัป DS แล้วต้อง re-derive (สคริปต์จะเตือนแล้วข้ามให้เอง)
-- **`inject-nobreak-hyphen.sh`** — ขีดกลาง `-` ไม่เป็นจุดตัดบรรทัด (เลขช่วง "๑-๕" ไม่ถูกหักคนละบรรทัด)
-  - ครอบขีดที่ **พิมพ์สด/วาง** ในหน้าจอ (ฝั่งไฟล์ backend แปลงเป็น `<w:noBreakHyphen/>` ตอนเปิดอยู่แล้ว)
-  - ปิดด้วย `KK_NOBREAK_HYPHEN_ENABLED=0` · ⚠️ token ผูกกับ build 9.2.x เช่นกัน
 
 `restart-ds-dev.sh` — wrapper สำหรับ `developer.docker-compose.yml` (recreate + exec inject)
 `setup-experiment.sh` + `compose/experiment.docker-compose.yml` — ชุดทดลอง DS เวอร์ชันใหม่แบบแยก container/port/volume

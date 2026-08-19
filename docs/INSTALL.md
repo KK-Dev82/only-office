@@ -118,7 +118,6 @@ docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-au
 docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-tab-as-tabchar.sh
 docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-pilcrow-color.sh
 docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-thai-underline.sh
-docker exec -i onlyoffice-documentserver bash -s < only-office/scripts/inject-nobreak-hyphen.sh
 
 #   หรือ recreate ให้ Docker ผูก mount ใหม่ (ผู้ใช้ที่เปิดเอกสารค้างจะหลุด ~1-3 นาที)
 docker compose -f docker-compose.production.yml up -d --force-recreate onlyoffice-documentserver
